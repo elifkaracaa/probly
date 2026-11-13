@@ -1,0 +1,7 @@
+# Small test run: 5 questions, Qwen 0.5B. Used to check the whole chain quickly.
+model: qwen0.5b       # short name from scripts/generate.py
+dataset: triviaqa
+n: 5                  # number of questions
+precision: float32    # float32 | float16 | bfloat16, must match the cache (.meta.json)
+device: cpu           # cpu or mps (Apple GPU), only used when a model is loaded
+methods: all          # "all" or a list, e.g. [dummy_random, likelihood_mean]
