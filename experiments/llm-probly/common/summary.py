@@ -21,7 +21,7 @@ EXPECTED_METHODS = (
     "discrete_se",
 )
 
-COLUMNS = ["method", "status", "auroc", "ci_low", "ci_high", "aurc", "n_failed", "seconds_per_question"]
+COLUMNS = ["method", "status", "auroc", "ci_low", "ci_high", "aurc", "prr", "n_failed", "seconds_per_question"]
 
 SANITY_ROOT = RESULTS_ROOT / "sanity"
 SANITY_COLUMNS = ["method", "model", "auroc", "gap", "n_distinct", "verdict"]
@@ -67,6 +67,7 @@ def summary_table(
                 "ci_low": low,
                 "ci_high": high,
                 "aurc": scores["aurc"],
+                "prr": scores["prr"],
                 "n_failed": int(sum(record["failed"])),
                 "seconds_per_question": record["seconds_per_question"],
             },
