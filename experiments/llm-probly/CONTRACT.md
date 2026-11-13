@@ -20,7 +20,7 @@ Example:
 ### Folders
     data/<model>/<dataset>_<n>.jsonl         cache: one row per question (DATA)
     data/<model>/<dataset>_<n>.meta.json     generation settings
-    results/<model>/<dataset>/<method>.json  one score file per method
+    results/<model>/<dataset>_<n>/<method>.json  one score file per method
     configs/<model>_<dataset>.yaml           one config per run
     methods/<method>.py                      one plugin per method
 
