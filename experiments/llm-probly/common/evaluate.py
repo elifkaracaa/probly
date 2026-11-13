@@ -1,4 +1,4 @@
-"""Evaluate uncertainty scores against correctness labels (AUROC, AURC, PRR, bootstrap)."""
+"""Evaluate uncertainty scores against correctness labels (AUROC, AURC, PRR, ECE, bootstrap)."""
 
 from __future__ import annotations
 
@@ -88,6 +88,37 @@ def prr(
         perm = rng.permutation(len(u))
         areas.append(_rejection_area(u[perm], quality[perm]))
     return (float(np.mean(areas)) - area_random) / (area_oracle - area_random)
+
+
+def ece(uncertainty: ArrayLike, correct: ArrayLike, n_bins: int = 10) -> float:
+    """Expected calibration error (lower is better, 0 = perfectly calibrated).
+
+    Only meaningful for methods whose score is a probability of being correct
+    (p(True), verbalized confidence), with uncertainty = 1 - confidence.
+    The confidences are put into ``n_bins`` equal-width bins; in every bin we
+    compare the mean confidence with the accuracy, and average the gaps,
+    weighted by how many questions fall into the bin. Same binning as
+    lm-polygraph's ``ECE`` (first bin includes 0, the others are (lo, hi]).
+    """
+    u, wrong = _prepare(uncertainty, correct)
+    confidence = 1.0 - u
+    if np.any((confidence < 0) | (confidence > 1)):
+        msg = "ECE needs uncertainty = 1 - probability, so values in [0, 1]"
+        raise ValueError(msg)
+    accuracy = (~wrong).astype(float)
+    edges = np.linspace(0.0, 1.0, n_bins + 1)
+    total = 0.0
+    for i in range(n_bins):
+        lo, hi = edges[i], edges[i + 1]
+        if i == 0:
+            in_bin = (confidence >= lo) & (confidence <= hi)
+        else:
+            in_bin = (confidence > lo) & (confidence <= hi)
+        if not in_bin.any():
+            continue
+        gap = abs(accuracy[in_bin].mean() - confidence[in_bin].mean())
+        total += in_bin.mean() * gap  # in_bin.mean() = share of questions in this bin
+    return float(total)
 
 
 def evaluate(

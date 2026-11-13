@@ -43,6 +43,7 @@ Rules:
 - `ids` in the record are `[row["id"] for row in rows]`, in the same order.
 - No hardcoded model or dataset names inside a plugin.
 - Put `seconds_per_question` in the record. Use 0.0 if the method only reads the cache.
+- If your score is a probability of being correct (uncertainty = 1 - probability), add `"probability": True` to the record, so ECE is computed for it.
 
 ### Runner
     uv run python -m scripts.run_benchmark --config configs/qwen0.5b_triviaqa.yaml

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from common.evaluate import bootstrap_auroc, evaluate
+from common.evaluate import bootstrap_auroc, ece, evaluate
 from common.io import RESULTS_ROOT, load_scores
 
 EXPECTED_METHODS = (
@@ -21,7 +21,16 @@ EXPECTED_METHODS = (
     "discrete_se",
 )
 
-COLUMNS = ["method", "status", "auroc", "ci_low", "ci_high", "aurc", "prr", "n_failed", "seconds_per_question"]
+COLUMNS = ["method", "status", "auroc", "ci_low", "ci_high", "aurc", "prr", "ece", "n_failed", "seconds_per_question"]
+
+# Methods whose score is a probability of being correct (uncertainty = 1 - probability).
+# Only for these ECE is computed. New plugins can instead put "probability": true in their record.
+PROBABILITY_METHODS = (
+    "p_true_zeroshot_norm",
+    "p_true_brainstorm",
+    "p_true_empirical",
+    "verbalized_2s",
+)
 
 SANITY_ROOT = RESULTS_ROOT / "sanity"
 SANITY_COLUMNS = ["method", "model", "auroc", "gap", "n_distinct", "verdict"]
@@ -58,6 +67,8 @@ def summary_table(
             table.append({"method": method, "status": f"pending: {error}"})
             continue
         scores = evaluate(record["uncertainty"], correct)
+        is_probability = record.get("probability", method in PROBABILITY_METHODS)
+        calibration = ece(record["uncertainty"], correct) if is_probability else float("nan")
         low, high = bootstrap_auroc(record["uncertainty"], correct, n_boot=n_boot)
         table.append(
             {
@@ -68,6 +79,7 @@ def summary_table(
                 "ci_high": high,
                 "aurc": scores["aurc"],
                 "prr": scores["prr"],
+                "ece": calibration,
                 "n_failed": int(sum(record["failed"])),
                 "seconds_per_question": record["seconds_per_question"],
             },

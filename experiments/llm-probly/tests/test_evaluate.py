@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from common.evaluate import _rejection_area, aurc, auroc, bootstrap_auroc, evaluate, prr
+from common.evaluate import _rejection_area, aurc, auroc, bootstrap_auroc, ece, evaluate, prr
 
 CORRECT = np.array([True] * 12 + [False] * 38)
 
@@ -126,3 +126,51 @@ def test_constant_score_has_prr_near_zero():
 
 def test_prr_is_nan_when_all_answers_are_correct():
     assert np.isnan(prr([0.1, 0.5, 0.9], [True, True, True]))
+
+
+# ----- ECE -------------------------------------------------------------------
+
+
+def lm_polygraph_ece(estimator, target, n_bins):
+    """Copy of lm-polygraph's ECE.__call__ (normalize=False, MIT licence).
+
+    Source: lm_polygraph/ue_metrics/ece.py. lm-polygraph passes -confidence as
+    the estimator, so confidences = -estimator.
+    """
+    confidences = -np.asarray(estimator)
+    target = np.asarray(target)
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+    result, n = 0.0, len(confidences)
+    for i in range(n_bins):
+        lo, hi = bin_edges[i], bin_edges[i + 1]
+        in_bin = (confidences > lo) & (confidences <= hi) if i > 0 else (confidences >= lo) & (confidences <= hi)
+        if not np.any(in_bin):
+            continue
+        result += (np.sum(in_bin) / n) * abs(np.mean(target[in_bin]) - np.mean(confidences[in_bin]))
+    return result
+
+
+@pytest.mark.parametrize("n_bins", [10, 20])
+def test_ece_matches_lm_polygraph(n_bins):
+    rng = np.random.default_rng(3)
+    confidence = rng.random(300)
+    correct = rng.random(300) < confidence  # roughly calibrated
+    expected = lm_polygraph_ece(-confidence, correct.astype(float), n_bins)
+    assert np.isclose(ece(1 - confidence, correct, n_bins=n_bins), expected)
+
+
+def test_calibrated_scores_have_small_ece():
+    rng = np.random.default_rng(4)
+    confidence = rng.random(5000)
+    correct = rng.random(5000) < confidence  # right exactly as often as the confidence says
+    assert ece(1 - confidence, correct) < 0.03
+
+
+def test_overconfident_scores_have_large_ece():
+    # always 95 % sure, but only 24 % right
+    assert np.isclose(ece(np.full(50, 0.05), CORRECT), 0.95 - 0.24)
+
+
+def test_ece_rejects_scores_outside_zero_one():
+    with pytest.raises(ValueError):
+        ece([1.5, 0.2], [True, False])
