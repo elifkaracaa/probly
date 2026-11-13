@@ -7,7 +7,7 @@ Run from ``experiments/llm-probly``::
 Steps, in order. Each step is skipped if its output file already exists
 (use ``--force`` to recompute the method results):
 
-1. generate  -> data/<model>/<dataset>_<n>.jsonl      (scripts/generate.py)
+1. generate  -> data/<model>/<dataset>_<n>.jsonl + .meta.json  (scripts/generate.py)
 2. label     -> adds "correct" to that file           (scripts/label.py)
 3. methods   -> results/<model>/<dataset>/<method>.json, one per plugin in methods/
 4. evaluate  -> AUROC, AURC, bootstrap interval per method (common/summary.py)
@@ -28,13 +28,13 @@ import time
 
 import yaml
 
+from common.data import DATASETS, cache_path, load_jsonl
 from common.io import RESULTS_ROOT, save_scores
 from common.summary import summary_table
 
 ROOT = Path(__file__).resolve().parent.parent  # experiments/llm-probly
-DATA_DIR = ROOT / "data"
 METHODS_DIR = ROOT / "methods"
-SUPPORTED_DATASETS = ("triviaqa",)  # generate.py only knows TriviaQA for now
+PRECISIONS = ("float32", "float16", "bfloat16")  # same choices as scripts/generate.py
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,16 +53,14 @@ def load_config(path: str) -> dict:
     missing = [key for key in ("model", "dataset", "n") if key not in config]
     if missing:
         raise ValueError(f"{path}: missing keys {missing}")
-    if config["dataset"] not in SUPPORTED_DATASETS:
-        raise ValueError(f"dataset {config['dataset']!r} is not supported yet, only {SUPPORTED_DATASETS}")
+    if config["dataset"] not in DATASETS:  # the datasets DATA registered in common/data.py
+        raise ValueError(f"unknown dataset {config['dataset']!r}; known: {sorted(DATASETS)}")
+    config.setdefault("precision", "float32")
+    if config["precision"] not in PRECISIONS:
+        raise ValueError(f"precision must be one of {PRECISIONS}, got {config['precision']!r}")
     config.setdefault("device", "cpu")
     config.setdefault("methods", "all")
     return config
-
-
-def read_rows(path: Path) -> list[dict]:
-    """Read a JSONL cache file (one question per line)."""
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def run_script(module: str, *args: str) -> None:
@@ -78,22 +76,46 @@ def run_script(module: str, *args: str) -> None:
 def prepare_data(config: dict) -> list[dict]:
     """Make sure the cache file exists and is labelled, then return its rows."""
     model, dataset, n = config["model"], config["dataset"], config["n"]
-    path = DATA_DIR / model / f"{dataset}_{n}.jsonl"
+    path = cache_path(model, n, dataset)
 
     if path.exists():
         print(f"1. generate: skip, {path.relative_to(ROOT)} exists")
     else:
         print("1. generate")
-        run_script("scripts.generate", "--model", model, "--n", str(n), "--device", config["device"])
+        run_script(
+            "scripts.generate",
+            *("--model", model, "--dataset", dataset, "--n", str(n)),
+            *("--precision", config["precision"], "--device", config["device"]),
+        )
 
-    rows = read_rows(path)
+    rows = load_jsonl(path)
     if all("correct" in row for row in rows):
         print("2. label:    skip, already labelled")
     else:
         print("2. label")
-        run_script("scripts.label", "--model", model, "--n", str(n))
-        rows = read_rows(path)
+        run_script("scripts.label", "--model", model, "--dataset", dataset, "--n", str(n))
+        rows = load_jsonl(path)
     return rows
+
+
+def cache_precision(config: dict) -> str:
+    """Read the precision the cache was made with and check it matches the config.
+
+    DATA found that precision changes the answers (bfloat16 -> float32 changed
+    9 of 50 answers on 0.5B), so a cache made with another precision than the
+    config asks for must not be used silently.
+    """
+    meta_path = cache_path(config["model"], config["n"], config["dataset"], suffix=".meta.json")
+    if not meta_path.exists():
+        print(f"   note: no {meta_path.name} (cache made before cache v2), precision unknown")
+        return "unknown"
+    used = json.loads(meta_path.read_text())["settings"]["precision"]
+    if used != config["precision"]:
+        raise ValueError(
+            f"{meta_path.name} says the cache was made with {used}, but the config asks for "
+            f"{config['precision']}. Change the config, or delete the cache to regenerate it.",
+        )
+    return used
 
 
 # ----- step 3: methods -----------------------------------------------------
@@ -132,8 +154,10 @@ def load_llm(config: dict):
     # and not needed when no plugin uses the model.
     from probly.representer.sampler.huggingface import load_model
     from scripts.generate import MODELS
+    from scripts.generate import PRECISIONS as TORCH_DTYPES
 
-    model, tok = load_model(MODELS[config["model"]])
+    # Same precision as the cache, so methods see the model that wrote the answers.
+    model, tok = load_model(MODELS[config["model"]], model_kwargs={"dtype": TORCH_DTYPES[config["precision"]]})
     model = model.to(config["device"])
     model.eval()
     return model, tok
@@ -177,15 +201,17 @@ def to_markdown(table) -> str:
         lines.append("| " + " | ".join(cell(v) for v in row) + " |")
     return "\n".join(lines) + "\n"
 
-def make_table(rows: list[dict], plugins: dict, run: str) -> None:
+def make_table(rows: list[dict], plugins: dict, run: str, precision: str) -> None:
     """Evaluate every method of this run and write the summary table."""
     print("4. evaluate")
     table = summary_table(rows, run=run, methods=tuple(plugins))
     table.insert(1, "family", [getattr(plugins.get(m), "FAMILY", "") for m in table["method"]])
 
     out = RESULTS_ROOT / run / "summary.md"
-    out.write_text(to_markdown(table))
+    header = f"Run `{run}`, {len(rows)} questions, precision {precision}\n\n"
+    out.write_text(header + to_markdown(table))
     print(f"5. table:    {out.relative_to(ROOT)}\n")
+    print(f"precision: {precision}")
     print(table.to_string(index=False))
 
 
@@ -197,9 +223,10 @@ def main() -> None:
     print(f"run: {run}")
 
     rows = prepare_data(config)
+    precision = cache_precision(config)
     plugins = choose_plugins(find_plugins(), config, args)
     run_methods(plugins, rows, config, run, args.force)
-    make_table(rows, plugins, run)
+    make_table(rows, plugins, run, precision)
 
 
 if __name__ == "__main__":
