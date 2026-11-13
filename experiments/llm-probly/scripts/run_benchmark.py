@@ -30,7 +30,7 @@ import yaml
 
 from common.data import DATASETS, cache_path, load_jsonl
 from common.io import RESULTS_ROOT, save_scores
-from common.summary import summary_table
+from common.summary import summary_table, to_markdown
 
 ROOT = Path(__file__).resolve().parent.parent  # experiments/llm-probly
 METHODS_DIR = ROOT / "methods"
@@ -187,19 +187,6 @@ def run_methods(plugins: dict, rows: list[dict], config: dict, run: str, force: 
 
 
 # ----- steps 4 and 5: evaluate and table -------------------------------------
-
-def to_markdown(table) -> str:
-    """Write a DataFrame as a Markdown table (numbers with 3 decimals)."""
-
-    def cell(value) -> str:
-        if isinstance(value, float):
-            return "" if value != value else f"{value:.3f}"  # value != value is True only for NaN
-        return str(value)
-
-    lines = ["| " + " | ".join(table.columns) + " |", "|" + "---|" * len(table.columns)]
-    for _, row in table.iterrows():
-        lines.append("| " + " | ".join(cell(v) for v in row) + " |")
-    return "\n".join(lines) + "\n"
 
 def make_table(rows: list[dict], plugins: dict, run: str, precision: str) -> None:
     """Evaluate every method of this run and write the summary table."""

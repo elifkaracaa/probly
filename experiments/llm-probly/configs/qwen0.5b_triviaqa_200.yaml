@@ -1,0 +1,7 @@
+# qwen0.5b on 200 TriviaQA questions.
+model: qwen0.5b       # short name from scripts/generate.py
+dataset: triviaqa
+n: 200                # number of questions
+precision: float32    # float32 | float16 | bfloat16, must match the cache (.meta.json)
+device: cpu           # cpu or mps (Apple GPU), only used when a model is loaded
+methods: all          # "all" or a list, e.g. [dummy_random, likelihood_mean]

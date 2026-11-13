@@ -32,6 +32,9 @@ PROBABILITY_METHODS = (
     "verbalized_2s",
 )
 
+# Model sizes from small to large; the comparison table uses this column order.
+MODEL_ORDER = ("smollm135m", "smollm2", "qwen0.5b", "qwen1.5b", "qwen3b", "qwen7b")
+
 SANITY_ROOT = RESULTS_ROOT / "sanity"
 SANITY_COLUMNS = ["method", "model", "auroc", "gap", "n_distinct", "verdict"]
 
@@ -85,6 +88,56 @@ def summary_table(
             },
         )
     return pd.DataFrame(table, columns=COLUMNS)
+
+
+def to_markdown(table: pd.DataFrame) -> str:
+    """Write a DataFrame as a Markdown table (numbers with 3 decimals, NaN as an empty cell)."""
+
+    def cell(value) -> str:
+        if isinstance(value, float):
+            return "" if value != value else f"{value:.3f}"  # value != value is True only for NaN
+        return str(value)
+
+    lines = ["| " + " | ".join(str(c) for c in table.columns) + " |", "|" + "---|" * len(table.columns)]
+    for _, row in table.iterrows():
+        lines.append("| " + " | ".join(cell(v) for v in row) + " |")
+    return "\n".join(lines) + "\n"
+
+
+def find_models(run_name: str, results_root: Path = RESULTS_ROOT) -> list[str]:
+    """Models that have a results folder ``results/<model>/<run_name>/``, small to large."""
+    found = [p.parent.name for p in Path(results_root).glob(f"*/{run_name}") if p.is_dir()]
+    known = [m for m in MODEL_ORDER if m in found]
+    return known + sorted(m for m in found if m not in MODEL_ORDER)
+
+
+def compare_models(
+    rows_by_model: dict[str, list[dict]],
+    run_name: str,
+    n_boot: int = 1000,
+    results_root: Path = RESULTS_ROOT,
+) -> pd.DataFrame:
+    """One long table: every method of every model, with a ``model`` and an ``accuracy`` column.
+
+    ``rows_by_model`` maps a model to its labelled cache rows, ``run_name`` is
+    the folder inside each model, e.g. ``"triviaqa_200"``.
+    """
+    parts = []
+    for model, rows in rows_by_model.items():
+        table = summary_table(rows, run=f"{model}/{run_name}", methods=(), n_boot=n_boot, results_root=results_root)
+        table = table[table["status"] == "ok"].drop(columns="status")
+        table.insert(0, "model", model)
+        table.insert(2, "accuracy", sum(r["correct"] for r in rows) / len(rows))
+        parts.append(table)
+    return pd.concat(parts, ignore_index=True)
+
+
+def method_by_model(long: pd.DataFrame, metric: str) -> pd.DataFrame:
+    """Turn the long table into methods x models for one metric (e.g. "auroc")."""
+    models = list(dict.fromkeys(long["model"]))  # keep the small-to-large order
+    wide = long.pivot(index="method", columns="model", values=metric)[models]
+    wide = wide.dropna(how="all")  # e.g. ECE: drop methods that are not probabilities
+    return wide.reset_index().rename_axis(columns=None)
 
 
 def sanity_verdict(auroc: float) -> str:
