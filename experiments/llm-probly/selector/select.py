@@ -17,7 +17,7 @@ p_true_zeroshot's despite a 0.145 AUROC gap), so overlap would pick msp there.
 Run from ``experiments/llm-probly``::
 
     uv run python -m selector.select                 # all models, print the choice
-    uv run python -m selector.select --save          # also write profiles/<model>.json
+    uv run python -m selector.select --save          # also calibrate (D3) and write profiles/<model>.json
     uv run python -m selector.select --access text_only --max-cost 5
 """
 
@@ -32,6 +32,7 @@ from common.evaluate import auroc
 from common.io import RESULTS_ROOT
 import numpy as np
 
+from selector.calibrate import calibrate_profile
 from selector.profile import MethodChoice, Metrics, Profile, save_profile
 from selector.rank import DEFAULT_ALPHA, DEFAULT_N_BOOT, bootstrap_indices, rank_methods
 from selector.split import DEFAULT_CALIBRATION_SIZE, DEFAULT_SEED, Split, make_split, subset
@@ -336,8 +337,22 @@ def main() -> None:
         )
         print_selection(selection, PLACEHOLDER_REGISTRY)
         if args.save:
-            path = save_profile(build_profile(selection, table, split, dataset=args.dataset))
-            print(f"  saved {path}")
+            profile = build_profile(selection, table, split, dataset=args.dataset)
+            u = table.scores[selection.chosen]
+            profile, brier = calibrate_profile(
+                profile,
+                u.loc[split.calibration],
+                table.correct.loc[split.calibration],
+                u.loc[split.held_out],
+                table.correct.loc[split.held_out],
+            )
+            cal = profile.calibration
+            before = "n/a (raw score)" if cal.ece_before is None else f"{cal.ece_before:.3f}"
+            print(
+                f"  calibration: {cal.type} (CV Brier platt {brier['platt']:.4f}, isotonic {brier['isotonic']:.4f}); "
+                f"held-out ECE before {before}, after {cal.ece_after:.3f}"
+            )
+            print(f"  saved {save_profile(profile)}")
 
 
 if __name__ == "__main__":
