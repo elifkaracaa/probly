@@ -52,3 +52,38 @@ Rules:
     # --methods a,b            run only these methods
     # --skip-model-methods     skip plugins with NEEDS_MODEL = True
     # --force                  recompute even if the file exists
+
+## Profile (D4, week 3)
+
+The selector writes one file per model: `profiles/<model>.json`. The API (F1) and the demo (F3)
+only read this file, with `selector.profile.load_profile()`; they never run the selector.
+Example: `docs/profile_example_qwen1.5b.json` (real 1.5B numbers; the chosen method is only an example).
+
+| Field | Type | Meaning |
+|---|---|---|
+| `schema_version` | int | Format version, currently 1. The loader refuses other versions. |
+| `model`, `model_id` | str | Short name (`qwen1.5b`) and Hugging Face id (`Qwen/Qwen2.5-1.5B-Instruct`). |
+| `dataset`, `n_questions` | str, int | Run the selector was fitted on (`triviaqa`, 200). |
+| `split_seed`, `calibration_size` | int, int | Calibration / held-out split (`selector.split`), so the result can be rebuilt. |
+| `method.name` | str | Chosen method, same as its plugin and result file; `"stack"` if D2's combination wins. |
+| `method.family` | str | `agreement` \| `self_eval` \| `baseline` \| `hybrid` (as in the plugins). |
+| `method.access` | str | `white_box` \| `logprobs` \| `text_only`. **To be confirmed with E2.** |
+| `method.cost` | float | Relative cost per question, generation included (1 = greedy answer only). **To be confirmed with E2.** |
+| `method.parameters` | object | Settings the API needs to run the method, e.g. `{"n_samples": 10}`. For `stack`: `methods`, `weights`, `intercept`, `means`, `stds`. |
+| `method.probability` | bool | True if `1 - uncertainty` is already a probability of being correct. |
+| `reason` | str | One sentence on why this method was chosen (shown in the demo). |
+| `calibration_metrics` | object | `auroc`, `auroc_low`, `auroc_high`, `prr`, `prr_low`, `prr_high` (95 % bootstrap) on the calibration part. |
+| `held_out_metrics` | object \| null | Same fields on the held-out part; `null` until the final run (day 4). |
+| `calibration.type` | str | `none` (not calibrated yet) \| `platt` \| `isotonic` (D3). |
+| `calibration.parameters` | object | `platt`: `a`, `b`. `isotonic`: `x` (increasing uncertainties), `y` (confidences). |
+| `calibration.ece_before`, `ece_after` | float \| null | ECE on the held-out part before and after calibration. |
+| `candidates` | object | Calibration-part metrics of every compared method, keyed by name (for the demo's comparison). |
+| `created_at` | str | UTC time the profile was written (ISO 8601). |
+
+To turn a raw score into a confidence, the API calls `selector.profile.confidence(profile, uncertainty)`:
+
+- `platt`: confidence = 1 / (1 + exp(a * u + b))
+- `isotonic`: linear interpolation of `(x, y)`, constant outside the range
+- `none`: `1 - u` for probability methods; an error for raw scores (msp, SE, ...), which need calibration first
+
+Rules: fields are only added in a new `schema_version`; missing or unknown fields make `load_profile()` fail.
