@@ -14,14 +14,20 @@ from selector.profile import Calibration, MethodChoice, Metrics, Profile, save_p
 from api.app import app
 from api.profiles import find_profile
 from api.scoring import (
+    SCORERS,
     Generation,
     generate,
     likelihood_mean,
     likelihood_sum,
     mean_token_entropy,
+    msp,
     perplexity,
 )
 from common.data import cache_path, load_jsonl
+from methods import likelihood_mean as plugin_likelihood_mean
+from methods import mean_token_entropy as plugin_mean_token_entropy
+from methods import msp as plugin_msp
+from methods import perplexity as plugin_perplexity
 
 MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct"
 METRICS = Metrics(auroc=0.8, auroc_low=0.7, auroc_high=0.9, prr=0.6, prr_low=0.4, prr_high=0.8)
@@ -169,16 +175,69 @@ def test_scorers_on_known_values() -> None:
     gen = fake_generation(math.log(0.5))
     assert likelihood_sum(gen) == pytest.approx(2 * math.log(2))
     assert likelihood_mean(gen) == pytest.approx(math.log(2))
+    assert msp(gen) == pytest.approx(2 * math.log(2))
     assert perplexity(gen) == pytest.approx(2.0)
     assert mean_token_entropy(gen) == pytest.approx(0.5)
 
 
-def test_scorers_handle_empty_generation() -> None:
+def test_scorers_on_an_empty_generation() -> None:
+    """As in the plugins: no scored tokens gives None (likelihood_mean/sum keep their cache values)."""
     empty = Generation(answer="", token_logprobs=[], token_entropies=[])
     assert likelihood_sum(empty) == 0.0
     assert likelihood_mean(empty) == 0.0
-    assert perplexity(empty) == 1.0
-    assert mean_token_entropy(empty) == 0.0
+    assert msp(empty) is None
+    assert perplexity(empty) is None
+    assert mean_token_entropy(empty) is None
+
+
+def test_empty_answer_gets_zero_confidence(profiles: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    save_profile(make_profile(method="perplexity"), profiles / "tiny.json")
+    empty = Generation(answer="", token_logprobs=[], token_entropies=[])
+    monkeypatch.setattr("api.app.generate", lambda model_id, question: empty)
+    r = client.post("/uncertainty", json={"question": "hi", "model": "tiny"})
+    assert r.status_code == 200
+    assert r.json()["confidence"] == 0.0
+
+
+@pytest.mark.parametrize("method", ["msp", "perplexity", "mean_token_entropy", "likelihood_mean", "likelihood_sum"])
+def test_every_baseline_in_the_registry_is_supported(profiles: Path, monkeypatch: pytest.MonkeyPatch, method: str) -> None:
+    assert method in SCORERS
+    save_profile(make_profile(method=method), profiles / "tiny.json")
+    monkeypatch.setattr("api.app.generate", lambda model_id, question: fake_generation(math.log(0.9)))
+    r = client.post("/uncertainty", json={"question": "hi", "model": "tiny"})
+    assert r.status_code == 200
+    assert r.json()["method"] == method
+
+
+def test_scorers_match_the_plugins() -> None:
+    """The API's scorers give the same numbers as the benchmark plugins on the cached rows (no model needed)."""
+    path = cache_path("qwen0.5b", 5, "triviaqa")
+    if not path.exists():
+        pytest.skip(f"{path} not found")
+    rows = load_jsonl(path)
+    gens = [
+        Generation(
+            answer=row["greedy_answer"],
+            token_logprobs=row["greedy_token_logprobs"],
+            token_entropies=row["greedy_token_entropies"],
+        )
+        for row in rows
+    ]
+    plugins = {
+        "likelihood_mean": plugin_likelihood_mean,
+        "msp": plugin_msp,
+        "perplexity": plugin_perplexity,
+        "mean_token_entropy": plugin_mean_token_entropy,
+    }
+    for name, plugin in plugins.items():
+        expected = plugin.score(rows)["uncertainty"]
+        got = [SCORERS[name](gen) for gen in gens]
+        assert len(got) == len(expected)
+        for g, e in zip(got, expected, strict=True):
+            if e is None:
+                assert g is None
+            else:
+                assert g == pytest.approx(e, rel=1e-6, abs=1e-9)
 
 
 def test_openapi_docs_available() -> None:

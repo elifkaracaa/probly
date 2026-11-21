@@ -47,7 +47,7 @@ class Generation:
 
 
 def likelihood_sum(gen: Generation) -> float:
-    """Uncertainty = minus the summed log likelihood (as ``likelihood_sum`` in the benchmark).
+    """Uncertainty = minus the summed log likelihood (``likelihood_sum`` in the benchmark).
 
     Args:
         gen: The generation.
@@ -59,7 +59,7 @@ def likelihood_sum(gen: Generation) -> float:
 
 
 def likelihood_mean(gen: Generation) -> float:
-    """Uncertainty = minus the mean log likelihood (as ``likelihood_mean`` in the benchmark).
+    """Uncertainty = minus the mean log likelihood (``methods/likelihood_mean.py``).
 
     Args:
         gen: The generation.
@@ -71,38 +71,50 @@ def likelihood_mean(gen: Generation) -> float:
     return -sum(gen.token_logprobs) / n if n else 0.0
 
 
-def perplexity(gen: Generation) -> float:
-    """Perplexity: ``exp(likelihood_mean)``.
+def msp(gen: Generation) -> float | None:
+    """Maximum sequence probability baseline (``methods/msp.py``).
 
     Args:
         gen: The generation.
 
     Returns:
-        Perplexity, at least 1.
+        ``-log P(greedy answer)``, which is ``-sum(token_logprobs)``; None for an empty generation.
     """
-    return math.exp(likelihood_mean(gen))
+    return -sum(gen.token_logprobs) if gen.token_logprobs else None
 
 
-def mean_token_entropy(gen: Generation) -> float:
-    """Mean entropy of the next-token distributions over the scored tokens.
+def perplexity(gen: Generation) -> float | None:
+    """Perplexity baseline (``methods/perplexity.py``).
 
     Args:
         gen: The generation.
 
     Returns:
-        Mean token entropy; 0.0 for an empty generation.
+        ``exp(-mean token log-probability)``; None for an empty generation.
     """
-    n = len(gen.token_entropies)
-    return sum(gen.token_entropies) / n if n else 0.0
+    lps = gen.token_logprobs
+    return math.exp(-sum(lps) / len(lps)) if lps else None
 
 
-# likelihood_sum and likelihood_mean are confirmed against methods/ and
-# scripts/baseline_likelihood.py. perplexity and mean_token_entropy use the
-# natural definitions: confirm them against their plugins before relying on them.
-# msp is not supported until its definition is confirmed.
-SCORERS: dict[str, Callable[[Generation], float]] = {
+def mean_token_entropy(gen: Generation) -> float | None:
+    """Mean token entropy baseline (``methods/mean_token_entropy.py``).
+
+    Args:
+        gen: The generation.
+
+    Returns:
+        Mean entropy of the next-token distributions; None for an empty generation.
+    """
+    ents = gen.token_entropies
+    return sum(ents) / len(ents) if ents else None
+
+
+# Every definition below is checked against its plugin in methods/ by
+# test_scorers_match_the_plugins.
+SCORERS: dict[str, Callable[[Generation], float | None]] = {
     "likelihood_sum": likelihood_sum,
     "likelihood_mean": likelihood_mean,
+    "msp": msp,
     "perplexity": perplexity,
     "mean_token_entropy": mean_token_entropy,
 }
