@@ -23,7 +23,8 @@ def uncertainty(req: UncertaintyRequest) -> UncertaintyResponse:
         req: Question, model (short name or Hugging Face id) and optional cost budget.
 
     Returns:
-        Answer, calibrated confidence, chosen method and its cost.
+        Answer, calibrated confidence, chosen method and its cost. If the model
+        produces an empty answer, the confidence is 0.0.
 
     Raises:
         HTTPException: 404 if no profile exists for the model, 422 if the chosen
@@ -52,10 +53,14 @@ def uncertainty(req: UncertaintyRequest) -> UncertaintyResponse:
         )
 
     gen = generate(profile.model_id, req.question)
-    try:
-        conf = float(confidence(profile, scorer(gen)))
-    except ValueError as err:
-        raise HTTPException(status_code=500, detail=str(err)) from err
+    score = scorer(gen)
+    if score is None:  # the model produced no scored tokens, so there is nothing to trust
+        conf = 0.0
+    else:
+        try:
+            conf = float(confidence(profile, score))
+        except ValueError as err:
+            raise HTTPException(status_code=500, detail=str(err)) from err
     return UncertaintyResponse(
         answer=gen.answer,
         confidence=min(1.0, max(0.0, conf)),
