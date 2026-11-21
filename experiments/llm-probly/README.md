@@ -137,3 +137,35 @@ Extra cost of each method, seconds per question on top of generation (`seconds_p
   github.com/elifkaracaa/probly/compare/main...BRANCH
   (the link git prints after a push targets pwhofman/probly; don't use it)
 - every PR is reviewed by your second before it is merged
+
+
+
+
+## Uncertainty for LLMs (demo)
+
+How do you know when a language model's answer can be trusted? We run five uncertainty methods on Qwen2.5-1.5B-Instruct, answering 200 TriviaQA questions: p(True) zero-shot, p(True) brainstorm, p(True) empirical, semantic entropy and verbalized confidence. Each method scores every answer, and a good method gives a high uncertainty to a wrong answer and a low one to a right answer.
+
+<picture>
+  <source srcset="demo/llm_uncertainty_demo_1.5b_200q_dark.svg" media="(prefers-color-scheme: dark)">
+  <source srcset="demo/llm_uncertainty_demo_1.5b_200q_light.svg" media="(prefers-color-scheme: light)">
+  <img src="demo/llm_uncertainty_demo_1.5b_200q_light.svg" alt="Animated demo: example TriviaQA questions with the answers of Qwen2.5-1.5B-Instruct and the uncertainty scores of five methods" width="100%" />
+</picture>
+
+One question with low and one with high uncertainty (uncertainty rank: average over the five methods of the answer's rank among the 200 questions, 0 = most certain, 1 = most uncertain):
+
+| Question | Answer | Correct | Uncertainty rank |
+|---|---|---|---|
+| In which year was Sputnik, the first man-made satellite, launched? | 1957. | yes | 0.11 |
+| Who wrote the 1993 novel "The Joy Luck Club"? | Pu Songling | no (Amy Tan) | 0.93 |
+
+The model is right about Sputnik, and every method puts the answer among the most certain ones. It is wrong about "The Joy Luck Club", and all five methods put the answer among the most uncertain ones. The methods do not catch every wrong answer: some wrong answers are ranked as certain, and some right answers as uncertain. The comparison of the methods per model is in the results tables.
+
+Re-create the animation from the saved results (no model runs):
+
+    uv run python scripts/make_readme_demo.py --list --run qwen1.5b --n 200
+    uv run python scripts/make_readme_demo.py --ids 48 169 --run qwen1.5b --n 200
+
+A runnable example that generates answers and scores them is
+[`examples/llm/uncertainty_pipeline.py`](../../examples/llm/uncertainty_pipeline.py).
+
+<!-- Day 4: add the selector's chosen method and the calibrated confidence per model, from profiles/<model>.json. -->
