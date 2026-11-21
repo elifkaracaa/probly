@@ -1,0 +1,23 @@
+{
+  "model": "api:qwen2.5:0.5b",
+  "access": "text",
+  "base_url": "http://localhost:11434/v1",
+  "source": "data/qwen0.5b/triviaqa_200.jsonl",
+  "n": 200,
+  "num_samples": 10,
+  "temperature": 1.0,
+  "max_tokens": 32,
+  "seed": 42,
+  "system": null,
+  "accuracy": 0.235,
+  "seconds_per_question": 8.82918,
+  "usage": {
+    "requests": 1265,
+    "prompt_tokens": 60654,
+    "completion_tokens": 38801,
+    "seconds": 1015.3557
+  },
+  "questions_generated_this_run": 115,
+  "requests_per_question": 11.0,
+  "tokens_per_question": 864.8260869565217
+}
