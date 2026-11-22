@@ -6,14 +6,14 @@
   "split_seed": 0,
   "calibration_size": 100,
   "method": {
-    "name": "perplexity",
+    "name": "likelihood_mean",
     "family": "baseline",
     "access": "logprobs",
     "cost": 1.0,
     "parameters": {},
     "probability": false
   },
-  "reason": "perplexity (AUROC 0.768) is not significantly worse than the best, p_true_zeroshot (difference -0.039, 95 % interval [-0.154, +0.079]), and costs 2x less.",
+  "reason": "likelihood_mean (AUROC 0.768) is not significantly worse than the best, p_true_zeroshot (difference -0.039, 95 % interval [-0.154, +0.079]), and costs 2x less.",
   "calibration_metrics": {
     "auroc": 0.7683,
     "auroc_low": 0.6717,
@@ -24,41 +24,13 @@
   },
   "held_out_metrics": null,
   "calibration": {
-    "type": "isotonic",
+    "type": "platt",
     "parameters": {
-      "x": [
-        1.0028997658726277,
-        1.0299178233564283,
-        1.064118278809161,
-        1.1525437735827817,
-        1.163114614817615,
-        1.1951833088489003,
-        1.2058438089736088,
-        1.2721607986439682,
-        1.2747318933472922,
-        1.6481409434274503,
-        1.6658530849403184,
-        3.594301964618803,
-        5.357081293489792
-      ],
-      "y": [
-        1.0,
-        1.0,
-        0.75,
-        0.75,
-        0.5714285714285714,
-        0.5714285714285714,
-        0.45454545454545453,
-        0.45454545454545453,
-        0.45161290322580644,
-        0.45161290322580644,
-        0.08333333333333333,
-        0.08333333333333333,
-        0.0
-      ]
+      "a": 3.2251410090421535,
+      "b": -0.801213166637137
     },
     "ece_before": null,
-    "ece_after": 0.0808
+    "ece_after": 0.0949
   },
   "candidates": {
     "p_true_zeroshot": {
@@ -69,7 +41,7 @@
       "prr_low": 0.4401,
       "prr_high": 0.8088
     },
-    "perplexity": {
+    "likelihood_mean": {
       "auroc": 0.7683,
       "auroc_low": 0.6717,
       "auroc_high": 0.8588,
@@ -143,5 +115,5 @@
     }
   },
   "schema_version": 1,
-  "created_at": "2026-11-20T20:49:46+00:00"
+  "created_at": "2026-11-22T19:06:45+00:00"
 }

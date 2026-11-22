@@ -28,12 +28,12 @@ SCHEMA_VERSION = 1
 PROFILES_ROOT = Path(__file__).resolve().parent.parent / "profiles"
 
 Family = Literal["agreement", "self_eval", "baseline", "hybrid"]
-# To be confirmed with E2's method registry (field names and allowed values).
-Access = Literal["white_box", "logprobs", "text_only"]
+# Same values as E2's method registry (common/registry.py); tests/test_registry.py checks they agree.
+Access = Literal["text_only", "logprobs", "white_box"]
 CalibrationType = Literal["none", "platt", "isotonic"]
 
 FAMILIES = ("agreement", "self_eval", "baseline", "hybrid")
-ACCESS_LEVELS = ("white_box", "logprobs", "text_only")
+ACCESS_LEVELS = ("text_only", "logprobs", "white_box")
 CALIBRATION_TYPES = ("none", "platt", "isotonic")
 
 
@@ -57,8 +57,8 @@ class MethodChoice:
         name: Method name, same as its plugin and result file (e.g. ``"p_true_zeroshot"``),
             or ``"stack"`` when D2's combination was chosen.
         family: Method family, as declared in the plugin (CONTRACT.md).
-        access: What the method needs from the model. To be confirmed with E2.
-        cost: Relative cost per question, generation included. To be confirmed with E2.
+        access: What the method needs from the model (``common/registry.py``).
+        cost: Generation passes per question, greedy answer included (``common/registry.py``).
         parameters: Settings the API needs to run the method (e.g. ``{"n_samples": 10}``).
             For ``"stack"``: ``methods``, ``weights``, ``intercept``, ``means``, ``stds``.
         probability: True if ``1 - uncertainty`` is already a probability of being correct.

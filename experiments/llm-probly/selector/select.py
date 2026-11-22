@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING
 
 from common.evaluate import auroc
 from common.io import RESULTS_ROOT
+from common.registry import ACCESS_LEVELS, REGISTRY
 import numpy as np
 
 from selector.calibrate import calibrate_profile
@@ -43,30 +44,12 @@ if TYPE_CHECKING:
 
     from selector.table import ScoreTable
 
-# Placeholder values until E2's method registry (common/registry.py) is merged; then this dict is built from it.
-# cost = relative cost per question, generation included (1 = greedy answer only;
-# 10 extra samples add 10, each extra model call adds 1, an NLI pass adds 1).
-# access = the least the method needs from the model: white_box > logprobs > text_only.
-DEFAULT_REGISTRY: dict[str, dict] = {
-    "msp": {"family": "baseline", "access": "logprobs", "cost": 1.0},
-    "perplexity": {"family": "baseline", "access": "logprobs", "cost": 1.0},
-    "likelihood_mean": {"family": "baseline", "access": "logprobs", "cost": 1.0},
-    "mean_token_entropy": {"family": "baseline", "access": "white_box", "cost": 1.0},
-    "p_true_zeroshot": {"family": "self_eval", "access": "logprobs", "cost": 2.0},
-    "verbalized_2s": {"family": "self_eval", "access": "text_only", "cost": 2.0},
-    "p_true_empirical": {"family": "self_eval", "access": "text_only", "cost": 11.0},
-    "p_true_brainstorm": {"family": "self_eval", "access": "logprobs", "cost": 12.0},
-    "lexical_similarity": {"family": "agreement", "access": "text_only", "cost": 11.0},
-    "discrete_semantic_entropy": {"family": "agreement", "access": "text_only", "cost": 12.0},
-    "semantic_entropy": {"family": "agreement", "access": "logprobs", "cost": 12.0},
-}
+# Family, access level and cost of every method come from E2's registry (common/registry.py).
+DEFAULT_REGISTRY: dict[str, dict] = {name: spec.to_dict() for name, spec in REGISTRY.items()}
 
-# What each access level allows: a white-box model can run everything, an API without logprobs only text methods.
-ALLOWED_ACCESS = {
-    "white_box": {"white_box", "logprobs", "text_only"},
-    "logprobs": {"logprobs", "text_only"},
-    "text_only": {"text_only"},
-}
+# What each access level allows, from the registry's order (text_only < logprobs < white_box):
+# a white-box model can run everything, an API without logprobs only text methods.
+ALLOWED_ACCESS = {level: set(ACCESS_LEVELS[: i + 1]) for i, level in enumerate(ACCESS_LEVELS)}
 
 
 @dataclass
@@ -179,7 +162,8 @@ def select_method(
 
     Args:
         table: Scores and labels of the calibration part (steps 1 and 2).
-        registry: Family, access level and cost per method. Defaults to ``DEFAULT_REGISTRY``.
+        registry: Family, access level and cost per method. Defaults to ``DEFAULT_REGISTRY``
+            (from ``common/registry.py``).
         access: What the user has: ``white_box``, ``logprobs`` or ``text_only``.
         max_cost: Highest accepted cost per question; ``None`` = no limit.
         n_boot: Number of bootstrap resamples.
