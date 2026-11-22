@@ -175,18 +175,22 @@ def normalize(text: str) -> str:
 
 
 def is_correct(answer: str, reference: str | None) -> bool:
-    """Count an answer as correct if it contains the reference answer."""
-    return reference is not None and normalize(reference) in normalize(answer)
+    """Count an answer as correct if it contains the reference answer as whole words."""
+    if reference is None:
+        return False
+    return re.search(rf"\b{re.escape(normalize(reference))}\b", normalize(answer)) is not None
 
 
 scores = {question: {name: method(gen) for name, method in METHODS.items()} for question, gen in generations.items()}
 
-print(f"{'Question':<45} {'Answer':<24} {'ok':<3}" + "".join(f"{name:>19}" for name in METHODS))
-for question, reference in QUESTIONS.items():
+for number, (question, reference) in enumerate(QUESTIONS.items(), start=1):
     answer = generations[question]["answer"]
-    mark = "yes" if is_correct(answer, reference) else "no"
-    row = "".join(f"{scores[question][name]:>19.3f}" for name in METHODS)
-    print(f"{question:<45} {answer[:22]:<24} {mark:<3}{row}")
+    mark = "correct" if is_correct(answer, reference) else "wrong"
+    print(f"Q{number}: {question}\n    answer: {answer}  [{mark}, reference: {reference}]")
+
+print(f"\n{'':<4}" + "".join(f"{name:>19}" for name in METHODS))
+for number, question in enumerate(QUESTIONS, start=1):
+    print(f"Q{number:<3}" + "".join(f"{scores[question][name]:>19.3f}" for name in METHODS))
 
 # %%
 # Step 3: selector
@@ -260,10 +264,9 @@ correct = np.array([is_correct(generations[q]["answer"], ref) for q, ref in QUES
 ece_after = profile["calibration"]["ece_after"]
 ece_text = "not measured yet" if ece_after is None else f"{ece_after:.3f}"
 print(f"Calibration: {profile['calibration']['type']}, held-out ECE after calibration: {ece_text}")
-print(f"{'Question':<45} {'Answer':<24} {'ok':<4} {'raw':>7} {'confidence':>11}")
-for question, answer_ok, u, c in zip(QUESTIONS, correct, raw, conf, strict=True):
-    answer = generations[question]["answer"]
-    print(f"{question:<45} {answer[:22]:<24} {'yes' if answer_ok else 'no':<4} {u:>7.3f} {c:>11.2f}")
+print(f"{'':<4} {'answer':<8} {'raw':>7} {'confidence':>11}")
+for number, (answer_ok, u, c) in enumerate(zip(correct, raw, conf, strict=True), start=1):
+    print(f"Q{number:<3} {'correct' if answer_ok else 'wrong':<8} {u:>7.3f} {c:>11.2f}")
 
 finite = np.isfinite(raw)
 grid = np.linspace(0.0, max(raw[finite].max(initial=0.0) * 1.2, 1.0), 200)
