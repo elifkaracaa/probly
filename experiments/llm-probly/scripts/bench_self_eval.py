@@ -13,11 +13,11 @@ from __future__ import annotations
 import argparse
 import time
 
-import torch
-
 from common import reflexive
 from common.data import load_data
 from methods import p_true_brainstorm, p_true_zeroshot
+import torch
+
 from probly.representer.sampler.huggingface import load_model
 
 MODELS = {
