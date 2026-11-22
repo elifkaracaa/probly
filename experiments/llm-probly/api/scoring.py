@@ -18,13 +18,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-import math
 from typing import TYPE_CHECKING
 
 from common.generation import generate_answers, stop_at_newline_config
+import torch
+
+from probly.representer.sampler.huggingface import load_model
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from transformers import GenerationConfig, PreTrainedModel, PreTrainedTokenizerBase
 
 # Keep in sync with scripts/generate.py (TriviaQA-style prompt).
 INSTRUCTION = "Answer the following question with as few words as possible."
@@ -83,19 +87,6 @@ def msp(gen: Generation) -> float | None:
     return -sum(gen.token_logprobs) if gen.token_logprobs else None
 
 
-def perplexity(gen: Generation) -> float | None:
-    """Perplexity baseline (``methods/perplexity.py``).
-
-    Args:
-        gen: The generation.
-
-    Returns:
-        ``exp(-mean token log-probability)``; None for an empty generation.
-    """
-    lps = gen.token_logprobs
-    return math.exp(-sum(lps) / len(lps)) if lps else None
-
-
 def mean_token_entropy(gen: Generation) -> float | None:
     """Mean token entropy baseline (``methods/mean_token_entropy.py``).
 
@@ -110,18 +101,18 @@ def mean_token_entropy(gen: Generation) -> float | None:
 
 
 # Every definition below is checked against its plugin in methods/ by
-# test_scorers_match_the_plugins.
+# test_scorers_match_the_plugins. There is no perplexity scorer: the plugin was removed
+# (it ranks exactly like likelihood_mean), so profiles use likelihood_mean instead.
 SCORERS: dict[str, Callable[[Generation], float | None]] = {
     "likelihood_sum": likelihood_sum,
     "likelihood_mean": likelihood_mean,
     "msp": msp,
-    "perplexity": perplexity,
     "mean_token_entropy": mean_token_entropy,
 }
 
 
 @lru_cache(maxsize=2)
-def _load(model_id: str):
+def _load(model_id: str) -> tuple[PreTrainedModel, PreTrainedTokenizerBase, GenerationConfig]:
     """Load and cache the model, tokenizer and newline-stop generation config.
 
     Args:
@@ -130,10 +121,6 @@ def _load(model_id: str):
     Returns:
         A ``(model, tokenizer, generation_config)`` tuple.
     """
-    import torch
-
-    from probly.representer.sampler.huggingface import load_model
-
     model, tok = load_model(model_id, model_kwargs={"dtype": torch.float32})
     model.eval()
     return model, tok, stop_at_newline_config(model, tok)
