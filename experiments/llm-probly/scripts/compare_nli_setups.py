@@ -15,6 +15,10 @@ The table goes to ``results/nli_setups.md``. Run from ``experiments/llm-probly``
 
     caffeinate -i uv run python -m scripts.compare_nli_setups            # all 200 questions
     uv run python -m scripts.compare_nli_setups --limit 20              # quick check
+    uv run python -m scripts.compare_nli_setups --reuse                 # new labels, no NLI run
+
+``--reuse`` reads the matrices saved by an earlier full run (with their measured time per question)
+instead of running the NLI models again, e.g. after adding hand labels.
 """
 
 from __future__ import annotations
@@ -93,8 +97,17 @@ def run_setup(
     return matrices, seconds
 
 
-def main(limit: int) -> None:
-    """Run every setup and write the comparison table."""
+def load_saved(path: Path, n: int) -> tuple[list[torch.Tensor], float]:
+    """Matrices and seconds per question of an earlier full run (``--reuse``)."""
+    cache = load_nli_cache(path)
+    if len(cache["matrices"]) < n:
+        msg = f"{path.name} has {len(cache['matrices'])} questions, need {n}; run without --reuse"
+        raise ValueError(msg)
+    return cache["matrices"][:n], cache["seconds_per_question"]
+
+
+def main(limit: int, *, reuse: bool = False) -> None:
+    """Run (or, with ``reuse``, reload) every setup and write the comparison table."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     shares = shares_per_model()
     data = {model: load_jsonl(cache_path(model, 200))[: limit or None] for model in MODELS}
@@ -103,22 +116,28 @@ def main(limit: int) -> None:
     device = pick_device()
 
     for nli, hf_name in NLI_MODELS.items():
-        clusterer = HFGreedySemanticClusterer.from_model_name(hf_name, batch_size=32, max_length=256)
-        clusterer.model.to(device)
+        clusterer = None
+        if not reuse:
+            clusterer = HFGreedySemanticClusterer.from_model_name(hf_name, batch_size=32, max_length=256)
+            clusterer.model.to(device)
         for use_question in (False, True):
             name = setup_name(nli, use_question=use_question)
-            print(f"{name} on {device}")
+            print(f"{name} " + ("(saved matrices)" if reuse else f"on {device}"))
             result = results[name] = SetupResult()
             for model, rows in data.items():
-                matrices, seconds = run_setup(clusterer, model, rows, use_question=use_question)
-                save_nli_cache(
-                    OUT_DIR / f"{model}_{name}.nli.npz",
-                    matrices,
-                    [row["id"] for row in rows],
-                    nli_model=hf_name,
-                    use_question=use_question,
-                    seconds_per_question=seconds,
-                )
+                path = OUT_DIR / f"{model}_{name}.nli.npz"
+                if clusterer is None:
+                    matrices, seconds = load_saved(path, len(rows))
+                else:
+                    matrices, seconds = run_setup(clusterer, model, rows, use_question=use_question)
+                    save_nli_cache(
+                        path,
+                        matrices,
+                        [row["id"] for row in rows],
+                        nli_model=hf_name,
+                        use_question=use_question,
+                        seconds_per_question=seconds,
+                    )
                 scores = np.array(
                     [se_and_dse(m, row["samples_ll_mean"]) for m, row in zip(matrices, rows, strict=True)]
                 )
@@ -173,4 +192,6 @@ def write_table(results: dict[str, SetupResult], data: dict[str, list[dict]]) ->
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--limit", type=int, default=0, help="only the first N questions per model (quick check)")
-    main(parser.parse_args().limit)
+    parser.add_argument("--reuse", action="store_true", help="read the saved matrices instead of running NLI")
+    args = parser.parse_args()
+    main(args.limit, reuse=args.reuse)

@@ -215,3 +215,27 @@ def test_se_plugins_use_the_nli_settings(monkeypatch):
 
     assert record["nli"] == "deberta-base+question"
     assert fake.contexts == [["Q?"]]
+
+
+def test_equal_partitions_give_exactly_equal_dse():
+    """The same cluster sizes in another order must give the same DSE (ties stay ties for AUROC)."""
+    contradiction, entailment = torch.tensor([1.0, 0.0, 0.0]), torch.tensor([0.0, 0.0, 1.0])
+
+    def matrix_for(groups: list[int]) -> torch.Tensor:
+        n = len(groups) + 1  # index 0 = greedy answer
+        matrix = contradiction.repeat(n, n, 1)
+        for a in range(1, n):
+            for b in range(1, n):
+                if groups[a - 1] == groups[b - 1]:
+                    matrix[a, b] = entailment
+        return matrix
+
+    # Found in qwen0.5b TriviaQA-200: one pair and eight singletons; without rounding the float32
+    # entropies differ in the last digit (2.16395545 vs 2.16395569) and break AUROC ties.
+    pair_early = [0, 1, 2, 3, 4, 5, 6, 0, 7, 8]
+    pair_late = [0, 1, 2, 3, 4, 4, 5, 6, 7, 8]
+    ll = [-0.5] * 10
+    values = {se_and_dse(matrix_for(groups), ll)[1] for groups in (pair_early, pair_late)}
+
+    assert len(values) == 1
+    assert values.pop() == pytest.approx(-(0.2 * np.log(0.2) + 8 * 0.1 * np.log(0.1)), abs=1e-6)

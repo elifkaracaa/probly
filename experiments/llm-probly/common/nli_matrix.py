@@ -246,6 +246,25 @@ def sample_block(matrix: torch.Tensor) -> torch.Tensor:
     return matrix[GREEDY_INDEX + 1 :, GREEDY_INDEX + 1 :]
 
 
+def canonical_group_ids(group_ids: torch.Tensor) -> torch.Tensor:
+    """Renumber clusters by size (largest first, ties by first appearance).
+
+    Entropies are sums over clusters, and float sums depend on the order; with this numbering the
+    same partition always gives the same order, so equal partitions give exactly equal entropies.
+
+    Args:
+        group_ids: Cluster id of every sample (ids ``0, 1, ...`` in order of first appearance).
+
+    Returns:
+        The same partition with ids ordered by cluster size.
+    """
+    counts = torch.bincount(group_ids)
+    order = sorted(range(len(counts)), key=lambda cluster: (-int(counts[cluster]), cluster))
+    new_id = torch.empty_like(counts)
+    new_id[torch.tensor(order)] = torch.arange(len(order))
+    return new_id[group_ids]
+
+
 def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float]) -> tuple[float, float]:
     """Semantic entropy and discrete semantic entropy from one question matrix.
 
@@ -253,6 +272,12 @@ def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float]) -> tuple[
     computes the entropy of the cluster distribution weighted by the sample
     likelihoods (SE) and with equal weights (discrete SE), exactly as the
     clusterer path did before.
+
+    The clusters are numbered by size first (see :func:`canonical_group_ids`), so the same partition
+    always gives exactly the same float. Discrete SE has few distinct values (51 of 200 on qwen0.5b);
+    with the clusters in order of appearance, equal partitions differed in the last float32 digit
+    (2.16395545 vs 2.16395569) and broke those ties, and DSE AUROC moved between 0.741 and 0.749 under
+    such noise. (Rounding does not fix this: the two values can round to different sides.)
 
     Args:
         matrix: Question matrix of shape ``(K+1, K+1, 3)`` in probly's label order.
@@ -265,7 +290,7 @@ def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float]) -> tuple[
     if samples.shape[0] != len(samples_ll_mean):
         msg = f"matrix has {samples.shape[0]} samples but {len(samples_ll_mean)} likelihoods were given."
         raise ValueError(msg)
-    group_ids = HFGreedySemanticClusterer.cluster_nli_matrix(samples)
+    group_ids = canonical_group_ids(HFGreedySemanticClusterer.cluster_nli_matrix(samples))
     semantic = TorchSparseLogCategoricalDistribution(
         group_ids=group_ids,
         entry_logits=torch.tensor(list(samples_ll_mean), dtype=torch.float32),
