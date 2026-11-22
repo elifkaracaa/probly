@@ -39,13 +39,14 @@ with identical SE / DSE scores. Over all 200 questions dedup skips 46 % (0.5B) a
 ## NLI setup (A4)
 
 Which NLI model, and should the question go in front of each answer? Compared on qwen0.5b and qwen1.5b
-TriviaQA-200 with `scripts/compare_nli_setups.py` (full table: `results/nli_setups.md`), against 60 answer
-pairs labelled by hand (`data/nli_hand_labels.jsonl`, made with `scripts/label_nli_pairs.py`). The
+TriviaQA-200 with `scripts/compare_nli_setups.py` (full table: `results/nli_setups.md`), against 80 answer
+pairs labelled by hand (`data/nli_hand_labels.jsonl`, made with `scripts/label_nli_pairs.py`: 60 stratified by
+how the NLI models decide + 20 near duplicates). The
 agreement with the labels is weighted to the real mix of answer pairs (the labels over-sample the hard pairs).
 
 | setup | agreement with hand labels | SE AUROC 0.5B / 1.5B | s per question 0.5B / 1.5B |
 |---|---|---|---|
-| deberta-base | 0.936 | 0.740 / 0.781 | 0.22 / 0.07 |
+| deberta-base | 0.937 | 0.740 / 0.781 | 0.22 / 0.07 |
 | deberta-base + question | 0.959 | 0.754 / 0.772 | 0.46 / 0.19 |
 | **deberta-large** (default) | **0.971** | 0.744 / 0.776 | 0.71 / 0.23 |
 | deberta-large + question | 0.938 | 0.772 / 0.781 | 1.38 / 0.55 |
@@ -58,6 +59,10 @@ agreement with the labels is weighted to the real mix of answer pairs (the label
 - probly's rule (no contradiction either way, not neutral both ways) agrees better with the labels than the
   strict rule (entailment both ways) in every setup (0.94-0.97 vs 0.87-0.91): the strict rule splits answers
   like "Annie Hall" and "Annie Hall by John Williams".
+- **The labels are reliable:** a second person (Eylül) labelled 20 of the pairs without seeing the first labels
+  or the NLI decisions (`data/nli_hand_labels_eylul.jsonl`, `label_nli_pairs --second-labeller 20`): she agreed
+  on 20/20 (Cohen's kappa 1.00; 14 of them were not near duplicates). The sample is small, so this shows the
+  labelling guideline is clear, not that the labels are perfect.
 - Change the setup with `nli_model` / `nli_use_question` in a config (see `docs/pipeline.md`).
 
 ## Persistent NLI cache (A5)
