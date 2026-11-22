@@ -1,0 +1,354 @@
+{
+  "model": "qwen0.5b",
+  "run": "triviaqa_200",
+  "settings": {
+    "draws": 20,
+    "seed": 0,
+    "checks": [
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "curve": [
+    {
+      "method": "semantic_entropy",
+      "k": 2,
+      "draws": 20,
+      "auroc_mean": 0.6237613710201428,
+      "auroc_std": 0.0236532625328071,
+      "prr_mean": 0.21955915802773562
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "k": 2,
+      "draws": 20,
+      "auroc_mean": 0.6594298245614036,
+      "auroc_std": 0.025591497157451844,
+      "prr_mean": 0.24494945405730792
+    },
+    {
+      "method": "lexical_similarity",
+      "k": 2,
+      "draws": 20,
+      "auroc_mean": 0.6932220597790772,
+      "auroc_std": 0.02797299107826612,
+      "prr_mean": 0.29616343452120525
+    },
+    {
+      "method": "semantic_entropy",
+      "k": 3,
+      "draws": 20,
+      "auroc_mean": 0.68291910331384,
+      "auroc_std": 0.025806905618298258,
+      "prr_mean": 0.3360793827653616
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "k": 3,
+      "draws": 20,
+      "auroc_mean": 0.7021970435347628,
+      "auroc_std": 0.02323278411260702,
+      "prr_mean": 0.34845222883518145
+    },
+    {
+      "method": "lexical_similarity",
+      "k": 3,
+      "draws": 20,
+      "auroc_mean": 0.7137995451591943,
+      "auroc_std": 0.022785453840263075,
+      "prr_mean": 0.3576498251023639
+    },
+    {
+      "method": "semantic_entropy",
+      "k": 4,
+      "draws": 20,
+      "auroc_mean": 0.7091171215074724,
+      "auroc_std": 0.02420634894911476,
+      "prr_mean": 0.402080109263477
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "k": 4,
+      "draws": 20,
+      "auroc_mean": 0.7233227745289148,
+      "auroc_std": 0.022209763493666306,
+      "prr_mean": 0.41216184035104364
+    },
+    {
+      "method": "lexical_similarity",
+      "k": 4,
+      "draws": 20,
+      "auroc_mean": 0.7332074398960364,
+      "auroc_std": 0.01509707548263476,
+      "prr_mean": 0.4006758777330324
+    },
+    {
+      "method": "semantic_entropy",
+      "k": 5,
+      "draws": 20,
+      "auroc_mean": 0.7275909681611437,
+      "auroc_std": 0.024627673259486386,
+      "prr_mean": 0.4411212603055118
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "k": 5,
+      "draws": 20,
+      "auroc_mean": 0.7380969785575051,
+      "auroc_std": 0.021867397774557887,
+      "prr_mean": 0.44953638616444885
+    },
+    {
+      "method": "lexical_similarity",
+      "k": 5,
+      "draws": 20,
+      "auroc_mean": 0.7476770630279402,
+      "auroc_std": 0.007805490307235609,
+      "prr_mean": 0.4336159785692371
+    },
+    {
+      "method": "semantic_entropy",
+      "k": 6,
+      "draws": 20,
+      "auroc_mean": 0.7296052631578946,
+      "auroc_std": 0.013244967454152117,
+      "prr_mean": 0.455688275431425
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "k": 6,
+      "draws": 20,
+      "auroc_mean": 0.7371020142949968,
+      "auroc_std": 0.011937985290267725,
+      "prr_mean": 0.4620440095949069
+    },
+    {
+      "method": "lexical_similarity",
+      "k": 6,
+      "draws": 20,
+      "auroc_mean": 0.7450251786874593,
+      "auroc_std": 0.008117643116915232,
+      "prr_mean": 0.43259251827203177
+    },
+    {
+      "method": "semantic_entropy",
+      "k": 7,
+      "draws": 20,
+      "auroc_mean": 0.7356522092267707,
+      "auroc_std": 0.008949691332240436,
+      "prr_mean": 0.47264240707879546
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "k": 7,
+      "draws": 20,
+      "auroc_mean": 0.7432301819363223,
+      "auroc_std": 0.007643086989924188,
+      "prr_mean": 0.48046566896420223
+    },
+    {
+      "method": "lexical_similarity",
+      "k": 7,
+      "draws": 20,
+      "auroc_mean": 0.7451632553606238,
+      "auroc_std": 0.007880689181184893,
+      "prr_mean": 0.4393318136551406
+    },
+    {
+      "method": "semantic_entropy",
+      "k": 8,
+      "draws": 20,
+      "auroc_mean": 0.7357293697205978,
+      "auroc_std": 0.00787535608073661,
+      "prr_mean": 0.4780997353621429
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "k": 8,
+      "draws": 20,
+      "auroc_mean": 0.744212962962963,
+      "auroc_std": 0.007499213559083069,
+      "prr_mean": 0.4886042509346747
+    },
+    {
+      "method": "lexical_similarity",
+      "k": 8,
+      "draws": 20,
+      "auroc_mean": 0.7526681286549708,
+      "auroc_std": 0.008484069516340466,
+      "prr_mean": 0.46097642445070514
+    },
+    {
+      "method": "semantic_entropy",
+      "k": 9,
+      "draws": 20,
+      "auroc_mean": 0.7388036062378167,
+      "auroc_std": 0.0034724739524738192,
+      "prr_mean": 0.48611106948668104
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "k": 9,
+      "draws": 20,
+      "auroc_mean": 0.7464018843404807,
+      "auroc_std": 0.0036111279180550486,
+      "prr_mean": 0.4967542682824818
+    },
+    {
+      "method": "lexical_similarity",
+      "k": 9,
+      "draws": 20,
+      "auroc_mean": 0.7549666991552956,
+      "auroc_std": 0.005219664715707115,
+      "prr_mean": 0.46354713986020923
+    },
+    {
+      "method": "semantic_entropy",
+      "k": 10,
+      "draws": 1,
+      "auroc_mean": 0.7396036387264457,
+      "auroc_std": 0.0,
+      "prr_mean": 0.4895644798353374
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "k": 10,
+      "draws": 1,
+      "auroc_mean": 0.7460201429499675,
+      "auroc_std": 0.0,
+      "prr_mean": 0.4984903715542853
+    },
+    {
+      "method": "lexical_similarity",
+      "k": 10,
+      "draws": 1,
+      "auroc_mean": 0.7568226120857701,
+      "auroc_std": 0.0,
+      "prr_mean": 0.4670883616128822
+    }
+  ],
+  "early_stop": [
+    {
+      "method": "semantic_entropy",
+      "check_at": 2,
+      "stopped_share": 0.35,
+      "samples_per_question": 7.2,
+      "saved_generations_share": 0.28,
+      "auroc": 0.6662605588044184,
+      "auroc_full": 0.7396036387264457,
+      "auroc_change": -0.07334307992202738
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "check_at": 2,
+      "stopped_share": 0.35,
+      "samples_per_question": 7.2,
+      "saved_generations_share": 0.28,
+      "auroc": 0.6705653021442495,
+      "auroc_full": 0.7460201429499675,
+      "auroc_change": -0.07545484080571807
+    },
+    {
+      "method": "lexical_similarity",
+      "check_at": 2,
+      "stopped_share": 0.35,
+      "samples_per_question": 7.2,
+      "saved_generations_share": 0.28,
+      "auroc": 0.6784437946718649,
+      "auroc_full": 0.7568226120857701,
+      "auroc_change": -0.07837881741390518
+    },
+    {
+      "method": "semantic_entropy",
+      "check_at": 3,
+      "stopped_share": 0.235,
+      "samples_per_question": 8.355,
+      "saved_generations_share": 0.16449999999999998,
+      "auroc": 0.7225471085120208,
+      "auroc_full": 0.7396036387264457,
+      "auroc_change": -0.017056530214424992
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "check_at": 3,
+      "stopped_share": 0.235,
+      "samples_per_question": 8.355,
+      "saved_generations_share": 0.16449999999999998,
+      "auroc": 0.7273391812865497,
+      "auroc_full": 0.7460201429499675,
+      "auroc_change": -0.018680961663417817
+    },
+    {
+      "method": "lexical_similarity",
+      "check_at": 3,
+      "stopped_share": 0.235,
+      "samples_per_question": 8.355,
+      "saved_generations_share": 0.16449999999999998,
+      "auroc": 0.7417153996101364,
+      "auroc_full": 0.7568226120857701,
+      "auroc_change": -0.015107212475633625
+    },
+    {
+      "method": "semantic_entropy",
+      "check_at": 4,
+      "stopped_share": 0.195,
+      "samples_per_question": 8.83,
+      "saved_generations_share": 0.11699999999999999,
+      "auroc": 0.7332683560753737,
+      "auroc_full": 0.7396036387264457,
+      "auroc_change": -0.006335282651072083
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "check_at": 4,
+      "stopped_share": 0.195,
+      "samples_per_question": 8.83,
+      "saved_generations_share": 0.11699999999999999,
+      "auroc": 0.7387914230019493,
+      "auroc_full": 0.7460201429499675,
+      "auroc_change": -0.007228719948018214
+    },
+    {
+      "method": "lexical_similarity",
+      "check_at": 4,
+      "stopped_share": 0.195,
+      "samples_per_question": 8.83,
+      "saved_generations_share": 0.11699999999999999,
+      "auroc": 0.7660818713450293,
+      "auroc_full": 0.7568226120857701,
+      "auroc_change": 0.00925925925925919
+    },
+    {
+      "method": "semantic_entropy",
+      "check_at": 5,
+      "stopped_share": 0.18,
+      "samples_per_question": 9.1,
+      "saved_generations_share": 0.09000000000000008,
+      "auroc": 0.7348115659519169,
+      "auroc_full": 0.7396036387264457,
+      "auroc_change": -0.004792072774528866
+    },
+    {
+      "method": "discrete_semantic_entropy",
+      "check_at": 5,
+      "stopped_share": 0.18,
+      "samples_per_question": 9.1,
+      "saved_generations_share": 0.09000000000000008,
+      "auroc": 0.74090318388564,
+      "auroc_full": 0.7460201429499675,
+      "auroc_change": -0.00511695906432752
+    },
+    {
+      "method": "lexical_similarity",
+      "check_at": 5,
+      "stopped_share": 0.18,
+      "samples_per_question": 9.1,
+      "saved_generations_share": 0.09000000000000008,
+      "auroc": 0.7629142300194931,
+      "auroc_full": 0.7568226120857701,
+      "auroc_change": 0.006091617933723037
+    }
+  ]
+}
