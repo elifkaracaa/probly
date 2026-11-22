@@ -46,7 +46,22 @@ torch.manual_seed(0)
 # profile. The prompt and generation settings are the ones the benchmark used.
 
 MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct"
-PROFILE_PATH = Path(__file__).resolve().parents[2] / "experiments" / "llm-probly" / "profiles" / "qwen0.5b.json"
+
+
+def find_repo_root() -> Path:
+    """Find the probly checkout from the working directory.
+
+    The docs build runs examples from their own folder and does not define
+    ``__file__``, so search the working directory and its parents instead.
+    """
+    for folder in [Path.cwd(), *Path.cwd().parents]:
+        if (folder / "experiments" / "llm-probly").is_dir():
+            return folder
+    msg = "Run this example from inside the probly repository."
+    raise FileNotFoundError(msg)
+
+
+PROFILE_PATH = find_repo_root() / "experiments" / "llm-probly" / "profiles" / "qwen0.5b.json"
 INSTRUCTION = "Answer the following question with as few words as possible."
 MAX_NEW_TOKENS = 32
 
