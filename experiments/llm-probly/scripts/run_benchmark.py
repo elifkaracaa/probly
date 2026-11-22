@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 
 from common.data import DATASETS, cache_path, load_jsonl
 from common.io import RESULTS_ROOT, save_scores
+from common.nli_matrix import DEFAULT_NLI_MODEL, set_nli_settings
 from common.registry import REGISTRY, MethodSpec, check_registry, score_function
 from common.summary import summary_table, to_markdown
 import pandas as pd
@@ -73,6 +74,11 @@ def load_config(path: str) -> dict:
         raise ValueError(msg)
     config.setdefault("device", "cpu")
     config.setdefault("methods", "all")
+    config.setdefault("nli_model", DEFAULT_NLI_MODEL)
+    config.setdefault("nli_use_question", False)
+    if not isinstance(config["nli_use_question"], bool):
+        msg = f"nli_use_question must be true or false, got {config['nli_use_question']!r}"
+        raise TypeError(msg)
     return config
 
 
@@ -244,6 +250,8 @@ def run(args: argparse.Namespace) -> None:
 
     rows = prepare_data(config)
     precision = cache_precision(config)
+    nli = set_nli_settings(config["nli_model"], use_question=config["nli_use_question"])
+    print(f"NLI for the semantic methods: {nli.tag}")
     methods = choose_methods(find_methods(), config, args)
     run_methods(methods, rows, config, run_name, args.force)
     make_table(rows, methods, run_name, precision)

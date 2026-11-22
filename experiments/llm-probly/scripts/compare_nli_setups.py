@@ -29,6 +29,7 @@ from common.data import cache_path, load_jsonl
 from common.evaluate import auroc, bootstrap_auroc, paired_bootstrap
 from common.nli_labels import candidate_pairs, load_labels, stratum_shares, weighted_agreement
 from common.nli_matrix import (
+    NLI_MODELS,
     QUESTIONS_PER_BATCH,
     RULES,
     compute_matrices,
@@ -48,7 +49,6 @@ if TYPE_CHECKING:
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "results" / "nli_setups"
 MODELS = ("qwen0.5b", "qwen1.5b")
-NLI_MODELS = {"deberta-base": "microsoft/deberta-base-mnli", "deberta-large": "microsoft/deberta-large-mnli"}
 REFERENCE = "deberta-base"
 
 

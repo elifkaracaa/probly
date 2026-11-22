@@ -27,6 +27,7 @@ as in the week-2 files). :func:`load_nli_cache` always returns probly's order.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -46,6 +47,67 @@ FORMAT_VERSION = 1
 GREEDY_INDEX = 0
 FILE_LABELS = ("entail", "neutral", "contradict")
 """Order of the last axis inside ``.nli.npz`` files (kept from week 2 so old readers keep working)."""
+
+
+NLI_MODELS = {"deberta-base": "microsoft/deberta-base-mnli", "deberta-large": "microsoft/deberta-large-mnli"}
+"""Short names of the NLI models compared in A4 (any Hugging Face NLI model name works too)."""
+DEFAULT_NLI_MODEL = "deberta-large"
+"""Default NLI model of the experiments (A4, see docs/methods.md "NLI setup").
+
+On 60 hand-labelled answer pairs deberta-large agrees best with the human labels (0.971 vs 0.936 for
+deberta-base, weighted), while SE / DSE AUROC stays the same within noise; it is about 3x slower, a
+cost that is paid once per cache. probly's library default stays deberta-base.
+"""
+
+
+@dataclass(frozen=True)
+class NliSettings:
+    """Which NLI model the semantic methods use, and whether the question goes in front of each answer.
+
+    Attributes:
+        model: Short name from ``NLI_MODELS`` or a Hugging Face model name.
+        use_question: Put the question in front of every answer before NLI (A4: no clear gain, 2x slower).
+    """
+
+    model: str = DEFAULT_NLI_MODEL
+    use_question: bool = False
+
+    @property
+    def hf_name(self) -> str:
+        """Hugging Face name of the NLI model."""
+        return NLI_MODELS.get(self.model, self.model)
+
+    @property
+    def tag(self) -> str:
+        """Short label for file names and records, e.g. ``deberta-large+question``."""
+        name = next((short for short, hf in NLI_MODELS.items() if hf == self.hf_name), self.hf_name.split("/")[-1])
+        return f"{name}+question" if self.use_question else name
+
+
+_settings = NliSettings()
+
+
+def nli_settings() -> NliSettings:
+    """The NLI settings used by the semantic methods in this process."""
+    return _settings
+
+
+def set_nli_settings(model: str | None = None, *, use_question: bool | None = None) -> NliSettings:
+    """Change the NLI settings for this process (the runner calls this with the config values).
+
+    Args:
+        model: Short name from ``NLI_MODELS`` or a Hugging Face name; None keeps the current one.
+        use_question: Whether to put the question in front of each answer; None keeps the current value.
+
+    Returns:
+        The new settings.
+    """
+    global _settings  # noqa: PLW0603
+    _settings = NliSettings(
+        model=_settings.model if model is None else model,
+        use_question=_settings.use_question if use_question is None else use_question,
+    )
+    return _settings
 
 
 def question_texts(row: dict) -> list[str]:

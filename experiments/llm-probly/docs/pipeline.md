@@ -47,7 +47,12 @@ n: 200                # number of questions
 precision: float32    # float32 | float16 | bfloat16
 device: cpu           # cpu | mps | cuda, only used when a method loads the model
 methods: all          # "all" or a list of method names
+nli_model: deberta-large   # optional; NLI model of the semantic methods (deberta-base, deberta-large or a HF name)
+nli_use_question: false    # optional; put the question in front of each answer before NLI
 ```
+
+The two `nli_*` keys are optional; the defaults come from `common/nli_matrix.py` and are explained in
+`docs/methods.md` ("NLI setup"). SE and discrete SE write the setup they used into their record (`"nli"`).
 
 **Precision must match the cache.** The runner reads the precision from the cache's
 `.meta.json` and stops if the config asks for another one. Precision changes the answers

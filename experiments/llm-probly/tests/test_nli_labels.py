@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from common.nli_labels import (
     candidate_pairs,
+    cohen_kappa,
     load_labels,
     normalize,
     select_pairs,
@@ -15,7 +16,7 @@ from common.nli_labels import (
 )
 from common.nli_matrix import same_meaning
 import pytest
-from scripts.label_nli_pairs import label_pairs
+from scripts.label_nli_pairs import label_pairs, labeller_agreement, second_labeller_pairs
 import torch
 
 if TYPE_CHECKING:
@@ -62,9 +63,15 @@ def test_candidate_pairs_skip_trivial_and_long_answers_and_set_strata() -> None:
 
     pairs = candidate_pairs("m", [row], [base], [large])
 
-    assert [(p["index_a"], p["index_b"]) for p in pairs] == [(0, 2)]  # "paris." duplicates "Paris"; long one left out
-    assert pairs[0]["stratum"] == "disagree"
+    # long answer left out; "paris." is only a near duplicate of "Paris"
+    assert [(p["index_a"], p["index_b"], p["stratum"]) for p in pairs] == [(0, 2, "disagree"), (0, 1, "near_duplicate")]
     assert (pairs[0]["base_same"], pairs[0]["large_same"]) == (False, True)
+
+
+def test_exact_duplicates_are_not_near_duplicates() -> None:
+    row = {"id": 1, "question": "Q?", "greedy_answer": "Paris", "samples": ["Paris", "Paris"]}
+
+    assert candidate_pairs("m", [row], [matrix_with({}, 3)], [matrix_with({}, 3)]) == []
 
 
 def test_select_pairs_balances_strata_one_pair_per_question() -> None:
@@ -79,13 +86,15 @@ def test_select_pairs_balances_strata_one_pair_per_question() -> None:
     assert Counter(p["stratum"] for p in picked) == {"disagree": 5, "both_same": 5, "both_different": 5}
     assert len({p["id"] for p in picked}) == 15
     assert picked == select_pairs(candidates, per_stratum=5, seed=1)
+    only = select_pairs(candidates, per_stratum=5, seed=1, strata=["both_same"])
+    assert Counter(p["stratum"] for p in only) == {"both_same": 5}
 
 
 def test_label_pairs_saves_after_each_answer_and_resumes(tmp_path: Path) -> None:
     pairs = [
         {"model": "m", "id": i, "index_a": 0, "index_b": 1, "question": "Q?", "a": "A", "b": "B"} for i in range(4)
     ]
-    path = tmp_path / "labels.json"
+    path = tmp_path / "labels.jsonl"
     answers = iter(["y", "maybe", "n", "s", "q"])  # "maybe" is not valid and is asked again
 
     assert label_pairs(pairs, "elif", path, ask=lambda _: next(answers)) == 3
@@ -100,7 +109,8 @@ def test_label_pairs_saves_after_each_answer_and_resumes(tmp_path: Path) -> None
 def test_stratum_shares() -> None:
     candidates = [{"stratum": "both_different"}] * 6 + [{"stratum": "both_same"}] * 3 + [{"stratum": "disagree"}]
 
-    assert stratum_shares(candidates) == pytest.approx({"both_different": 0.6, "both_same": 0.3, "disagree": 0.1})
+    expected = {"both_different": 0.6, "both_same": 0.3, "disagree": 0.1, "near_duplicate": 0.0}
+    assert stratum_shares(candidates) == pytest.approx(expected)
 
 
 def test_weighted_agreement_weights_strata_by_their_real_share() -> None:
@@ -127,3 +137,54 @@ def test_weighted_agreement_ignores_strata_and_models_without_labels() -> None:
     assert weighted_agreement(labels, [True], shares) == pytest.approx(1.0)  # not 0.2 / 2
     with pytest.raises(ValueError, match="no labelled pair"):
         weighted_agreement([], [], shares)
+
+
+def test_label_file_is_jsonl(tmp_path: Path) -> None:
+    path = tmp_path / "labels.jsonl"
+    label_pairs(
+        [{"model": "m", "id": 0, "index_a": 0, "index_b": 1, "question": "Q?", "a": "A", "b": "B"}],
+        "e",
+        path,
+        ask=lambda _: "y",
+    )
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    assert lines[0].startswith("{")
+    assert '"same_meaning": true' in lines[0]
+
+
+def test_cohen_kappa() -> None:
+    assert cohen_kappa([True, False, True, False], [True, False, True, False]) == pytest.approx(1.0)
+    assert cohen_kappa([True, True, False, False], [True, False, True, False]) == pytest.approx(0.0)
+    assert cohen_kappa([True, True], [True, True]) == pytest.approx(1.0)
+
+
+def test_second_labeller_sees_no_labels_and_agreement_is_computed() -> None:
+    first = [
+        {
+            "model": "m",
+            "id": i,
+            "index_a": 0,
+            "index_b": 1,
+            "a": "A",
+            "b": "B",
+            "question": "Q?",
+            "stratum": "both_same",
+            "base_same": True,
+            "large_same": True,
+            "same_meaning": None if i == 5 else i % 2 == 0,  # pair 5 skipped: never shown again
+            "labeller": "elif",
+        }
+        for i in range(6)
+    ]
+
+    pairs = second_labeller_pairs(first, 4, seed=0)
+
+    assert len(pairs) == 4
+    assert all("same_meaning" not in p and "base_same" not in p and "labeller" not in p for p in pairs)
+    assert all(p["id"] != 5 for p in pairs)
+    second = [{**p, "same_meaning": True, "labeller": "eylul"} for p in pairs]
+    result = labeller_agreement(first, second)
+    assert result["pairs"] == 4
+    assert result["agreement"] == pytest.approx(sum(first[p["id"]]["same_meaning"] for p in pairs) / 4)
