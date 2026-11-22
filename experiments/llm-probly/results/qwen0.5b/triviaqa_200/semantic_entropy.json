@@ -608,7 +608,8 @@
     false,
     false
   ],
-  "seconds_per_question": 0.00024904847145080567,
+  "seconds_per_question": 0.0002763199806213379,
   "nli_pairs_per_question": 0.0,
+  "nli_seconds_per_question": 0.6709764540195465,
   "nli": "deberta-large"
 }
