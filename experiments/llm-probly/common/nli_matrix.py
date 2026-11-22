@@ -485,6 +485,22 @@ def read_cached_matrices(path: str | Path, settings: NliSettings) -> dict[int, t
     }
 
 
+def cached_nli_seconds(path: str | Path) -> float:
+    """NLI time per question stored in a cache file (0.0 if the file does not exist).
+
+    Args:
+        path: The cache file.
+
+    Returns:
+        The file's ``seconds_per_question``: what building its matrices cost.
+    """
+    path = Path(path)
+    if not path.exists():
+        return 0.0
+    with np.load(path, allow_pickle=False) as z:
+        return float(z["seconds_per_question"])
+
+
 def count_cached_questions(path: str | Path, settings: NliSettings, rows: Sequence[dict]) -> int:
     """Number of ``rows`` whose NLI matrix the cache file can give without any NLI work.
 

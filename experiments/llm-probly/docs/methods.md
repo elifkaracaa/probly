@@ -77,6 +77,11 @@ Measured on qwen0.5b TriviaQA-200 (deberta-large, Mac, MPS), two runs of
 
 Discrete SE shows 0 pairs in both runs because it reads the matrices SE has just made (A1).
 
+`seconds_per_question` in a record is the time of that run, so it is about 0 when the matrices come from
+the cache (as CONTRACT.md asks). The cost of the NLI step is kept in `nli_seconds_per_question`: what
+building the matrices took (0.67 s per question above), measured in this run or stored in the cache file.
+The registry cost of SE / DSE (12) already counts the NLI pass, so the report's picks are not affected.
+
 A cached matrix is only reused when nothing it depends on has changed:
 
 | changes | what happens |

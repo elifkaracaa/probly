@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 import cli
@@ -82,6 +83,7 @@ def new_process(monkeypatch: pytest.MonkeyPatch, clusterer: object, settings: Nl
     monkeypatch.setattr(_se_common, "_clusterers", {settings.hf_name: clusterer})
     monkeypatch.setattr(_se_common, "_matrices", {})
     monkeypatch.setattr(_se_common, "_disk", {})
+    monkeypatch.setattr(_se_common, "_nli_seconds", {})
 
 
 @pytest.fixture
@@ -106,6 +108,26 @@ def test_second_run_does_no_nli_work(monkeypatch, cache_file):
     assert second["nli_pairs_per_question"] == dse["nli_pairs_per_question"] == 0
     assert second["uncertainty"] == first["uncertainty"]
     assert second["failed"] == [False] * 3
+
+
+def test_nli_cost_is_kept_when_the_cache_is_used(monkeypatch, cache_file):
+    """seconds_per_question is this run's time; nli_seconds_per_question keeps what the NLI step cost."""
+
+    class SlowClusterer(FakeClusterer):
+        def pairwise_nli_many(self, groups, contexts=None, deduplicate=True):
+            time.sleep(0.03 * len(groups))  # 0.03 s per question
+            return super().pairwise_nli_many(groups, contexts, deduplicate)
+
+    rows = rows_for_test()
+    new_process(monkeypatch, SlowClusterer())
+    first = semantic_entropy.score(rows)
+    assert first["nli_seconds_per_question"] == pytest.approx(0.03, abs=0.02)
+    assert load_nli_cache(cache_file)["seconds_per_question"] == pytest.approx(first["nli_seconds_per_question"])
+
+    new_process(monkeypatch, NoNli())
+    second = semantic_entropy.score(rows)
+    assert second["seconds_per_question"] < 0.03
+    assert second["nli_seconds_per_question"] == pytest.approx(first["nli_seconds_per_question"])
 
 
 def test_cached_matrices_equal_computed_ones(monkeypatch, cache_file):
