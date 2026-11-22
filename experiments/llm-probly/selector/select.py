@@ -43,11 +43,11 @@ if TYPE_CHECKING:
 
     from selector.table import ScoreTable
 
-# PLACEHOLDER until E2's method registry exists; then this dict is replaced by the registry.
+# Placeholder values until E2's method registry (common/registry.py) is merged; then this dict is built from it.
 # cost = relative cost per question, generation included (1 = greedy answer only;
 # 10 extra samples add 10, each extra model call adds 1, an NLI pass adds 1).
 # access = the least the method needs from the model: white_box > logprobs > text_only.
-PLACEHOLDER_REGISTRY: dict[str, dict] = {
+DEFAULT_REGISTRY: dict[str, dict] = {
     "msp": {"family": "baseline", "access": "logprobs", "cost": 1.0},
     "perplexity": {"family": "baseline", "access": "logprobs", "cost": 1.0},
     "likelihood_mean": {"family": "baseline", "access": "logprobs", "cost": 1.0},
@@ -179,7 +179,7 @@ def select_method(
 
     Args:
         table: Scores and labels of the calibration part (steps 1 and 2).
-        registry: Family, access level and cost per method. Defaults to ``PLACEHOLDER_REGISTRY``.
+        registry: Family, access level and cost per method. Defaults to ``DEFAULT_REGISTRY``.
         access: What the user has: ``white_box``, ``logprobs`` or ``text_only``.
         max_cost: Highest accepted cost per question; ``None`` = no limit.
         n_boot: Number of bootstrap resamples.
@@ -191,7 +191,7 @@ def select_method(
     Raises:
         ValueError: If no method is left after filtering.
     """
-    registry = PLACEHOLDER_REGISTRY if registry is None else registry
+    registry = DEFAULT_REGISTRY if registry is None else registry
     candidates, excluded = filter_candidates(table.methods, registry, access, max_cost)
     if not candidates:
         msg = f"{table.model}: no candidate method left (access {access}, budget {max_cost}); excluded: {excluded}"
@@ -266,7 +266,7 @@ def build_profile(
     Returns:
         A profile ready for ``save_profile``.
     """
-    registry = PLACEHOLDER_REGISTRY if registry is None else registry
+    registry = DEFAULT_REGISTRY if registry is None else registry
     entry = registry[selection.chosen]
     if model_id is None:
         result_file = RESULTS_ROOT / table.model / table.run / f"{selection.chosen}.json"
@@ -335,7 +335,7 @@ def main() -> None:
             n_boot=args.n_boot,
             seed=args.seed,
         )
-        print_selection(selection, PLACEHOLDER_REGISTRY)
+        print_selection(selection, DEFAULT_REGISTRY)
         if args.save:
             profile = build_profile(selection, table, split, dataset=args.dataset)
             u = table.scores[selection.chosen]
