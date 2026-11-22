@@ -115,3 +115,15 @@ def test_weighted_agreement_weights_strata_by_their_real_share() -> None:
 
     # plain accuracy would be 1/3; weighted: 0.1 * 0 + 0.9 * 1
     assert weighted_agreement(labels, decisions, shares) == pytest.approx(0.9)
+
+
+def test_weighted_agreement_ignores_strata_and_models_without_labels() -> None:
+    labels = [{"model": "m", "stratum": "both_same", "same_meaning": True}]
+    shares = {
+        "m": {"disagree": 0.1, "both_same": 0.2, "both_different": 0.7},
+        "other": {"disagree": 0.1, "both_same": 0.2, "both_different": 0.7},
+    }
+
+    assert weighted_agreement(labels, [True], shares) == pytest.approx(1.0)  # not 0.2 / 2
+    with pytest.raises(ValueError, match="no labelled pair"):
+        weighted_agreement([], [], shares)

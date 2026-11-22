@@ -159,7 +159,9 @@ def weighted_agreement(
     The labelled pairs over-sample the pairs where deberta-base and deberta-large disagree (a third
     of the labels, about 5 % of all pairs), so a plain accuracy would exaggerate differences. Here the
     accuracy is computed per model and stratum and weighted by that stratum's share of all pairs;
-    models get equal weight. Skipped pairs (``same_meaning`` is None) are left out.
+    models get equal weight. Skipped pairs (``same_meaning`` is None) are left out. Strata or models
+    without any labelled pair (for example with ``--limit``) are left out and the weights of the rest
+    are scaled up, so the result stays a share between 0 and 1.
 
     Args:
         labels: Labelled pairs (see the module docstring).
@@ -168,9 +170,13 @@ def weighted_agreement(
 
     Returns:
         Weighted share of pairs on which the decision equals the hand label.
+
+    Raises:
+        ValueError: If no labelled pair is left.
     """
-    total = 0.0
+    per_model = []
     for model, model_shares in shares.items():
+        weighted, weight = 0.0, 0.0
         for stratum, share in model_shares.items():
             hits = [
                 decision == label["same_meaning"]
@@ -178,5 +184,11 @@ def weighted_agreement(
                 if label["model"] == model and label["stratum"] == stratum and label["same_meaning"] is not None
             ]
             if hits:
-                total += share * sum(hits) / len(hits) / len(shares)
-    return total
+                weighted += share * sum(hits) / len(hits)
+                weight += share
+        if weight > 0:
+            per_model.append(weighted / weight)
+    if not per_model:
+        msg = "no labelled pair to compare with"
+        raise ValueError(msg)
+    return sum(per_model) / len(per_model)
