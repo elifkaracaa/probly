@@ -10,6 +10,9 @@ without new generations and without new NLI calls:
 2. Can we stop sampling early? :func:`early_stop_count` simulates the rule "after
    ``check_at`` samples, stop if they all fall into one semantic cluster".
 
+Scores are passed through :func:`tied` before AUROC / PRR, so values that differ
+only by float noise count as exact ties.
+
 Every subset reads its NLI labels from the shared per-question matrix (A1), so a
 subset of samples gives exactly the clusters the clusterer would give on those
 samples alone.
@@ -20,15 +23,53 @@ from __future__ import annotations
 from itertools import combinations
 from typing import TYPE_CHECKING
 
+from methods.lexical_similarity import rouge_l
 import numpy as np
 import torch
 
 from common.nli_matrix import GREEDY_INDEX, sample_block, se_and_dse
-from methods.lexical_similarity import rouge_l
 from probly.representer.semantic_clustering.huggingface import HFGreedySemanticClusterer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+TIE_TOLERANCE = 1e-5
+"""Scores closer than this are treated as exactly equal before AUROC / PRR.
+
+Discrete SE takes only a few distinct values (for example log 2 for two equal
+clusters of samples); two different values are always at least 2e-4 apart for up
+to 10 samples. probly computes them in float32, so the same value can come out
+with noise of about 1e-7, and that noise would decide how ties are ordered and
+move AUROC by up to 0.002 between machines. Rounding to a fixed number of
+decimals is not enough: a value close to a rounding boundary can still fall on
+either side.
+"""
+
+
+def tied(values: np.ndarray, tolerance: float = TIE_TOLERANCE) -> np.ndarray:
+    """Make scores that differ by less than ``tolerance`` exactly equal.
+
+    Sorted scores are grouped while consecutive gaps stay below ``tolerance``;
+    every score in a group is replaced by the group's smallest score.
+
+    Args:
+        values: Scores, any shape; the last axis holds the questions.
+        tolerance: Largest gap that still counts as float noise.
+
+    Returns:
+        Array of the same shape with near-equal scores made equal.
+    """
+    values = np.asarray(values, dtype=float)
+    flat = values.reshape(-1, values.shape[-1])
+    out = np.empty_like(flat)
+    for i, row in enumerate(flat):
+        order = np.argsort(row, kind="stable")
+        ranked = row[order]
+        group_start = np.concatenate(([True], np.diff(ranked) >= tolerance))
+        snapped = ranked[np.flatnonzero(group_start)[np.cumsum(group_start) - 1]]
+        out[i, order] = snapped
+    return out.reshape(values.shape)
+
 
 METHODS = ("semantic_entropy", "discrete_semantic_entropy", "lexical_similarity")
 """Methods scored by :func:`subset_scores`, in this order."""

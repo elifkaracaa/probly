@@ -7,9 +7,13 @@ so it needs no LLM and no NLI model. Run from ``experiments/llm-probly``::
 
 For each model it writes:
 
-- ``results/<model>/<dataset>_<n>/sample_count.json``: AUROC / PRR per method and K
-  (mean and standard deviation over random subsets), and the early-stop table.
-- ``results/<model>/<dataset>_<n>/sample_count.md``: the same as Markdown tables.
+- ``results/<model>/<dataset>_<n>/analysis/sample_count.json``: AUROC / PRR per
+  method and K (mean and standard deviation over random subsets), and the
+  early-stop table.
+- ``results/<model>/<dataset>_<n>/analysis/sample_count.md``: the same as Markdown tables.
+
+The files go to ``analysis/`` because the summary table reads every ``*.json``
+next to the method results as a method.
 - ``results/plots/<dataset>_<n>_<model>_k_curve.png``: AUROC vs number of samples.
 """
 
@@ -22,14 +26,13 @@ import time
 import matplotlib as mpl
 
 mpl.use("Agg")  # write files only, no window
-import matplotlib.pyplot as plt
-import numpy as np
-
 from common.data import cache_path, load_jsonl
 from common.evaluate import auroc, prr
 from common.io import RESULTS_ROOT
 from common.nli_matrix import load_nli_cache
-from common.sample_count import METHODS, early_stop_scores, k_curve
+from common.sample_count import METHODS, early_stop_scores, k_curve, tied
+import matplotlib.pyplot as plt
+import numpy as np
 
 LABELS = {
     "semantic_entropy": "SE",
@@ -47,44 +50,6 @@ def load_model(model: str, dataset: str, n: int) -> tuple[list[dict], list, np.n
         raise ValueError(msg)
     correct = np.array([bool(r["correct"]) for r in rows])
     return rows, cache["matrices"], correct
-
-
-TIE_TOLERANCE = 1e-5
-"""Scores closer than this are treated as exactly equal before AUROC / PRR.
-
-Discrete SE takes only a few distinct values (for example log 2 for two equal
-clusters of samples); two different values are always at least 2e-4 apart for up
-to 10 samples. probly computes them in float32, so the same value can come out
-with noise of about 1e-7, and that noise would decide how ties are ordered and
-move AUROC by up to 0.002 between machines. Rounding to a fixed number of
-decimals is not enough: a value close to a rounding boundary can still fall on
-either side.
-"""
-
-
-def tied(values: np.ndarray, tolerance: float = TIE_TOLERANCE) -> np.ndarray:
-    """Make scores that differ by less than ``tolerance`` exactly equal.
-
-    Sorted scores are grouped while consecutive gaps stay below ``tolerance``;
-    every score in a group is replaced by the group's smallest score.
-
-    Args:
-        values: Scores, any shape; the last axis holds the questions.
-        tolerance: Largest gap that still counts as float noise.
-
-    Returns:
-        Array of the same shape with near-equal scores made equal.
-    """
-    values = np.asarray(values, dtype=float)
-    flat = values.reshape(-1, values.shape[-1])
-    out = np.empty_like(flat)
-    for i, row in enumerate(flat):
-        order = np.argsort(row, kind="stable")
-        ranked = row[order]
-        group_start = np.concatenate(([True], np.diff(ranked) >= tolerance))
-        snapped = ranked[np.flatnonzero(group_start)[np.cumsum(group_start) - 1]]
-        out[i, order] = snapped
-    return out.reshape(values.shape)
 
 
 def curve_table(curve: dict[int, np.ndarray], correct: np.ndarray) -> list[dict]:
@@ -116,12 +81,15 @@ def early_stop_table(matrices: list, rows: list[dict], correct: np.ndarray, chec
     for check_at in checks:
         values, used = early_stop_scores(matrices, rows, check_at)
         values = tied(values)
+        stopped = used < n_samples
         for m, method in enumerate(METHODS):
             table.append(
                 {
                     "method": method,
                     "check_at": check_at,
-                    "stopped_share": float(np.mean(used < n_samples)),
+                    "stopped_share": float(np.mean(stopped)),
+                    "stopped_accuracy": float(correct[stopped].mean()) if stopped.any() else float("nan"),
+                    "not_stopped_accuracy": float(correct[~stopped].mean()) if (~stopped).any() else float("nan"),
                     "samples_per_question": float(used.mean()),
                     "saved_generations_share": float(1 - used.mean() / n_samples),
                     "auroc": auroc(values[m], correct),
@@ -153,11 +121,19 @@ def to_markdown(model: str, run: str, curve: list[dict], stop: list[dict]) -> st
         "Rule: generate `check_at` samples; stop if they all fall into one semantic cluster,",
         "otherwise generate all 10. AUROC change is against all 10 samples.",
         "",
-        "| method | check_at | stopped | samples / question | saved generations | AUROC | AUROC change |",
-        "|---|---|---|---|---|---|---|",
+        "Accuracy columns: share of correct greedy answers among the stopped and the not-stopped",
+        "questions. A stopped wrong answer gets entropy 0 and ties with the stopped correct ones,",
+        "which is where most of the AUROC change comes from.",
+        "",
+        (
+            "| method | check_at | stopped | accuracy stopped | accuracy not stopped "
+            "| samples / question | saved generations | AUROC | AUROC change |"
+        ),
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     lines += [
         f"| {LABELS[r['method']]} | {r['check_at']} | {r['stopped_share']:.0%} | "
+        f"{r['stopped_accuracy']:.0%} | {r['not_stopped_accuracy']:.0%} | "
         f"{r['samples_per_question']:.2f} | {r['saved_generations_share']:.0%} | "
         f"{r['auroc']:.3f} | {r['auroc_change']:+.3f} |"
         for r in stop
@@ -185,7 +161,7 @@ def plot_curve(curve: list[dict], model: str, run: str) -> None:
     fig.tight_layout()
     fig.savefig(out, dpi=150)
     plt.close(fig)
-    print(f"wrote {out}")  # noqa: T201
+    print(f"wrote {out}")
 
 
 def main() -> None:
@@ -207,14 +183,14 @@ def main() -> None:
         curve = curve_table(k_curve(matrices, rows, ks, a.draws, a.seed), correct)
         stop = early_stop_table(matrices, rows, correct, a.checks)
 
-        out_dir = RESULTS_ROOT / model / run
+        out_dir = RESULTS_ROOT / model / run / "analysis"
         out_dir.mkdir(parents=True, exist_ok=True)
         settings = {"draws": a.draws, "seed": a.seed, "checks": a.checks}
         record = {"model": model, "run": run, "settings": settings, "curve": curve, "early_stop": stop}
         (out_dir / "sample_count.json").write_text(json.dumps(record, indent=2) + "\n")
         (out_dir / "sample_count.md").write_text(to_markdown(model, run, curve, stop))
         plot_curve(curve, model, run)
-        print(f"{model}: done in {time.perf_counter() - start:.0f}s -> {out_dir / 'sample_count.md'}")  # noqa: T201
+        print(f"{model}: done in {time.perf_counter() - start:.0f}s -> {out_dir / 'sample_count.md'}")
 
 
 if __name__ == "__main__":

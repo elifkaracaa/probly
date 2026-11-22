@@ -15,6 +15,7 @@ from common.sample_count import (
     lexical_uncertainty,
     subsample_matrix,
     subset_scores,
+    tied,
 )
 import numpy as np
 import pytest
@@ -144,8 +145,6 @@ def test_all_ten_samples_reproduce_the_stored_results(model):
 
 
 def test_tied_makes_float_noise_equal_but_keeps_real_differences():
-    from scripts.sample_count_curve import tied  # noqa: PLC0415
-
     log2 = float(np.log(2))
     values = np.array([log2, log2 + 4e-7, log2 - 3e-7, log2 + 2e-4, 0.0])
 
@@ -155,3 +154,21 @@ def test_tied_makes_float_noise_equal_but_keeps_real_differences():
     assert out[3] > out[0]  # a real difference stays
     assert out[4] == 0.0
     assert tied(np.stack([values, values])).shape == (2, 5)
+
+
+def test_subset_scores_ignore_samples_outside_the_subset():
+    """Reviewer test (E): a subset of K samples must score as if the other samples never existed."""
+    matrix = matrix_from_groups([0, 0, 0, 1, 1])
+    row = make_row(["Paris", "Paris", "Lyon", "Lyon"])
+    changed_matrix = matrix_from_groups([0, 0, 0, 2, 3])
+    changed_row = make_row(["Paris", "Paris", "Berlin", "Rome"])
+    changed_row["samples_ll_mean"][2] = -9.0
+
+    assert subset_scores(changed_matrix, changed_row, [0, 1]) == pytest.approx(subset_scores(matrix, row, [0, 1]))
+
+
+def test_early_stop_ignores_the_greedy_answer():
+    """Reviewer test (E): the stop rule looks at the samples only; a disagreeing greedy answer does not matter."""
+    greedy_disagrees = matrix_from_groups([9, 0, 0, 0, 1, 2])  # greedy in its own cluster, first 3 samples agree
+
+    assert early_stop_count(greedy_disagrees, check_at=3) == 3
