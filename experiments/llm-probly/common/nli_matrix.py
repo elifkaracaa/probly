@@ -145,24 +145,38 @@ def nli_pair_count(row: dict, *, deduplicate: bool = True) -> int:
     return m * (m - 1)
 
 
-def same_meaning(matrix: torch.Tensor, a: int, b: int) -> bool:
-    """Whether texts ``a`` and ``b`` of a question matrix fall into one cluster (probly's rule).
+RULES = ("probly", "strict")
+"""Equivalence rules: ``probly`` = semantic entropy's rule; ``strict`` = entailment in both directions."""
 
-    Uses :meth:`HFGreedySemanticClusterer.cluster_nli_matrix` on the 2 x 2 block, so the rule is
-    exactly the one semantic entropy uses: no contradiction in either direction and not
-    neutral in both directions.
+
+def same_meaning(matrix: torch.Tensor, a: int, b: int, rule: str = "probly") -> bool:
+    """Whether texts ``a`` and ``b`` of a question matrix have the same meaning.
+
+    With ``rule="probly"`` this is exactly the rule semantic entropy uses (via
+    :meth:`HFGreedySemanticClusterer.cluster_nli_matrix` on the 2 x 2 block): no contradiction in
+    either direction and not neutral in both directions. ``rule="strict"`` asks for entailment in
+    both directions (bidirectional entailment), which never merges a vaguer answer with a specific one.
 
     Args:
         matrix: Question matrix of shape ``(n, n, 3)`` in probly's label order.
         a: Index of the first text.
         b: Index of the second text.
+        rule: ``"probly"`` or ``"strict"``.
 
     Returns:
         True if the two texts are treated as having the same meaning.
+
+    Raises:
+        ValueError: For an unknown rule.
     """
-    block = matrix[[a, b]][:, [a, b]]
-    ids = HFGreedySemanticClusterer.cluster_nli_matrix(block)
-    return bool(ids[0] == ids[1])
+    if rule == "probly":
+        ids = HFGreedySemanticClusterer.cluster_nli_matrix(matrix[[a, b]][:, [a, b]])
+        return bool(ids[0] == ids[1])
+    if rule == "strict":
+        entailment = NLI_LABELS.index("entailment")
+        return bool(matrix[a, b].argmax() == entailment and matrix[b, a].argmax() == entailment)
+    msg = f"rule must be one of {RULES}, got {rule!r}."
+    raise ValueError(msg)
 
 
 def sample_block(matrix: torch.Tensor) -> torch.Tensor:

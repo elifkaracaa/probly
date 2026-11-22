@@ -132,3 +132,51 @@ def load_labels(path: str | Path = LABELS_PATH) -> list[dict]:
 def save_labels(labels: Sequence[dict], path: str | Path = LABELS_PATH) -> None:
     """Write the label file (indented JSON, final newline)."""
     Path(path).write_text(json.dumps(list(labels), indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def stratum_shares(candidates: Sequence[dict]) -> dict[str, float]:
+    """Share of each stratum among all candidate pairs of one model (used as weights).
+
+    Args:
+        candidates: Pairs from :func:`candidate_pairs` (all of them, not only the labelled ones).
+
+    Returns:
+        ``{stratum: share}``; the shares add up to 1.
+    """
+    counts = dict.fromkeys(STRATA, 0)
+    for pair in candidates:
+        counts[pair["stratum"]] += 1
+    return {stratum: count / len(candidates) for stratum, count in counts.items()}
+
+
+def weighted_agreement(
+    labels: Sequence[dict],
+    decisions: Sequence[bool],
+    shares: dict[str, dict[str, float]],
+) -> float:
+    """Agreement of NLI decisions with hand labels, weighted to the real mix of pairs.
+
+    The labelled pairs over-sample the pairs where deberta-base and deberta-large disagree (a third
+    of the labels, about 5 % of all pairs), so a plain accuracy would exaggerate differences. Here the
+    accuracy is computed per model and stratum and weighted by that stratum's share of all pairs;
+    models get equal weight. Skipped pairs (``same_meaning`` is None) are left out.
+
+    Args:
+        labels: Labelled pairs (see the module docstring).
+        decisions: NLI decision for each labelled pair (True = same meaning), same order.
+        shares: ``{model: stratum_shares(...)}``.
+
+    Returns:
+        Weighted share of pairs on which the decision equals the hand label.
+    """
+    total = 0.0
+    for model, model_shares in shares.items():
+        for stratum, share in model_shares.items():
+            hits = [
+                decision == label["same_meaning"]
+                for label, decision in zip(labels, decisions, strict=True)
+                if label["model"] == model and label["stratum"] == stratum and label["same_meaning"] is not None
+            ]
+            if hits:
+                total += share * sum(hits) / len(hits) / len(shares)
+    return total
