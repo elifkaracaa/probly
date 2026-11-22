@@ -145,6 +145,26 @@ def nli_pair_count(row: dict, *, deduplicate: bool = True) -> int:
     return m * (m - 1)
 
 
+def same_meaning(matrix: torch.Tensor, a: int, b: int) -> bool:
+    """Whether texts ``a`` and ``b`` of a question matrix fall into one cluster (probly's rule).
+
+    Uses :meth:`HFGreedySemanticClusterer.cluster_nli_matrix` on the 2 x 2 block, so the rule is
+    exactly the one semantic entropy uses: no contradiction in either direction and not
+    neutral in both directions.
+
+    Args:
+        matrix: Question matrix of shape ``(n, n, 3)`` in probly's label order.
+        a: Index of the first text.
+        b: Index of the second text.
+
+    Returns:
+        True if the two texts are treated as having the same meaning.
+    """
+    block = matrix[[a, b]][:, [a, b]]
+    ids = HFGreedySemanticClusterer.cluster_nli_matrix(block)
+    return bool(ids[0] == ids[1])
+
+
 def sample_block(matrix: torch.Tensor) -> torch.Tensor:
     """Return the samples-vs-samples part of a question matrix (drops the greedy answer)."""
     return matrix[GREEDY_INDEX + 1 :, GREEDY_INDEX + 1 :]
