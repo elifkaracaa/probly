@@ -67,6 +67,16 @@ The NLI matrices are kept on disk, one file per data cache and NLI setup:
 answers only keeps the week-2 name `.nli.npz`). The runner reads it before SE / DSE and writes new matrices
 back, so **a second run on the same data does no NLI work** (`nli_pairs_per_question` is 0 in the record).
 
+Measured on qwen0.5b TriviaQA-200 (deberta-large, Mac, MPS), two runs of
+`run_benchmark --methods semantic_entropy,discrete_semantic_entropy --force`:
+
+| run | questions cached | NLI pairs per question | SE seconds per question |
+|---|---|---|---|
+| 1st (file from before A5, no fingerprints) | 0/200 | 59.3 | 0.67 |
+| 2nd | 200/200 | 0 | 0.00 (0.1 s for all 200, NLI model not loaded) |
+
+Discrete SE shows 0 pairs in both runs because it reads the matrices SE has just made (A1).
+
 A cached matrix is only reused when nothing it depends on has changed:
 
 | changes | what happens |
