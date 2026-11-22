@@ -10,6 +10,8 @@ Steps, in order. Each step is skipped if its output file already exists
 1. generate  -> data/<model>/<dataset>_<n>.jsonl + .meta.json  (scripts/generate.py)
 2. label     -> adds "correct" to that file           (scripts/label.py)
 3. methods   -> results/<model>/<dataset>/<method>.json, one per method in common/registry.py
+   SE / DSE read and update the NLI cache data/<model>/<dataset>_<n>.nli.<tag>.npz (A5),
+   so a second run does no NLI work; changed answers or another NLI setup are recomputed.
 4. evaluate  -> AUROC, AURC, bootstrap interval per method (common/summary.py)
 5. table     -> results/<model>/<dataset>/summary.md (with family, access and cost from the registry)
 
@@ -28,7 +30,13 @@ from typing import TYPE_CHECKING
 
 from common.data import DATASETS, cache_path, load_jsonl
 from common.io import RESULTS_ROOT, save_scores
-from common.nli_matrix import DEFAULT_NLI_MODEL, set_nli_settings
+from common.nli_matrix import (
+    DEFAULT_NLI_MODEL,
+    count_cached_questions,
+    nli_cache_path,
+    set_nli_cache_file,
+    set_nli_settings,
+)
 from common.registry import REGISTRY, MethodSpec, check_registry, score_function
 from common.summary import summary_table, to_markdown
 import pandas as pd
@@ -251,9 +259,15 @@ def run(args: argparse.Namespace) -> None:
     rows = prepare_data(config)
     precision = cache_precision(config)
     nli = set_nli_settings(config["nli_model"], use_question=config["nli_use_question"])
-    print(f"NLI for the semantic methods: {nli.tag}")
+    nli_file = nli_cache_path(cache_path(config["model"], config["n"], config["dataset"]), nli)
+    cached = count_cached_questions(nli_file, nli, rows)
+    print(f"NLI for the semantic methods: {nli.tag}, cache {shown(nli_file)} ({cached}/{len(rows)} questions cached)")
     methods = choose_methods(find_methods(), config, args)
-    run_methods(methods, rows, config, run_name, args.force)
+    set_nli_cache_file(nli_file)
+    try:
+        run_methods(methods, rows, config, run_name, args.force)
+    finally:
+        set_nli_cache_file(None)
     make_table(rows, methods, run_name, precision)
 
 

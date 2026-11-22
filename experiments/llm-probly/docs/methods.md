@@ -60,6 +60,27 @@ agreement with the labels is weighted to the real mix of answer pairs (the label
   like "Annie Hall" and "Annie Hall by John Williams".
 - Change the setup with `nli_model` / `nli_use_question` in a config (see `docs/pipeline.md`).
 
+## Persistent NLI cache (A5)
+
+The NLI matrices are kept on disk, one file per data cache and NLI setup:
+`data/<model>/<dataset>_<n>.nli.<tag>.npz` (e.g. `triviaqa_200.nli.deberta-large.npz`; deberta-base on
+answers only keeps the week-2 name `.nli.npz`). The runner reads it before SE / DSE and writes new matrices
+back, so **a second run on the same data does no NLI work** (`nli_pairs_per_question` is 0 in the record).
+
+A cached matrix is only reused when nothing it depends on has changed:
+
+| changes | what happens |
+|---|---|
+| generator model or dataset (or n) | another data cache, so another file |
+| NLI model or question conditioning | another file name; a file whose stored setup does not match is not used |
+| the answers of a question (data regenerated) | that question's fingerprint changes, only it is computed again |
+| file from before A5 (no fingerprints) | everything is computed again and the file is rewritten |
+
+The fingerprint (`common.nli_matrix.matrix_fingerprint`) is a hash of the NLI model name, the question (only
+when it is put in front of the answers) and the exact answer texts. Other code that needs the matrices
+(e.g. graph measures, hybrid scores) should find the file with `nli_cache_path(data_file, nli_settings())`
+and read it with `load_nli_cache`, instead of writing the file name by hand.
+
 ## Known limitations
 
 - The hand labels come from one person (60 pairs); a second person labels a subset to measure how much

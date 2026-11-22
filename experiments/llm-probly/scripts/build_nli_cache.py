@@ -26,6 +26,8 @@ from common.nli_matrix import (  # noqa: F401  (load_nli_cache: re-export)
     NliSettings,
     compute_matrices,
     load_nli_cache,
+    matrix_fingerprint,
+    nli_cache_path,
     nli_pair_count,
     pick_device,
     resolve_dtype,
@@ -80,6 +82,7 @@ def build(
         use_question=use_question,
         seconds_per_question=sec_per_q,
         deduplicate=deduplicate,
+        fingerprints=[matrix_fingerprint(row, NliSettings(nli_model, use_question=use_question)) for row in rows],
     )
     pairs = np.mean([nli_pair_count(row, deduplicate=deduplicate) for row in rows])
     print(f"saved {out}  {len(rows)} questions  {pairs:.0f} NLI pairs/question  {sec_per_q:.2f}s/question")
@@ -100,8 +103,7 @@ if __name__ == "__main__":
     ap.add_argument("--limit", type=int, default=0, help="only first N rows (testing)")
     a = ap.parse_args()
     settings = NliSettings(a.nli_model, use_question=a.use_question)
-    tag = "" if settings.tag == "deberta-base" else f".{settings.tag}"
-    out = a.out or str(Path(a.cache).with_suffix("")) + f".nli{tag}.npz"
+    out = a.out or str(nli_cache_path(a.cache, settings))
     build(
         a.cache,
         settings.hf_name,
