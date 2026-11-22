@@ -380,3 +380,5 @@ This project is licensed under the [MIT License](https://github.com/pwhofman/pro
 
 ---
 Built with ❤️ by the probly team.
+
+See [how llm-probly compares to LM-Polygraph](experiments/llm-probly/POSITIONING.md).
