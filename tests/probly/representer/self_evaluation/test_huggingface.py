@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 pytest.importorskip("transformers")
@@ -13,6 +15,7 @@ import torch
 from probly.representer.self_evaluation.huggingface import (
     HFSelfEvaluator,
     build_self_evaluation_text,
+    parse_judgment,
 )
 
 VOCAB = 101
@@ -189,3 +192,122 @@ def test_invalid_arguments_raise() -> None:
         evaluator.evaluate(["q1", "q2"], ["a1"])
     with pytest.raises(ValueError, match="brainstorm"):
         evaluator.evaluate(["q1"], ["a1"], [["x"], ["y"]])
+
+
+def _old_is_true(text: str) -> bool:
+    text = text.strip().lower()
+    return text.startswith("true") or re.match(r"^\(?a\)?(\W|$)", text) is not None
+
+
+def _old_is_false(text: str) -> bool:
+    text = text.strip().lower()
+    return text.startswith("false") or re.match(r"^\(?b\)?(\W|$)", text) is not None
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("True", True),
+        (" true.", True),
+        ("A", True),
+        ("(A)", True),
+        ("A) True", True),
+        ("(True)", True),
+        ("**True**", True),
+        ('"A"', True),
+        ("False", False),
+        ("B.", False),
+        ("(B)", False),
+        ("**False**", False),
+        ("Apple", None),
+        ("Banana", None),
+        ("", None),
+        ("   ", None),
+        ("maybe", None),
+        ("1", None),
+    ],
+)
+def test_parse_judgment(text: str, expected: bool | None) -> None:
+    assert parse_judgment(text) is expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["True", "true!", "A", "A.", "(A)", "A)", "False", "B", "(B)", "B:", "Apple", "Bob", "xyz", ""],
+)
+def test_parse_judgment_agrees_with_week_1_rule_where_it_read_a_reply(text: str) -> None:
+    # Replies that the old rule could not read may be readable now, so only the readable ones are compared.
+    if _old_is_true(text):
+        assert parse_judgment(text) is True
+    elif _old_is_false(text):
+        assert parse_judgment(text) is False
+
+
+class RecordingSampler:
+    """Stands in for HFTextGenerationSampler and records how it is used."""
+
+    instances: list[RecordingSampler] = []  # noqa: RUF012
+
+    def __init__(self, model: object, tokenizer: object, **kwargs: object) -> None:
+        """Record the constructor arguments."""
+        self.model = model
+        self.tokenizer = tokenizer
+        self.kwargs = kwargs
+        self.calls: list[list[str]] = []
+        RecordingSampler.instances.append(self)
+
+    def __call__(self, prompts: list[str]) -> SimpleNamespace:
+        self.calls.append(list(prompts))
+        num_samples = int(self.kwargs["num_samples"])  # type: ignore[call-overload]
+        # The replies carry the length of their prompt, so a test can check that they are assigned correctly.
+        text = np.array([[f"{len(prompt)}-{i}" for i in range(num_samples)] for prompt in prompts], dtype=object)
+        return SimpleNamespace(tensor=SimpleNamespace(text=text))
+
+
+@pytest.fixture
+def recording_sampler(monkeypatch: pytest.MonkeyPatch) -> type[RecordingSampler]:
+    RecordingSampler.instances = []
+    monkeypatch.setattr("probly.representer.self_evaluation.huggingface.HFTextGenerationSampler", RecordingSampler)
+    return RecordingSampler
+
+
+def test_sample_judgments_batches_questions_in_one_sampler(recording_sampler: type[RecordingSampler]) -> None:
+    evaluator = HFSelfEvaluator(FakeModel(), FakeTokenizer(), batch_size=8)
+    brainstorm = [["Marlowe"], None, None]
+    replies = evaluator.sample_judgments(
+        QUESTIONS, ANSWERS, brainstorm, num_samples=4, temperature=0.7, max_new_tokens=5, question_batch_size=2
+    )
+
+    prompts = [
+        build_self_evaluation_text(question, answer, idea)
+        for question, answer, idea in zip(QUESTIONS, ANSWERS, brainstorm, strict=True)
+    ]
+    # Replies come back in the order of the questions, although the batches are sorted by prompt length.
+    assert replies == [[f"{len(prompt)}-{i}" for i in range(4)] for prompt in prompts]
+    (sampler,) = recording_sampler.instances
+    assert sampler.kwargs == {
+        "num_samples": 4,
+        "temperature": 0.7,
+        "max_new_tokens": 5,
+        "with_log_likelihood": False,
+    }
+    assert [len(call) for call in sampler.calls] == [2, 1]
+    # The batches are sorted by prompt length: shortest two first, the longest prompt (with brainstorm) last.
+    assert sorted(prompts, key=len) == [*sampler.calls[0], *sampler.calls[1]]
+    assert len(prompts[0]) == max(len(prompt) for prompt in prompts)
+
+
+def test_sample_judgments_defaults_to_the_evaluator_batch_size(recording_sampler: type[RecordingSampler]) -> None:
+    evaluator = HFSelfEvaluator(FakeModel(), FakeTokenizer(), batch_size=2)
+    evaluator.sample_judgments(QUESTIONS, ANSWERS, num_samples=3)
+    assert [len(call) for call in recording_sampler.instances[0].calls] == [2, 1]
+
+
+def test_sample_judgments_invalid_arguments_raise() -> None:
+    evaluator = HFSelfEvaluator(FakeModel(), FakeTokenizer())
+    with pytest.raises(ValueError, match="answers"):
+        evaluator.sample_judgments(["q1", "q2"], ["a1"])
+    with pytest.raises(ValueError, match="brainstorm"):
+        evaluator.sample_judgments(["q1"], ["a1"], [["x"], ["y"]])
+    with pytest.raises(ValueError, match="question_batch_size"):
+        evaluator.sample_judgments(["q1"], ["a1"], question_batch_size=0)
