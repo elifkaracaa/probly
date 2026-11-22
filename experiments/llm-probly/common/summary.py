@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import pandas as pd
 
 from common.evaluate import bootstrap_auroc, ece, evaluate
 from common.io import RESULTS_ROOT, load_scores
+from common.registry import REGISTRY
 
 EXPECTED_METHODS = (
     "likelihood_mean",
@@ -23,8 +25,9 @@ EXPECTED_METHODS = (
 
 COLUMNS = ["method", "status", "auroc", "ci_low", "ci_high", "aurc", "prr", "ece", "n_failed", "seconds_per_question"]
 
-# Methods whose score is a probability of being correct (uncertainty = 1 - probability).
-# Only for these ECE is computed. New plugins can instead put "probability": true in their record.
+# Methods whose score is a probability of being correct (uncertainty = 1 - probability); only for these
+# ECE is computed. Registered methods set probability=True in common/registry.py; this tuple adds the
+# week-1 result names. A record can still override it with "probability": true.
 PROBABILITY_METHODS = (
     "p_true_zeroshot",
     "p_true_zeroshot_norm",
@@ -71,7 +74,9 @@ def summary_table(
             table.append({"method": method, "status": f"pending: {error}"})
             continue
         scores = evaluate(record["uncertainty"], correct)
-        is_probability = record.get("probability", method in PROBABILITY_METHODS)
+        spec = REGISTRY.get(method)
+        default = spec.probability if spec else method in PROBABILITY_METHODS
+        is_probability = record.get("probability", default)
         calibration = ece(record["uncertainty"], correct) if is_probability else float("nan")
         low, high = bootstrap_auroc(record["uncertainty"], correct, n_boot=n_boot)
         table.append(
@@ -88,15 +93,15 @@ def summary_table(
                 "seconds_per_question": record["seconds_per_question"],
             },
         )
-    return pd.DataFrame(table, columns=COLUMNS)
+    return pd.DataFrame(table, columns=pd.Index(COLUMNS))
 
 
 def to_markdown(table: pd.DataFrame) -> str:
     """Write a DataFrame as a Markdown table (numbers with 3 decimals, NaN as an empty cell)."""
 
-    def cell(value) -> str:
+    def cell(value: object) -> str:
         if isinstance(value, float):
-            return "" if value != value else f"{value:.3f}"  # value != value is True only for NaN
+            return "" if math.isnan(value) else f"{value:.3f}"
         return str(value)
 
     lines = ["| " + " | ".join(str(c) for c in table.columns) + " |", "|" + "---|" * len(table.columns)]
@@ -136,7 +141,7 @@ def compare_models(
 def method_by_model(long: pd.DataFrame, metric: str) -> pd.DataFrame:
     """Turn the long table into methods x models for one metric (e.g. "auroc")."""
     models = list(dict.fromkeys(long["model"]))  # keep the small-to-large order
-    wide = long.pivot(index="method", columns="model", values=metric)[models]
+    wide = long.pivot(index="method", columns="model", values=metric)[models]  # noqa: PD010 - one value per cell
     wide = wide.dropna(how="all")  # e.g. ECE: drop methods that are not probabilities
     return wide.reset_index().rename_axis(columns=None)
 
@@ -171,4 +176,4 @@ def sanity_table(folder: Path = SANITY_ROOT) -> pd.DataFrame:
                 "verdict": sanity_verdict(data["auroc"]),
             },
         )
-    return pd.DataFrame(records, columns=SANITY_COLUMNS)
+    return pd.DataFrame(records, columns=pd.Index(SANITY_COLUMNS))

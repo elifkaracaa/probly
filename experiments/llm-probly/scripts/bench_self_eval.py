@@ -13,12 +13,12 @@ from __future__ import annotations
 import argparse
 import time
 
-import torch
-
 from common import reflexive
 from common.data import load_data
 from methods import p_true_brainstorm, p_true_empirical, p_true_zeroshot
 from scripts.r3_methods import empirical_p_true
+import torch
+
 from probly.representer.sampler.huggingface import load_model
 
 MODELS = {
@@ -75,8 +75,10 @@ def main() -> None:
     new_s = new["seconds_per_question"]
     new_p = [1.0 - u for u in new["uncertainty"]]
     print(f"\nempirical p(True): before {old_s:.3f} s/question, after {new_s:.3f} s/question ({old_s / new_s:.2f}x)")
-    print(f"  mean p(True) {sum(old_p) / len(old_p):.3f} -> {sum(new_p) / len(new_p):.3f}; "
-          f"mean parsed fraction {sum(new['parsed_fraction']) / len(rows):.3f}")
+    print(
+        f"  mean p(True) {sum(old_p) / len(old_p):.3f} -> {sum(new_p) / len(new_p):.3f}; "
+        f"mean parsed fraction {sum(new['parsed_fraction']) / len(rows):.3f}"
+    )
 
     print("\n| method | before (s/question) | after (s/question) | speed-up | max abs score diff |")
     print("|---|---|---|---|---|")

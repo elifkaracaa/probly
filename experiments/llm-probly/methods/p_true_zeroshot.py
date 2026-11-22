@@ -1,7 +1,7 @@
 """Zero-shot p(True): ask the model whether its own greedy answer is true.
 
-Thin wrapper around probly's ``HFSelfEvaluator`` in plain_ab mode (week 1, R1; moved into the
-library in week 3, C1). Uncertainty = 1 - p_true (score contract rule 1).
+Thin wrapper around probly's ``HFSelfEvaluator`` in plain_ab mode (week 1, R1; moved into the library in week 3, C1).
+Uncertainty = 1 - p_true (score contract rule 1).
 Also stores coverage = P(A) + P(B) per question, to check that the model
 really answers with A/B.
 """
@@ -10,20 +10,27 @@ from __future__ import annotations
 
 import math
 import time
+from typing import TYPE_CHECKING, Any
 
 from probly.representer.self_evaluation.huggingface import HFSelfEvaluator
 
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizerBase
+
 NAME = "p_true_zeroshot"
-FAMILY = "self_eval"
-NEEDS_MODEL = True
 MODE = "plain_ab"
 BATCH_SIZE = 8
 
 
-def score(rows, model=None, tok=None) -> dict:
+def score(
+    rows: list[dict[str, Any]],
+    model: PreTrainedModel | None = None,
+    tok: PreTrainedTokenizerBase | None = None,
+) -> dict[str, Any]:
     """Score the greedy answer of every row with zero-shot p(True)."""
     if model is None or tok is None:
-        raise ValueError(f"{NAME} needs the model (NEEDS_MODEL = True)")
+        msg = f"{NAME} needs the model (needs_model=True in common/registry.py)"
+        raise ValueError(msg)
 
     evaluator = HFSelfEvaluator(model, tok, mode=MODE, batch_size=BATCH_SIZE)
     start = time.perf_counter()
