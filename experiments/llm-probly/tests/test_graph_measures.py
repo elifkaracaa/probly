@@ -129,6 +129,7 @@ def test_plugins_use_the_week2_nli_cache_without_nli_calls(monkeypatch):
     def no_nli(_row):
         pytest.fail("the NLI model must not run when the cache file matches")
 
+    monkeypatch.setattr("methods._se_common.prepare_matrices", no_nli)
     monkeypatch.setattr("methods._se_common.get_matrix", no_nli)
     monkeypatch.setattr(_graph_common, "_scores", {})
     rows = [json.loads(line) for line in (ROOT / "data/qwen0.5b/triviaqa_200.jsonl").open()]
@@ -148,6 +149,7 @@ def test_plugins_fall_back_to_computed_matrices_for_rows_without_a_cache(monkeyp
         computed.append(row["id"])
         return nli_from_groups([0, 0, 0, 1])
 
+    monkeypatch.setattr("methods._se_common.prepare_matrices", lambda _rows: None)
     monkeypatch.setattr("methods._se_common.get_matrix", fake_matrix)
     monkeypatch.setattr(_graph_common, "_scores", {})
     rows = [
@@ -160,3 +162,4 @@ def test_plugins_fall_back_to_computed_matrices_for_rows_without_a_cache(monkeyp
     assert computed == [0, 1]
     assert record["uncertainty"][0] > 0.0
     assert record["failed"] == [False, False]
+    assert record["nli_pairs_per_question"] == 0.0  # the fake did not score pairs

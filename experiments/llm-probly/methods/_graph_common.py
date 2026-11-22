@@ -4,8 +4,9 @@ The four plugins read the same per-question NLI matrices. If the week-2 NLI
 cache (``data/<model>/<dataset>_<n>.nli.npz``) exists for these rows and was
 built with the same NLI model and setting, it is used; otherwise the matrices
 come from ``_se_common.get_matrix``, which computes them once per process and
-shares them with the SE plugins. This file lookup is a bridge until the
-persistent NLI cache (A5) is in the runner.
+shares them with the SE plugins (batched, A3). This file lookup is a bridge
+until the persistent NLI cache (A5) is in main; then it switches to
+``nli_cache_path``.
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ from typing import TYPE_CHECKING
 
 from common.data import DATA_DIR, load_jsonl
 from common.graph_measures import graph_scores
-from common.nli_matrix import load_nli_cache
+from common.nli_matrix import load_nli_cache, question_texts
+
 from methods import _se_common
 
 if TYPE_CHECKING:
@@ -50,17 +52,19 @@ def get_matrices(rows: list[dict]) -> list[torch.Tensor]:
         cache = load_nli_cache(npz)
         if cache["nli_model"] == _se_common.NLI_MODEL and not cache["use_question"]:
             return cache["matrices"]
+    _se_common.prepare_matrices(rows)
     return [_se_common.get_matrix(row) for row in rows]
 
 
 def score_rows(rows: list[dict], name: str) -> dict:
     """Score record for one graph measure (``name`` is a key of ``graph_scores``), see CONTRACT.md."""
     start = time.perf_counter()
+    pairs_before = _se_common.nli_pairs_scored
     matrices = get_matrices(rows)
     ids, uncertainty, failed = [], [], []
     for row, matrix in zip(rows, matrices, strict=True):
         ids.append(row["id"])
-        key = (row["greedy_answer"], *row["samples"])
+        key = tuple(question_texts(row))
         try:
             if key not in _scores:
                 _scores[key] = graph_scores(matrix)
@@ -77,4 +81,5 @@ def score_rows(rows: list[dict], name: str) -> dict:
         "uncertainty": uncertainty,
         "failed": failed,
         "seconds_per_question": (time.perf_counter() - start) / len(rows),
+        "nli_pairs_per_question": (_se_common.nli_pairs_scored - pairs_before) / len(rows),
     }
