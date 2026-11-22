@@ -23,6 +23,7 @@ Keys: ``y`` same meaning, ``n`` different meaning, ``s`` skip (unclear), ``q`` q
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from common.data import cache_path, load_jsonl
@@ -41,7 +42,6 @@ import numpy as np
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-    from pathlib import Path
 
 MODELS = ("qwen0.5b", "qwen1.5b")
 ANSWERS = {"y": True, "n": False, "s": None}
@@ -131,6 +131,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if not args.agreement and not args.labeller:
         parser.error("--labeller is needed to label pairs")
+    if args.agreement and not Path(args.agreement).exists():
+        parser.error(f"{args.agreement} does not exist")  # load_labels would read it as "no labels yet"
     if args.agreement:
         result = labeller_agreement(load_labels(), load_labels(args.agreement))
         print(f"{result['pairs']} pairs: agreement {result['agreement']:.2f}, Cohen's kappa {result['kappa']:.2f}")

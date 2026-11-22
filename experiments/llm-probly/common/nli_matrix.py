@@ -54,7 +54,7 @@ NLI_MODELS = {"deberta-base": "microsoft/deberta-base-mnli", "deberta-large": "m
 DEFAULT_NLI_MODEL = "deberta-large"
 """Default NLI model of the experiments (A4, see docs/methods.md "NLI setup").
 
-On 60 hand-labelled answer pairs deberta-large agrees best with the human labels (0.971 vs 0.936 for
+On 80 hand-labelled answer pairs deberta-large agrees best with the human labels (0.971 vs 0.937 for
 deberta-base, weighted), while SE / DSE AUROC stays the same within noise; it is about 3x slower, a
 cost that is paid once per cache. probly's library default stays deberta-base.
 """
