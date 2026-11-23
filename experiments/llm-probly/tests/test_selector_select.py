@@ -36,11 +36,11 @@ def make_table(n: int = 200) -> ScoreTable:
         "text_method": wrong + rng.normal(0, 1.0, n),
     }
     ids = list(range(n))
-    info = pd.DataFrame({"probability": [False] * 4, "seconds_per_question": [0.0] * 4}, index=list(columns))
+    info = pd.DataFrame({"probability": [False] * 4, "seconds_per_question": [0.0] * 4}, index=pd.Index(list(columns)))
     return ScoreTable(
         model="m",
         run="triviaqa_200",
-        scores=pd.DataFrame(columns, index=ids),
+        scores=pd.DataFrame(columns, index=pd.Index(ids)),
         correct=pd.Series(correct, index=ids, name="correct"),
         info=info,
     )

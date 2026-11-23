@@ -26,11 +26,11 @@ def make_table(n: int = 200, seed: int = 0) -> ScoreTable:
         "verbalized_2s": rng.normal(0, 1, n),
     }
     ids = list(range(n))
-    info = pd.DataFrame({"probability": [False, True, True]}, index=list(columns))
+    info = pd.DataFrame({"probability": [False, True, True]}, index=pd.Index(list(columns)))
     return ScoreTable(
         model="m",
         run="triviaqa_200",
-        scores=pd.DataFrame(columns, index=ids),
+        scores=pd.DataFrame(columns, index=pd.Index(ids)),
         correct=pd.Series(correct, index=ids, name="correct"),
         info=info,
     )

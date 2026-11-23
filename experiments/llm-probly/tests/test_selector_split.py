@@ -12,7 +12,7 @@ def make_table(n: int = 200, n_correct: int = 40) -> ScoreTable:
     """Table with one method and ``n_correct`` correct answers out of ``n``."""
     ids = list(range(n))
     correct = pd.Series([i < n_correct for i in ids], index=ids, name="correct")
-    scores = pd.DataFrame({"msp": [float(i) for i in ids]}, index=ids)
+    scores = pd.DataFrame({"msp": [float(i) for i in ids]}, index=pd.Index(ids))
     return ScoreTable(model="m", run="r", scores=scores, correct=correct, info=pd.DataFrame())
 
 

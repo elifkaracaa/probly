@@ -15,7 +15,7 @@ def make_table(columns: dict[str, list[float]], correct: list[bool]) -> ScoreTab
     return ScoreTable(
         model="m",
         run="r",
-        scores=pd.DataFrame(columns, index=ids),
+        scores=pd.DataFrame(columns, index=pd.Index(ids)),
         correct=pd.Series(correct, index=ids, name="correct"),
         info=pd.DataFrame(),
     )

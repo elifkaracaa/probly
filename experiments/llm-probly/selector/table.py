@@ -110,8 +110,7 @@ def load_score_table(
             "probability": bool(record.get("probability", False)),
         }
 
-    scores = pd.DataFrame(columns, index=ids)
-    scores.index.name = "id"
+    scores = pd.DataFrame(columns, index=pd.Index(ids, name="id"))
     return ScoreTable(
         model=model,
         run=run,

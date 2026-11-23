@@ -32,7 +32,7 @@ def make_table(n: int = 400, seed: int = 0) -> ScoreTable:
     return ScoreTable(
         model="m",
         run="r",
-        scores=pd.DataFrame(columns, index=ids),
+        scores=pd.DataFrame(columns, index=pd.Index(ids)),
         correct=pd.Series(correct, index=ids, name="correct"),
         info=pd.DataFrame(),
     )
