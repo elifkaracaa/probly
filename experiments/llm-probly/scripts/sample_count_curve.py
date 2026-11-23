@@ -1,7 +1,9 @@
 """Sample-count curve and early-stop rule for the semantic methods (B2).
 
-Reads only the cache (``data/<model>/<dataset>_<n>.jsonl`` and its ``.nli.npz``),
-so it needs no LLM and no NLI model. Run from ``experiments/llm-probly``::
+Reads only the caches: ``data/<model>/<dataset>_<n>.jsonl`` and the persistent NLI cache of the
+chosen NLI setup (A5, ``nli_cache_path``; deberta-large by default), so it needs no LLM and no NLI
+model. Every question's matrix must be in that cache with a matching fingerprint; if not, run the
+benchmark on the config first, which fills the cache. Run from ``experiments/llm-probly``::
 
     uv run python -m scripts.sample_count_curve --models qwen0.5b qwen1.5b
 
@@ -29,7 +31,13 @@ mpl.use("Agg")  # write files only, no window
 from common.data import cache_path, load_jsonl
 from common.evaluate import auroc, prr
 from common.io import RESULTS_ROOT
-from common.nli_matrix import load_nli_cache
+from common.nli_matrix import (
+    DEFAULT_NLI_MODEL,
+    NliSettings,
+    matrix_fingerprint,
+    nli_cache_path,
+    read_cached_matrices,
+)
 from common.sample_count import METHODS, early_stop_scores, k_curve, tied
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,15 +49,27 @@ LABELS = {
 }
 
 
-def load_model(model: str, dataset: str, n: int) -> tuple[list[dict], list, np.ndarray]:
-    """Rows, NLI matrices and correctness labels of one model, checked to be aligned."""
-    rows = load_jsonl(cache_path(model, n, dataset))
-    cache = load_nli_cache(cache_path(model, n, dataset, suffix=".nli.npz"))
-    if cache["ids"] != [r["id"] for r in rows]:
-        msg = f"{model}: question ids of the NLI cache and the data cache differ."
+def load_model(model: str, dataset: str, n: int, settings: NliSettings) -> tuple[list[dict], list, np.ndarray]:
+    """Rows, NLI matrices and correctness labels of one model, from the persistent NLI cache (A5).
+
+    Raises:
+        ValueError: If a question has no matrix with a matching fingerprint in the cache.
+    """
+    data_file = cache_path(model, n, dataset)
+    rows = load_jsonl(data_file)
+    path = nli_cache_path(data_file, settings)
+    entries = read_cached_matrices(path, settings)
+    missing = [
+        r["id"] for r in rows if r["id"] not in entries or entries[r["id"]][0] != matrix_fingerprint(r, settings)
+    ]
+    if missing:
+        msg = (
+            f"{model}: {len(missing)} of {len(rows)} questions have no {settings.tag} NLI matrix in {path}. "
+            f"Run the benchmark first: uv run python -m cli run --config configs/{model}_{dataset}_{n}.yaml"
+        )
         raise ValueError(msg)
     correct = np.array([bool(r["correct"]) for r in rows])
-    return rows, cache["matrices"], correct
+    return rows, [entries[r["id"]][1] for r in rows], correct
 
 
 def curve_table(curve: dict[int, np.ndarray], correct: np.ndarray) -> list[dict]:
@@ -100,13 +120,13 @@ def early_stop_table(matrices: list, rows: list[dict], correct: np.ndarray, chec
     return table
 
 
-def to_markdown(model: str, run: str, curve: list[dict], stop: list[dict]) -> str:
+def to_markdown(model: str, run: str, curve: list[dict], stop: list[dict], nli: str) -> str:
     """Both tables as Markdown."""
     ks = sorted({r["k"] for r in curve})
     lines = [
         f"# Sample-count curve: `{model}/{run}`",
         "",
-        "AUROC (mean over random subsets of the 10 cached samples; std in brackets).",
+        f"NLI setup: `{nli}`. AUROC (mean over random subsets of the 10 cached samples; std in brackets).",
         "",
         "| method | " + " | ".join(f"K={k}" for k in ks) + " |",
         "|---|" + "---|" * len(ks),
@@ -173,22 +193,32 @@ def main() -> None:
     ap.add_argument("--draws", type=int, default=20, help="random subsets per K")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--checks", type=int, nargs="+", default=[2, 3, 4, 5], help="early-stop check points")
+    ap.add_argument("--nli-model", default=DEFAULT_NLI_MODEL, help="NLI setup whose cache is read (A4)")
+    ap.add_argument("--nli-use-question", action="store_true", help="read the cache made with the question in front")
     a = ap.parse_args()
+    settings = NliSettings(model=a.nli_model, use_question=a.nli_use_question)
 
     run = f"{a.dataset}_{a.n}"
     for model in a.models:
         start = time.perf_counter()
-        rows, matrices, correct = load_model(model, a.dataset, a.n)
+        rows, matrices, correct = load_model(model, a.dataset, a.n, settings)
         ks = list(range(2, len(rows[0]["samples"]) + 1))
         curve = curve_table(k_curve(matrices, rows, ks, a.draws, a.seed), correct)
         stop = early_stop_table(matrices, rows, correct, a.checks)
 
         out_dir = RESULTS_ROOT / model / run / "analysis"
         out_dir.mkdir(parents=True, exist_ok=True)
-        settings = {"draws": a.draws, "seed": a.seed, "checks": a.checks}
-        record = {"model": model, "run": run, "settings": settings, "curve": curve, "early_stop": stop}
+        options = {"draws": a.draws, "seed": a.seed, "checks": a.checks}
+        record = {
+            "model": model,
+            "run": run,
+            "nli": settings.tag,
+            "settings": options,
+            "curve": curve,
+            "early_stop": stop,
+        }
         (out_dir / "sample_count.json").write_text(json.dumps(record, indent=2) + "\n")
-        (out_dir / "sample_count.md").write_text(to_markdown(model, run, curve, stop))
+        (out_dir / "sample_count.md").write_text(to_markdown(model, run, curve, stop, settings.tag))
         plot_curve(curve, model, run)
         print(f"{model}: done in {time.perf_counter() - start:.0f}s -> {out_dir / 'sample_count.md'}")
 

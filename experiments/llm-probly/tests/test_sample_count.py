@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from common.nli_matrix import load_nli_cache, se_and_dse
+from common.nli_matrix import NliSettings, se_and_dse
 from common.sample_count import (
     METHODS,
     draw_subsets,
@@ -19,6 +19,7 @@ from common.sample_count import (
 )
 import numpy as np
 import pytest
+from scripts.sample_count_curve import load_model
 import torch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -130,12 +131,11 @@ def test_early_stop_scores_use_only_the_generated_samples():
 
 @pytest.mark.parametrize("model", ["qwen0.5b", "qwen1.5b"])
 def test_all_ten_samples_reproduce_the_stored_results(model):
-    """Equivalence: K = 10 from the cache gives the week-2 SE, discrete SE and lexical scores."""
-    cache = load_nli_cache(ROOT / f"data/{model}/triviaqa_200.nli.npz")
-    rows = [json.loads(line) for line in (ROOT / f"data/{model}/triviaqa_200.jsonl").open()]
+    """Equivalence: K = 10 from the NLI cache gives the stored SE, discrete SE and lexical scores."""
+    rows, matrices, _ = load_model(model, "triviaqa", 200, NliSettings())
     results = ROOT / f"results/{model}/triviaqa_200"
 
-    values, used = early_stop_scores(cache["matrices"], rows, check_at=10)
+    values, used = early_stop_scores(matrices, rows, check_at=10)
 
     assert (used == 10).all()
     for m, method in enumerate(METHODS):
@@ -172,3 +172,16 @@ def test_early_stop_ignores_the_greedy_answer():
     greedy_disagrees = matrix_from_groups([9, 0, 0, 0, 1, 2])  # greedy in its own cluster, first 3 samples agree
 
     assert early_stop_count(greedy_disagrees, check_at=3) == 3
+
+
+def test_a_missing_nli_matrix_says_which_run_fills_the_cache(tmp_path, monkeypatch):
+    data = tmp_path / "qwen0.5b" / "triviaqa_2.jsonl"
+    data.parent.mkdir()
+    data.write_text(
+        "\n".join(json.dumps(make_row(["a", "b"]) | {"id": i, "greedy_answer": "a", "correct": True}) for i in range(2))
+        + "\n"
+    )
+    monkeypatch.setattr("scripts.sample_count_curve.cache_path", lambda _m, _n, _d: data)
+
+    with pytest.raises(ValueError, match=r"2 of 2 questions have no deberta-large NLI matrix.*cli run --config"):
+        load_model("qwen0.5b", "triviaqa", 2, NliSettings())
