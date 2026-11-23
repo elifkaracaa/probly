@@ -63,19 +63,19 @@ for name in ("semantic_entropy", "discrete_semantic_entropy", "num_semantic_sets
 ```
 
 The first run downloads SmolLM2-135M-Instruct (~270 MB) and the NLI model (~1.6 GB).
-It took 14 s on a MacBook (Apple silicon) with both models already downloaded
-(SmolLM on the CPU, the NLI model on the GPU if there is one). Output of that run:
+Output of a run on a MacBook (Apple silicon) with both models already downloaded
+(SmolLM on the CPU, the NLI model on the GPU if there is one):
 
 ```text
 loading the NLI model microsoft/deberta-large-mnli (first call only)
-NLI model ready in 1.9 s
-scored 1/1 questions (0.64 s per question, about 0 s left)
+NLI model ready in 2.6 s
+scored 1/1 questions (0.51 s per question, about 0 s left)
 samples:  ['The capital of France is Paris.', 'The capital of France is Paris.', ...]
 clusters: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
           semantic_entropy: 0.000
  discrete_semantic_entropy: 0.000
          num_semantic_sets: 1.000
-         eig_val_laplacian: 1.291
+         eig_val_laplacian: 1.290
 ```
 
 All 10 answers fall into one cluster, so the cluster-based scores are 0 (or 1 for the
