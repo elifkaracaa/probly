@@ -8,12 +8,15 @@ from pathlib import Path
 from common import nli_matrix
 from common.io import validate_scores
 from common.nli_matrix import (
+    NliSettings,
     load_nli_cache,
     nli_pair_count,
+    nli_settings,
     question_texts,
     resolve_dtype,
     save_nli_cache,
     se_and_dse,
+    set_nli_settings,
 )
 from methods import _se_common, discrete_semantic_entropy, semantic_entropy
 import numpy as np
@@ -119,12 +122,14 @@ class CountingClusterer:
     def __init__(self) -> None:
         """Start with zero calls."""
         self.calls = 0
+        self.contexts: list = []
 
     def pairwise_nli_many(
         self, groups: list[list[str]], contexts: list[str | None] | None = None, deduplicate: bool = True
     ) -> list[torch.Tensor]:
         """Return one all-entailment matrix per group and count the (batched) call."""
         self.calls += 1
+        self.contexts.append(list(contexts) if contexts is not None else None)
         matrices = []
         for group in groups:
             matrix = torch.zeros((len(group), len(group), 3))
@@ -135,7 +140,7 @@ class CountingClusterer:
 
 def test_se_and_dse_plugins_share_one_nli_pass(monkeypatch):
     fake = CountingClusterer()
-    monkeypatch.setattr(_se_common, "_clusterer", fake)
+    monkeypatch.setattr(_se_common, "_clusterers", {nli_settings().hf_name: fake})
     monkeypatch.setattr(_se_common, "_matrices", {})
     rows = [
         {"id": i, "model": "m", "greedy_answer": "Paris", "samples": ["Paris"] * 3, "samples_ll_mean": [-0.1] * 3}
@@ -159,7 +164,7 @@ def test_se_and_dse_plugins_share_one_nli_pass(monkeypatch):
 
 def test_questions_are_batched_in_chunks(monkeypatch):
     fake = CountingClusterer()
-    monkeypatch.setattr(_se_common, "_clusterer", fake)
+    monkeypatch.setattr(_se_common, "_clusterers", {nli_settings().hf_name: fake})
     monkeypatch.setattr(_se_common, "_matrices", {})
     monkeypatch.setattr(_se_common, "QUESTIONS_PER_BATCH", 2)
     rows = [{"greedy_answer": f"g{i}", "samples": [f"s{i}"]} for i in range(5)]
@@ -177,3 +182,60 @@ def test_resolve_dtype():
         resolve_dtype("float16", "cpu")
     with pytest.raises(ValueError, match="dtype"):
         resolve_dtype("bfloat16", "cuda")
+
+
+def test_nli_settings_default_tag_and_change(monkeypatch):
+    monkeypatch.setattr(nli_matrix, "_settings", NliSettings())
+    assert nli_settings().hf_name == "microsoft/deberta-large-mnli"
+    assert nli_settings().tag == "deberta-large"
+
+    set_nli_settings("deberta-base", use_question=True)
+    assert nli_settings().tag == "deberta-base+question"
+    set_nli_settings("org/other-nli")
+    assert (nli_settings().hf_name, nli_settings().tag) == ("org/other-nli", "other-nli+question")
+
+
+def test_se_plugins_use_the_nli_settings(monkeypatch):
+    fake = CountingClusterer()
+    monkeypatch.setattr(_se_common, "_clusterers", {"microsoft/deberta-base-mnli": fake})
+    monkeypatch.setattr(_se_common, "_matrices", {})
+    monkeypatch.setattr(nli_matrix, "_settings", NliSettings("deberta-base", use_question=True))
+    rows = [
+        {
+            "id": 0,
+            "model": "m",
+            "question": "Q?",
+            "greedy_answer": "Paris",
+            "samples": ["Lyon"],
+            "samples_ll_mean": [-0.1],
+        }
+    ]
+
+    record = semantic_entropy.score(rows)
+
+    assert record["nli"] == "deberta-base+question"
+    assert fake.contexts == [["Q?"]]
+
+
+def test_equal_partitions_give_exactly_equal_dse():
+    """The same cluster sizes in another order must give the same DSE (ties stay ties for AUROC)."""
+    contradiction, entailment = torch.tensor([1.0, 0.0, 0.0]), torch.tensor([0.0, 0.0, 1.0])
+
+    def matrix_for(groups: list[int]) -> torch.Tensor:
+        n = len(groups) + 1  # index 0 = greedy answer
+        matrix = contradiction.repeat(n, n, 1)
+        for a in range(1, n):
+            for b in range(1, n):
+                if groups[a - 1] == groups[b - 1]:
+                    matrix[a, b] = entailment
+        return matrix
+
+    # Found in qwen0.5b TriviaQA-200: one pair and eight singletons; without rounding the float32
+    # entropies differ in the last digit (2.16395545 vs 2.16395569) and break AUROC ties.
+    pair_early = [0, 1, 2, 3, 4, 5, 6, 0, 7, 8]
+    pair_late = [0, 1, 2, 3, 4, 4, 5, 6, 7, 8]
+    ll = [-0.5] * 10
+    values = {se_and_dse(matrix_for(groups), ll)[1] for groups in (pair_early, pair_late)}
+
+    assert len(values) == 1
+    assert values.pop() == pytest.approx(-(0.2 * np.log(0.2) + 8 * 0.1 * np.log(0.1)), abs=1e-6)

@@ -27,6 +27,7 @@ as in the week-2 files). :func:`load_nli_cache` always returns probly's order.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -46,6 +47,67 @@ FORMAT_VERSION = 1
 GREEDY_INDEX = 0
 FILE_LABELS = ("entail", "neutral", "contradict")
 """Order of the last axis inside ``.nli.npz`` files (kept from week 2 so old readers keep working)."""
+
+
+NLI_MODELS = {"deberta-base": "microsoft/deberta-base-mnli", "deberta-large": "microsoft/deberta-large-mnli"}
+"""Short names of the NLI models compared in A4 (any Hugging Face NLI model name works too)."""
+DEFAULT_NLI_MODEL = "deberta-large"
+"""Default NLI model of the experiments (A4, see docs/methods.md "NLI setup").
+
+On 80 hand-labelled answer pairs deberta-large agrees best with the human labels (0.971 vs 0.937 for
+deberta-base, weighted), while SE / DSE AUROC stays the same within noise; it is about 3x slower, a
+cost that is paid once per cache. probly's library default stays deberta-base.
+"""
+
+
+@dataclass(frozen=True)
+class NliSettings:
+    """Which NLI model the semantic methods use, and whether the question goes in front of each answer.
+
+    Attributes:
+        model: Short name from ``NLI_MODELS`` or a Hugging Face model name.
+        use_question: Put the question in front of every answer before NLI (A4: no clear gain, 2x slower).
+    """
+
+    model: str = DEFAULT_NLI_MODEL
+    use_question: bool = False
+
+    @property
+    def hf_name(self) -> str:
+        """Hugging Face name of the NLI model."""
+        return NLI_MODELS.get(self.model, self.model)
+
+    @property
+    def tag(self) -> str:
+        """Short label for file names and records, e.g. ``deberta-large+question``."""
+        name = next((short for short, hf in NLI_MODELS.items() if hf == self.hf_name), self.hf_name.split("/")[-1])
+        return f"{name}+question" if self.use_question else name
+
+
+_settings = NliSettings()
+
+
+def nli_settings() -> NliSettings:
+    """The NLI settings used by the semantic methods in this process."""
+    return _settings
+
+
+def set_nli_settings(model: str | None = None, *, use_question: bool | None = None) -> NliSettings:
+    """Change the NLI settings for this process (the runner calls this with the config values).
+
+    Args:
+        model: Short name from ``NLI_MODELS`` or a Hugging Face name; None keeps the current one.
+        use_question: Whether to put the question in front of each answer; None keeps the current value.
+
+    Returns:
+        The new settings.
+    """
+    global _settings  # noqa: PLW0603
+    _settings = NliSettings(
+        model=_settings.model if model is None else model,
+        use_question=_settings.use_question if use_question is None else use_question,
+    )
+    return _settings
 
 
 def question_texts(row: dict) -> list[str]:
@@ -145,9 +207,62 @@ def nli_pair_count(row: dict, *, deduplicate: bool = True) -> int:
     return m * (m - 1)
 
 
+RULES = ("probly", "strict")
+"""Equivalence rules: ``probly`` = semantic entropy's rule; ``strict`` = entailment in both directions."""
+
+
+def same_meaning(matrix: torch.Tensor, a: int, b: int, rule: str = "probly") -> bool:
+    """Whether texts ``a`` and ``b`` of a question matrix have the same meaning.
+
+    With ``rule="probly"`` this is exactly the rule semantic entropy uses (via
+    :meth:`HFGreedySemanticClusterer.cluster_nli_matrix` on the 2 x 2 block): no contradiction in
+    either direction and not neutral in both directions. ``rule="strict"`` asks for entailment in
+    both directions (bidirectional entailment), which never merges a vaguer answer with a specific one.
+
+    Args:
+        matrix: Question matrix of shape ``(n, n, 3)`` in probly's label order.
+        a: Index of the first text.
+        b: Index of the second text.
+        rule: ``"probly"`` or ``"strict"``.
+
+    Returns:
+        True if the two texts are treated as having the same meaning.
+
+    Raises:
+        ValueError: For an unknown rule.
+    """
+    if rule == "probly":
+        ids = HFGreedySemanticClusterer.cluster_nli_matrix(matrix[[a, b]][:, [a, b]])
+        return bool(ids[0] == ids[1])
+    if rule == "strict":
+        entailment = NLI_LABELS.index("entailment")
+        return bool(matrix[a, b].argmax() == entailment and matrix[b, a].argmax() == entailment)
+    msg = f"rule must be one of {RULES}, got {rule!r}."
+    raise ValueError(msg)
+
+
 def sample_block(matrix: torch.Tensor) -> torch.Tensor:
     """Return the samples-vs-samples part of a question matrix (drops the greedy answer)."""
     return matrix[GREEDY_INDEX + 1 :, GREEDY_INDEX + 1 :]
+
+
+def canonical_group_ids(group_ids: torch.Tensor) -> torch.Tensor:
+    """Renumber clusters by size (largest first, ties by first appearance).
+
+    Entropies are sums over clusters, and float sums depend on the order; with this numbering the
+    same partition always gives the same order, so equal partitions give exactly equal entropies.
+
+    Args:
+        group_ids: Cluster id of every sample (ids ``0, 1, ...`` in order of first appearance).
+
+    Returns:
+        The same partition with ids ordered by cluster size.
+    """
+    counts = torch.bincount(group_ids)
+    order = sorted(range(len(counts)), key=lambda cluster: (-int(counts[cluster]), cluster))
+    new_id = torch.empty_like(counts)
+    new_id[torch.tensor(order)] = torch.arange(len(order))
+    return new_id[group_ids]
 
 
 def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float]) -> tuple[float, float]:
@@ -157,6 +272,12 @@ def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float]) -> tuple[
     computes the entropy of the cluster distribution weighted by the sample
     likelihoods (SE) and with equal weights (discrete SE), exactly as the
     clusterer path did before.
+
+    The clusters are numbered by size first (see :func:`canonical_group_ids`), so the same partition
+    always gives exactly the same float. Discrete SE has few distinct values (51 of 200 on qwen0.5b);
+    with the clusters in order of appearance, equal partitions differed in the last float32 digit
+    (2.16395545 vs 2.16395569) and broke those ties, and DSE AUROC moved between 0.741 and 0.749 under
+    such noise. (Rounding does not fix this: the two values can round to different sides.)
 
     Args:
         matrix: Question matrix of shape ``(K+1, K+1, 3)`` in probly's label order.
@@ -169,7 +290,7 @@ def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float]) -> tuple[
     if samples.shape[0] != len(samples_ll_mean):
         msg = f"matrix has {samples.shape[0]} samples but {len(samples_ll_mean)} likelihoods were given."
         raise ValueError(msg)
-    group_ids = HFGreedySemanticClusterer.cluster_nli_matrix(samples)
+    group_ids = canonical_group_ids(HFGreedySemanticClusterer.cluster_nli_matrix(samples))
     semantic = TorchSparseLogCategoricalDistribution(
         group_ids=group_ids,
         entry_logits=torch.tensor(list(samples_ll_mean), dtype=torch.float32),

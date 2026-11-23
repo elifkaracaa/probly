@@ -5,12 +5,11 @@ model is probly's clusterer (``HFSemanticClusterer.pairwise_nli``), the same
 code path the semantic-entropy plugins use, so there is only one NLI
 implementation. File format: see ``common/nli_matrix.py``.
 
-Usage:
+Usage (default NLI model: deberta-large, see common/nli_matrix.DEFAULT_NLI_MODEL):
   uv run python -m scripts.build_nli_cache --cache data/qwen0.5b/triviaqa_200.jsonl
-  # another NLI model:
-  uv run python -m scripts.build_nli_cache --cache data/qwen0.5b/triviaqa_200.jsonl \
-      --nli-model microsoft/deberta-large-mnli \
-      --out data/qwen0.5b/triviaqa_200.nli.deberta-large.npz
+  # -> data/qwen0.5b/triviaqa_200.nli.deberta-large.npz
+  uv run python -m scripts.build_nli_cache --cache data/qwen0.5b/triviaqa_200.jsonl --nli-model deberta-base
+  # -> data/qwen0.5b/triviaqa_200.nli.npz (the week-2 name)
 """
 
 from __future__ import annotations
@@ -21,7 +20,10 @@ from pathlib import Path
 import time
 
 from common.nli_matrix import (  # noqa: F401  (load_nli_cache: re-export)
+    DEFAULT_NLI_MODEL,
+    NLI_MODELS,
     QUESTIONS_PER_BATCH,
+    NliSettings,
     compute_matrices,
     load_nli_cache,
     nli_pair_count,
@@ -86,8 +88,8 @@ def build(
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", required=True, help="data/<model>/<dataset>_<n>.jsonl")
-    ap.add_argument("--nli-model", default="microsoft/deberta-base-mnli")
-    ap.add_argument("--out", default=None, help="default: <cache>.nli.npz")
+    ap.add_argument("--nli-model", default=DEFAULT_NLI_MODEL, help=f"short name {sorted(NLI_MODELS)} or HF name")
+    ap.add_argument("--out", default=None, help="default: <cache>.nli.npz for deberta-base, else <cache>.nli.<tag>.npz")
     ap.add_argument("--use-question", action="store_true")
     ap.add_argument("--no-dedup", action="store_true", help="also send identical texts to the NLI model (A2 off)")
     ap.add_argument("--dtype", choices=["float32", "float16"], default="float32", help="float16 only on a GPU")
@@ -97,10 +99,12 @@ if __name__ == "__main__":
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--limit", type=int, default=0, help="only first N rows (testing)")
     a = ap.parse_args()
-    out = a.out or str(Path(a.cache).with_suffix("")) + ".nli.npz"
+    settings = NliSettings(a.nli_model, use_question=a.use_question)
+    tag = "" if settings.tag == "deberta-base" else f".{settings.tag}"
+    out = a.out or str(Path(a.cache).with_suffix("")) + f".nli{tag}.npz"
     build(
         a.cache,
-        a.nli_model,
+        settings.hf_name,
         out,
         use_question=a.use_question,
         deduplicate=not a.no_dedup,
