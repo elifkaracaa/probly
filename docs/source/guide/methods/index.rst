@@ -18,6 +18,8 @@ outcomes must be retained so that the truth is covered with a prescribed
 probability?*, and answers with a set of labels or an interval instead of a
 distribution. **Calibration**, finally, asks *can the predicted probabilities
 be taken at face value?*, and corrects their scale where they cannot.
+For language models, whose outputs are free text, :ref:`semantic uncertainty
+<methods-semantic>` asks *how much do sampled answers disagree in meaning?*
 
 Within each family, the methods range from post-hoc wrappers around an
 already-trained network to methods that change the architecture, the loss, or
@@ -34,3 +36,4 @@ links to a worked example in the gallery.
     credal
     conformal
     calibration
+    semantic
