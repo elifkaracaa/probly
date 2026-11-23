@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING
 from methods.lexical_similarity import rouge_l
 
 from common.graph_measures import graph_scores
-from common.nli_matrix import QUESTIONS_PER_BATCH, compute_matrices, sample_block, se_and_dse
+from common.nli_matrix import QUESTIONS_PER_BATCH, compute_matrices, nli_settings, sample_block, se_and_dse
 from probly.representer.semantic_clustering.huggingface import HFGreedySemanticClusterer
 
 if TYPE_CHECKING:
@@ -152,12 +152,15 @@ _clusterer: HFSemanticClusterer | None = None
 
 
 def default_clusterer() -> HFSemanticClusterer:
-    """The benchmark's NLI clusterer, loaded once (first call downloads ~0.5 GB)."""
+    """The benchmark's NLI clusterer (``nli_settings()``, deberta-large by default), loaded once.
+
+    The first call downloads the NLI model (~1.6 GB for deberta-large).
+    """
     global _clusterer  # noqa: PLW0603
     if _clusterer is None:
-        from methods._se_common import NLI_MODEL, get_clusterer  # noqa: PLC0415  (loads torch models)
+        from methods._se_common import get_clusterer  # noqa: PLC0415  (loads torch models)
 
-        log.info("loading the NLI model %s (first call only)", NLI_MODEL)
+        log.info("loading the NLI model %s (first call only)", nli_settings().hf_name)
         start = time.perf_counter()
         _clusterer = get_clusterer()
         log.info("NLI model ready in %.1f s", time.perf_counter() - start)
@@ -176,7 +179,7 @@ def semantic_scores_many(
         items: One dict per question with ``samples`` (list of answers) and
             optionally ``sample_log_likelihoods``, ``answer`` (the answer being
             judged; default: the first sample) and ``question``.
-        clusterer: NLI clusterer; default: the benchmark's ``microsoft/deberta-base-mnli``.
+        clusterer: NLI clusterer; default: the benchmark's, see :func:`default_clusterer`.
         log_every: Log progress after this many questions.
 
     Returns:
@@ -237,7 +240,7 @@ def semantic_scores(
             sample; needed only for ``semantic_entropy`` (NaN without them).
         answer: The answer being judged (e.g. the greedy answer). Default: the
             first sample. The scores themselves compare the samples only.
-        clusterer: NLI clusterer; default: ``microsoft/deberta-base-mnli``, loaded once.
+        clusterer: NLI clusterer; default: the benchmark's, see :func:`default_clusterer`.
 
     Returns:
         Dict with the scores of :data:`SCORES` (higher = more uncertain),

@@ -5,7 +5,7 @@ checks that the two stay the same. Run from experiments/llm-probly::
 
     uv run python -m scripts.semantic_demo
 
-The first run downloads SmolLM2-135M-Instruct (~270 MB) and microsoft/deberta-base-mnli (~560 MB).
+The first run downloads SmolLM2-135M-Instruct (~270 MB) and the benchmark's NLI model (deberta-large, ~1.6 GB).
 """
 
 from __future__ import annotations

@@ -6,7 +6,8 @@ the samples say the same thing ("Paris", "It is Paris", "Paris, France"). If it
 is guessing, they spread out ("Paris", "Lyon", "Marseille"). Every score below is
 an **uncertainty**: higher means the samples agree less.
 
-Two answers agree in meaning when an NLI model (`microsoft/deberta-base-mnli`)
+Two answers agree in meaning when an NLI model (the benchmark's setup,
+`microsoft/deberta-large-mnli` by default, see `common.nli_matrix.nli_settings`)
 finds that neither contradicts the other. The NLI model is run **once per
 question** on all pairs of answers (one shared matrix), and every score reads
 that matrix, so asking for all seven scores costs the same as asking for one.
@@ -61,12 +62,12 @@ for name in ("semantic_entropy", "discrete_semantic_entropy", "num_semantic_sets
     print(f"{name:>26}: {scores[name]:.3f}")
 ```
 
-The first run downloads SmolLM2-135M-Instruct (~270 MB) and the NLI model (~560 MB).
+The first run downloads SmolLM2-135M-Instruct (~270 MB) and the NLI model (~1.6 GB).
 It took 14 s on a MacBook (Apple silicon) with both models already downloaded
 (SmolLM on the CPU, the NLI model on the GPU if there is one). Output of that run:
 
 ```text
-loading the NLI model microsoft/deberta-base-mnli (first call only)
+loading the NLI model microsoft/deberta-large-mnli (first call only)
 NLI model ready in 1.9 s
 scored 1/1 questions (0.64 s per question, about 0 s left)
 samples:  ['The capital of France is Paris.', 'The capital of France is Paris.', ...]
@@ -83,7 +84,7 @@ paraphrases ("Paris." vs "Paris, a city known for ...") an entailment probabilit
 below 1: the graph scores see *how strongly* the answers agree, not only whether.
 
 transformers may print `Exception in thread Thread-auto_conversion ... KeyError: 'event_id'`
-while loading `deberta-base-mnli`. It is a background attempt to convert the model
+while loading the NLI model. It is a background attempt to convert the model
 file to safetensors and does not affect the scores.
 
 Already have answers from another model or an API? Skip the generation:
@@ -134,7 +135,7 @@ results = semantic_scores_many(items)
 Example log (times differ by machine):
 
 ```text
-loading the NLI model microsoft/deberta-base-mnli (first call only)
+loading the NLI model microsoft/deberta-large-mnli (first call only)
 NLI model ready in 3.2 s
 scored 2/2 questions (0.41 s per question, about 0 s left)
 ```

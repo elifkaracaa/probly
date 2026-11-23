@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 from typing import Any, cast
 
-from common.nli_matrix import load_nli_cache
+from common.nli_matrix import NliSettings, load_nli_cache, nli_cache_path
 from common.semantic_scores import (
     SCORES,
     SemanticInputError,
@@ -73,14 +73,20 @@ def test_agreeing_samples_give_the_lowest_scores():
 def test_helper_gives_the_benchmark_scores(model):
     """Equivalence: on cached questions the helper's scores equal the stored plugin results."""
     rows = [json.loads(line) for line in (ROOT / f"data/{model}/triviaqa_200.jsonl").open()][:25]
-    matrices = load_nli_cache(ROOT / f"data/{model}/triviaqa_200.nli.npz")["matrices"][:25]
     results = ROOT / f"results/{model}/triviaqa_200"
 
-    helper = [scores_from_matrix(m, r["samples"], r["samples_ll_mean"]) for m, r in zip(matrices, rows, strict=True)]
-
     for name in SCORES:
-        stored = json.loads((results / f"{name}.json").read_text())["uncertainty"][:25]
-        assert [h[name] for h in helper] == pytest.approx(stored, abs=1e-5), name
+        record = json.loads((results / f"{name}.json").read_text())
+        tag = record.get("nli", "deberta-base")  # records from before A4 have no tag
+        if name == "lexical_similarity":  # no NLI; any cache gives the same score
+            tag = "deberta-base"
+        settings = NliSettings(model=tag.removesuffix("+question"), use_question=tag.endswith("+question"))
+        cache = nli_cache_path(ROOT / f"data/{model}/triviaqa_200.jsonl", settings)
+        matrices = load_nli_cache(cache)["matrices"][:25]
+        helper = [
+            scores_from_matrix(m, r["samples"], r["samples_ll_mean"]) for m, r in zip(matrices, rows, strict=True)
+        ]
+        assert [h[name] for h in helper] == pytest.approx(record["uncertainty"][:25], abs=1e-5), (name, tag)
 
 
 def test_many_questions_share_one_nli_call_per_batch_and_log_progress(caplog):
