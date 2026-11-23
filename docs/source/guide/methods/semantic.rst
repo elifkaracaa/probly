@@ -223,8 +223,8 @@ within a row are not significant.
       - 0.751
       - 0.748
 
-Five samples instead of ten cost about 0.01 AUROC; two or three samples cost
-clearly more. The clarification decomposition did not detect wrong answers
+Five samples instead of ten cost 0.01-0.02 AUROC for semantic entropy; two or
+three samples cost clearly more. The clarification decomposition did not detect wrong answers
 better than semantic entropy (on 50 questions of Qwen2.5-0.5B: 0.71 for the
 total against 0.86 for semantic entropy), but it shows which answers are
 uncertain because of the question.

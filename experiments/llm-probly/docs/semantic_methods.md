@@ -213,7 +213,7 @@ split is for explaining *why* an answer is uncertain, not a better error detecto
 ## How many samples?
 
 10 samples are the benchmark default. With 5 the AUROC of semantic entropy drops by
-about 0.01, with 2-3 clearly more (see `results/*/triviaqa_200/analysis/sample_count.md`, B2).
+about 0.01-0.02, with 2-3 clearly more (see `results/*/triviaqa_200/analysis/sample_count.md`, B2).
 
 ## Errors
 
