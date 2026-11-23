@@ -193,6 +193,11 @@ uv run python -m scripts.decomposed_example --model qwen0.5b --questions 50
 or on a whole run with `--methods decomposed_semantic_entropy`. The record has
 `aleatoric`, `epistemic` and the clarifications, answers and clusters per question.
 Results: `results/qwen0.5b/triviaqa_200/analysis/decomposed_se.md`.
+On the first 50 TriviaQA questions of Qwen 0.5B (8 answered correctly) the AUROC was 0.71 for
+the total, 0.72 for the epistemic and 0.57 for the aleatoric part, against 0.86 for plain
+semantic entropy on the same questions. With only 8 correct answers these numbers move by
+several points between runs (an earlier run with deberta-base gave 0.76 for the total), so the
+split is for explaining *why* an answer is uncertain, not a better error detector.
 
 ## How many samples?
 
