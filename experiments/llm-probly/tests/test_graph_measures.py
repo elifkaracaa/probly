@@ -14,8 +14,8 @@ from common.graph_measures import (
     num_semantic_sets,
     similarity_matrix,
 )
-from common.nli_matrix import load_nli_cache
-from methods import _graph_common, deg_mat as deg_mat_plugin, eccentricity as eccentricity_plugin
+from common.nli_matrix import load_nli_cache, nli_cache_path, set_nli_cache_file, set_nli_settings
+from methods import _graph_common, _se_common, deg_mat as deg_mat_plugin, eccentricity as eccentricity_plugin
 import numpy as np
 import pytest
 import torch
@@ -125,20 +125,29 @@ def test_matches_lm_polygraph_formulas_on_random_matrices():
         assert (deg_mat(w), eig_val_laplacian(w), eccentricity(w)) == pytest.approx(expected)
 
 
-def test_plugins_use_the_week2_nli_cache_without_nli_calls(monkeypatch):
-    def no_nli(_row):
+def test_plugins_read_the_persistent_nli_cache_without_nli_calls(monkeypatch):
+    def no_nli(*_args: object, **_kwargs: object) -> None:
         pytest.fail("the NLI model must not run when the cache file matches")
 
-    monkeypatch.setattr("methods._se_common.prepare_matrices", no_nli)
-    monkeypatch.setattr("methods._se_common.get_matrix", no_nli)
+    monkeypatch.setattr(_se_common, "compute_matrices", no_nli)
+    monkeypatch.setattr(_se_common, "_matrices", {})
+    monkeypatch.setattr(_se_common, "_disk", {})
     monkeypatch.setattr(_graph_common, "_scores", {})
-    rows = [json.loads(line) for line in (ROOT / "data/qwen0.5b/triviaqa_200.jsonl").open()]
-
-    record = deg_mat_plugin.score(rows)
+    data = ROOT / "data/qwen0.5b/triviaqa_200.jsonl"
+    rows = [json.loads(line) for line in data.open()]
+    settings = set_nli_settings("deberta-large", use_question=False)
+    path = nli_cache_path(data, settings)
+    set_nli_cache_file(path)
+    try:
+        record = deg_mat_plugin.score(rows)
+    finally:
+        set_nli_cache_file(None)
 
     assert record["ids"] == [r["id"] for r in rows]
     assert not any(record["failed"])
-    cache = load_nli_cache(ROOT / "data/qwen0.5b/triviaqa_200.nli.npz")
+    assert record["nli_pairs_per_question"] == 0.0
+    assert record["nli"] == "deberta-large"
+    cache = load_nli_cache(path)
     assert record["uncertainty"][0] == pytest.approx(deg_mat(similarity_matrix(cache["matrices"][0])))
 
 

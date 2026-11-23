@@ -1,73 +1,40 @@
 """Shared code for the graph-measure plugins (B1).
 
-The four plugins read the same per-question NLI matrices. If the week-2 NLI
-cache (``data/<model>/<dataset>_<n>.nli.npz``) exists for these rows and was
-built with the same NLI model and setting, it is used; otherwise the matrices
-come from ``_se_common.get_matrix``, which computes them once per process and
-shares them with the SE plugins (batched, A3). This file lookup is a bridge
-until the persistent NLI cache (A5) is in main; then it switches to
-``nli_cache_path``.
+The four plugins read the same per-question NLI matrices as SE and discrete SE, through
+``_se_common.prepare_matrices``: from memory, then from the persistent NLI cache the runner set
+(A5, ``data/<model>/<dataset>_<n>.nli.<tag>.npz``), else computed with the NLI setup of
+``common.nli_matrix.nli_settings()``. So a run of SE and the graph measures on the same data runs
+the NLI model at most once per question, and a second run does no NLI work at all.
+
+Graph scores are kept per matrix fingerprint (``_se_common.matrix_key``), which includes the
+NLI setup, so changing the setup in the same process never reuses old scores.
 """
 
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
 
-from common.data import DATA_DIR, load_jsonl
 from common.graph_measures import graph_scores
-from common.nli_matrix import load_nli_cache, question_texts
+from common.nli_matrix import nli_settings
 
 from methods import _se_common
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
-    import torch
-
-_scores: dict[tuple[str, ...], dict[str, float]] = {}
-
-
-def _cache_file_for(rows: list[dict]) -> Path | None:
-    """Return the ``.nli.npz`` file that holds exactly these rows, or None."""
-    dataset, n, model = rows[0].get("dataset"), len(rows), rows[0].get("model")
-    for jsonl in DATA_DIR.glob(f"*/{dataset}_{n}.jsonl"):
-        npz = jsonl.with_suffix(".nli.npz")
-        if not npz.exists():
-            continue
-        cached_rows = load_jsonl(jsonl)
-        if cached_rows[0].get("model") != model:
-            continue
-        if [(r["id"], r["greedy_answer"], r["samples"]) for r in cached_rows] == [
-            (r["id"], r["greedy_answer"], r["samples"]) for r in rows
-        ]:
-            return npz
-    return None
-
-
-def get_matrices(rows: list[dict]) -> list[torch.Tensor]:
-    """NLI matrices of these rows: from the cache file if it matches, else computed."""
-    npz = _cache_file_for(rows)
-    if npz is not None:
-        cache = load_nli_cache(npz)
-        if cache["nli_model"] == _se_common.NLI_MODEL and not cache["use_question"]:
-            return cache["matrices"]
-    _se_common.prepare_matrices(rows)
-    return [_se_common.get_matrix(row) for row in rows]
+_scores: dict[str, dict[str, float]] = {}
 
 
 def score_rows(rows: list[dict], name: str) -> dict:
     """Score record for one graph measure (``name`` is a key of ``graph_scores``), see CONTRACT.md."""
     start = time.perf_counter()
     pairs_before = _se_common.nli_pairs_scored
-    matrices = get_matrices(rows)
+    _se_common.prepare_matrices(rows)
+    nli_seconds = _se_common._nli_seconds  # noqa: SLF001 - what building each matrix took (A5), as in score_rows of SE
     ids, uncertainty, failed = [], [], []
-    for row, matrix in zip(rows, matrices, strict=True):
+    for row in rows:
         ids.append(row["id"])
-        key = tuple(question_texts(row))
+        key = _se_common.matrix_key(row)
         try:
             if key not in _scores:
-                _scores[key] = graph_scores(matrix)
+                _scores[key] = graph_scores(_se_common.get_matrix(row))
             uncertainty.append(_scores[key][name])
             failed.append(False)
         except Exception:  # noqa: BLE001
@@ -82,4 +49,6 @@ def score_rows(rows: list[dict], name: str) -> dict:
         "failed": failed,
         "seconds_per_question": (time.perf_counter() - start) / len(rows),
         "nli_pairs_per_question": (_se_common.nli_pairs_scored - pairs_before) / len(rows),
+        "nli_seconds_per_question": sum(nli_seconds.get(_se_common.matrix_key(r), 0.0) for r in rows) / len(rows),
+        "nli": nli_settings().tag,
     }
