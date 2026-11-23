@@ -608,6 +608,8 @@
     false,
     false
   ],
-  "seconds_per_question": 1.4939600077923386e-06,
-  "nli_pairs_per_question": 0.0
+  "seconds_per_question": 2.5068749964702873e-05,
+  "nli_pairs_per_question": 0.0,
+  "nli_seconds_per_question": 0.042110055685043335,
+  "nli": "embedding-all-mpnet-base-v2@0.9"
 }

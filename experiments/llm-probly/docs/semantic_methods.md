@@ -145,9 +145,10 @@ scored 2/2 questions (0.41 s per question, about 0 s left)
 
 Instead of the NLI model, the answers can be compared with sentence embeddings
 (`sentence-transformers/all-mpnet-base-v2`, cosine similarity above 0.9 counts as the
-same meaning). It is about 11-13x faster; on TriviaQA its AUROC was on par with NLI
-on Qwen 0.5B and about 0.03-0.04 lower on Qwen 1.5B (B3,
-`results/*/triviaqa_200/analysis/embedding_backend.md`). The clusterer is
+same meaning). It is about 26-33x faster than the deberta-large NLI model (measured on
+20 questions). On TriviaQA its AUROC was on par with NLI on Qwen 0.5B, where the threshold
+was chosen (SE 0.745 vs 0.744), and about 0.03 lower on the held-out Qwen 1.5B (SE 0.744 vs
+0.776, EigVal 0.752 vs 0.784) (B3, `results/*/triviaqa_200/analysis/embedding_backend.md`). The clusterer is
 `probly.representer.semantic_clustering.huggingface.HFEmbeddingSemanticClusterer`,
 a drop-in for the NLI clusterer:
 

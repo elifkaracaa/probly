@@ -1,19 +1,20 @@
 {
   "model": "qwen1.5b",
   "run": "triviaqa_200",
+  "nli_setup": "deberta-large",
   "embedding_model": "sentence-transformers/all-mpnet-base-v2",
   "selected_on": "qwen0.5b",
   "threshold": 0.9,
-  "seconds_nli": 0.09728938125044806,
-  "seconds_embedding": 0.011597285450261553,
+  "seconds_nli": 0.3030695208493853,
+  "seconds_embedding": 0.011484579149691854,
   "nli": {
     "auroc": {
-      "semantic_entropy": 0.7814399999999999,
-      "discrete_semantic_entropy": 0.7832533333333334,
-      "eig_val_laplacian": 0.7869333333333333,
-      "deg_mat": 0.7846933333333334,
-      "num_semantic_sets": 0.7773333333333333,
-      "mean_clusters": 3.035
+      "semantic_entropy": 0.7763733333333334,
+      "discrete_semantic_entropy": 0.7790400000000001,
+      "eig_val_laplacian": 0.78384,
+      "deg_mat": 0.7789866666666666,
+      "num_semantic_sets": 0.7754133333333334,
+      "mean_clusters": 3.085
     }
   },
   "embedding": {
@@ -26,7 +27,7 @@
         "num_semantic_sets": 0.7093866666666668,
         "mean_clusters": 2.3
       },
-      "same_as_nli": 0.425
+      "same_as_nli": 0.44
     },
     "0.65": {
       "auroc": {
@@ -37,7 +38,7 @@
         "num_semantic_sets": 0.7237866666666667,
         "mean_clusters": 2.5
       },
-      "same_as_nli": 0.445
+      "same_as_nli": 0.475
     },
     "0.7": {
       "auroc": {
@@ -48,7 +49,7 @@
         "num_semantic_sets": 0.7364266666666667,
         "mean_clusters": 2.65
       },
-      "same_as_nli": 0.45
+      "same_as_nli": 0.47
     },
     "0.75": {
       "auroc": {
@@ -59,7 +60,7 @@
         "num_semantic_sets": 0.7452799999999999,
         "mean_clusters": 2.85
       },
-      "same_as_nli": 0.48
+      "same_as_nli": 0.49
     },
     "0.8": {
       "auroc": {
@@ -70,7 +71,7 @@
         "num_semantic_sets": 0.7532799999999998,
         "mean_clusters": 3.05
       },
-      "same_as_nli": 0.475
+      "same_as_nli": 0.505
     },
     "0.85": {
       "auroc": {
@@ -81,7 +82,7 @@
         "num_semantic_sets": 0.75104,
         "mean_clusters": 3.29
       },
-      "same_as_nli": 0.5
+      "same_as_nli": 0.525
     },
     "0.9": {
       "auroc": {
@@ -92,7 +93,7 @@
         "num_semantic_sets": 0.7476799999999999,
         "mean_clusters": 3.605
       },
-      "same_as_nli": 0.495
+      "same_as_nli": 0.53
     },
     "0.95": {
       "auroc": {
@@ -103,7 +104,7 @@
         "num_semantic_sets": 0.7435733333333333,
         "mean_clusters": 3.885
       },
-      "same_as_nli": 0.465
+      "same_as_nli": 0.49
     }
   }
 }
