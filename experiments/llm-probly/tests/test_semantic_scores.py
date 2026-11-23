@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 from typing import Any, cast
 
-from common.nli_matrix import NliSettings, load_nli_cache, nli_cache_path
+from common.nli_matrix import NliSettings, load_nli_cache, nli_cache_path, nli_settings, set_nli_settings
 from common.semantic_scores import (
     SCORES,
     SemanticInputError,
@@ -29,9 +29,11 @@ class FakeClusterer:
 
     def __init__(self) -> None:
         self.calls = 0
+        self.contexts = []
 
     def pairwise_nli_many(self, groups, contexts=None, deduplicate=True):
         self.calls += 1
+        self.contexts.append(contexts)
         matrices = []
         for texts in groups:
             keys = [text.lower().replace("it is", "").split()[0].strip(".") for text in texts]
@@ -140,3 +142,39 @@ def test_docs_page_shows_exactly_the_demo_script():
     page = (ROOT / "docs/semantic_methods.md").read_text()
 
     assert f"```python\n{script}\n```" in page
+
+
+def test_question_goes_in_front_of_the_answers_only_when_asked():
+    fake = FakeClusterer()
+    samples = ["Paris", "Lyon"]
+
+    semantic_scores(samples, question="Capital of France?", clusterer=cast("Any", fake))
+    semantic_scores(samples, question="Capital of France?", use_question=True, clusterer=cast("Any", fake))
+
+    assert fake.contexts == [[None], ["Capital of France?"]]
+
+
+def test_many_questions_pass_their_own_question():
+    fake = FakeClusterer()
+    items = [{"samples": ["Paris", "Lyon"], "question": "q1"}, {"samples": ["1969", "1969"], "question": "q2"}]
+
+    semantic_scores_many(items, use_question=True, clusterer=cast("Any", fake))
+
+    assert fake.contexts == [["q1", "q2"]]
+
+
+def test_use_question_without_a_question_says_how_to_fix_it():
+    with pytest.raises(SemanticInputError, match=r"use_question=True needs the question text\. Pass question="):
+        semantic_scores(["Paris", "Lyon"], use_question=True, clusterer=cast("Any", FakeClusterer()))
+
+
+def test_use_question_follows_the_benchmark_setting_by_default():
+    fake = FakeClusterer()
+    old = nli_settings()
+    set_nli_settings(use_question=True)
+    try:
+        semantic_scores(["Paris", "Lyon"], question="Capital of France?", clusterer=cast("Any", fake))
+    finally:
+        set_nli_settings(use_question=old.use_question)
+
+    assert fake.contexts == [["Capital of France?"]]

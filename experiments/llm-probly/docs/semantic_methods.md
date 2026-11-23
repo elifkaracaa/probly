@@ -98,6 +98,17 @@ scores["num_semantic_sets"]  # e.g. 2.0 if the NLI model groups {Paris, Paris, I
 scores["semantic_entropy"]  # nan: needs sample_log_likelihoods
 ```
 
+Short answers like "1969" or "Lyon" can be hard to compare without the question. With
+`use_question=True` the question is put in front of every answer before NLI (the benchmark's
+`nli_use_question` setting, A4; by default the helper follows that setting, which is off):
+
+```python
+scores = semantic_scores(["1969", "In 1969.", "1972"], question="When did Apollo 11 land?", use_question=True)
+```
+
+In A4 this did not change the AUROC clearly and doubled the NLI time, so it is off by default.
+`semantic_scores_many` takes `question` in each item and the same `use_question` argument.
+
 ## The scores
 
 | Score | Idea | All samples agree | Needs |
