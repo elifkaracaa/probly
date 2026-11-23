@@ -10,6 +10,10 @@ uncertainty = total; the record also has ``aleatoric``, ``epistemic`` and
 
 Opt-in (registry): about 20 generation passes per question, so a normal run
 skips it; run it with ``--methods decomposed_semantic_entropy``.
+
+The 15 answers are new on every run, so their matrices are computed directly with the
+benchmark's clusterer (``nli_settings()``) and never go into the persistent NLI cache (A5),
+which holds the matrices of the cached samples, one per question id.
 """
 
 from __future__ import annotations
@@ -18,7 +22,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from common.decomposed_se import N_ANSWERS, N_CLARIFICATIONS, clarify_and_answer, decompose
-from common.nli_matrix import sample_block
+from common.nli_matrix import QUESTIONS_PER_BATCH, compute_matrices, nli_pair_count, nli_settings, sample_block
 
 from methods import _se_common
 from probly.representer.semantic_clustering.huggingface import HFGreedySemanticClusterer
@@ -39,17 +43,22 @@ def score(
         msg = f"{NAME} generates clarifications and answers, so it needs the model and tokenizer."
         raise ValueError(msg)
     start = time.perf_counter()
-    pairs_before = _se_common.nli_pairs_scored
     generated = clarify_and_answer(model, tok, [r["question"] for r in rows])
     pseudo_rows = [
-        {"greedy_answer": r["greedy_answer"], "samples": g["answers"]} for r, g in zip(rows, generated, strict=True)
+        {"question": r["question"], "greedy_answer": r["greedy_answer"], "samples": g["answers"]}
+        for r, g in zip(rows, generated, strict=True)
     ]
-    _se_common.prepare_matrices(pseudo_rows)
+    settings = nli_settings()
+    clusterer = _se_common.get_clusterer()
+    matrices = []
+    for first in range(0, len(pseudo_rows), QUESTIONS_PER_BATCH):
+        chunk = pseudo_rows[first : first + QUESTIONS_PER_BATCH]
+        matrices += compute_matrices(clusterer, chunk, use_question=settings.use_question)
 
     total, aleatoric, epistemic, failed, details = [], [], [], [], []
-    for pseudo, gen in zip(pseudo_rows, generated, strict=True):
+    for matrix, gen in zip(matrices, generated, strict=True):
         try:
-            clusters = HFGreedySemanticClusterer.cluster_nli_matrix(sample_block(_se_common.get_matrix(pseudo)))
+            clusters = HFGreedySemanticClusterer.cluster_nli_matrix(sample_block(matrix))
             parts = decompose(clusters.tolist(), N_CLARIFICATIONS, N_ANSWERS)
             failed.append(False)
         except Exception:  # noqa: BLE001
@@ -69,6 +78,7 @@ def score(
         "epistemic": epistemic,
         "failed": failed,
         "seconds_per_question": (time.perf_counter() - start) / len(rows),
-        "nli_pairs_per_question": (_se_common.nli_pairs_scored - pairs_before) / len(rows),
+        "nli_pairs_per_question": sum(nli_pair_count(p) for p in pseudo_rows) / len(rows),
+        "nli": settings.tag,
         "details": details,
     }

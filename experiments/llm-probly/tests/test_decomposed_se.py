@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from common.decomposed_se import clean_answer, clean_clarification, decompose, entropy
 from common.io import validate_scores
+from common.nli_matrix import set_nli_cache_file
 from common.registry import REGISTRY
 from methods import decomposed_semantic_entropy as plugin
 import numpy as np
@@ -84,20 +85,27 @@ def nli_from_first_letters(texts: list[str]) -> torch.Tensor:
     return matrix
 
 
-def test_plugin_record_with_fake_generation(monkeypatch):
+def test_plugin_record_with_fake_generation(monkeypatch, tmp_path):
     generated = [
         {"clarifications": ["c1", "c2", "c3"], "answers": ["Paris"] * 5 + ["Lyon"] * 5 + ["Nice"] * 5},
         {"clarifications": ["c1", "c2", "c3"], "answers": ["Paris", "Lyon"] * 7 + ["Paris"]},
     ]
     monkeypatch.setattr(plugin, "clarify_and_answer", lambda _model, _tok, questions: generated[: len(questions)])
-    monkeypatch.setattr("methods._se_common.prepare_matrices", lambda _rows: None)
+    monkeypatch.setattr("methods._se_common.get_clusterer", object)
     monkeypatch.setattr(
-        "methods._se_common.get_matrix", lambda row: nli_from_first_letters([row["greedy_answer"], *row["samples"]])
+        plugin,
+        "compute_matrices",
+        lambda _clusterer, rows, **_kwargs: [nli_from_first_letters([r["greedy_answer"], *r["samples"]]) for r in rows],
     )
     rows = [{"id": i, "model": "m", "question": f"q{i}", "greedy_answer": "Paris"} for i in range(2)]
+    cache = tmp_path / "triviaqa_2.nli.deberta-large.npz"
+    set_nli_cache_file(cache)  # as in a runner run
+    try:
+        record = plugin.score(rows, model=cast("Any", object()), tok=cast("Any", object()))
+    finally:
+        set_nli_cache_file(None)
 
-    record = plugin.score(rows, model=cast("Any", object()), tok=cast("Any", object()))
-
+    assert not cache.exists()  # fresh answers never go into the persistent NLI cache
     assert validate_scores(record, expected_ids=[0, 1]) == []
     assert record["uncertainty"][0] == pytest.approx(math.log(3))
     assert record["aleatoric"][0] == pytest.approx(math.log(3))  # each reading gets one answer: ambiguous question
