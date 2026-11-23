@@ -24,6 +24,7 @@ from common.nli_matrix import pick_device
 from methods import decomposed_semantic_entropy as plugin
 import numpy as np
 from scripts.generate import MODELS
+import torch
 
 from probly.representer.sampler.huggingface import load_model
 
@@ -92,7 +93,9 @@ def main() -> None:
     ap.add_argument("--dataset", default="triviaqa")
     ap.add_argument("--n", type=int, default=200)
     ap.add_argument("--questions", type=int, default=50)
+    ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
+    torch.manual_seed(a.seed)
 
     rows = load_jsonl(cache_path(a.model, a.n, a.dataset))[: a.questions]
     model, tok = load_model(MODELS[a.model])

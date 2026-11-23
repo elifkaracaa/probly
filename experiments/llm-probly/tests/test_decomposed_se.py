@@ -6,7 +6,7 @@ from argparse import Namespace
 import math
 from typing import Any, cast
 
-from common.decomposed_se import clean_answer, clean_clarification, decompose
+from common.decomposed_se import clean_answer, clean_clarification, decompose, entropy
 from common.io import validate_scores
 from common.registry import REGISTRY
 from methods import decomposed_semantic_entropy as plugin
@@ -44,6 +44,19 @@ def test_total_is_aleatoric_plus_epistemic():
         parts = decompose(rng.integers(0, 4, size=15).tolist(), 3, 5)
         assert parts["total"] == pytest.approx(parts["aleatoric"] + parts["epistemic"])
         assert parts["aleatoric"] >= 0.0
+
+
+def test_probly_decomposition_matches_the_formulas_with_hou_et_al_naming():
+    ids = [0, 0, 1, 2, 2, 0, 1, 1, 1, 2, 0, 0, 0, 0, 3]
+    p = np.stack([np.bincount(row, minlength=4) / 5 for row in np.reshape(ids, (3, 5))])
+    expected_total = entropy(p.mean(axis=0))
+    expected_epistemic = np.mean([entropy(row) for row in p])  # mean entropy per reading
+
+    parts = decompose(ids, 3, 5)
+
+    assert parts["total"] == pytest.approx(expected_total)
+    assert parts["epistemic"] == pytest.approx(expected_epistemic)
+    assert parts["aleatoric"] == pytest.approx(expected_total - expected_epistemic)
 
 
 def test_decompose_checks_the_number_of_answers():

@@ -17,11 +17,13 @@ With ``p_c`` the cluster distribution of clarification ``c`` and ``p`` their mea
 - **epistemic** = ``mean_c H(p_c)``: the answers disagree even for one fixed
   reading, so the *model* does not know.
 
-total = aleatoric + epistemic. These are the same three quantities as probly's
-``SecondOrderEntropyDecomposition`` (entropy of the mean, conditional entropy,
-mutual information) over the clarifications, but with Hou et al.'s naming: in a
-model ensemble the mutual information is epistemic, here the members are
-readings of the question, so it measures the ambiguity of the input.
+total = aleatoric + epistemic. :func:`decompose` computes them with probly's
+``quantify`` on a sample of categorical distributions (one per clarification),
+i.e. probly's ``SecondOrderEntropyDecomposition``. probly names the parts for a
+*model* ensemble (conditional entropy = aleatoric, mutual information =
+epistemic); here the ensemble members are *readings of the question*, so, as in
+Hou et al., the mutual information is the ambiguity of the input (aleatoric)
+and the conditional entropy is the model's own uncertainty (epistemic).
 """
 
 from __future__ import annotations
@@ -29,6 +31,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+
+from probly.quantification import quantify
+from probly.representation.distribution.numpy_categorical import (
+    NumpyCategoricalDistributionSample,
+    NumpyProbabilityCategoricalDistribution,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -42,7 +50,7 @@ QUESTIONS_PER_CALL = 8
 
 
 def entropy(p: np.ndarray) -> float:
-    """Shannon entropy in nats of a probability vector (zeros ignored)."""
+    """Shannon entropy in nats of a probability vector (zeros ignored); used to check :func:`decompose`."""
     p = p[p > 0]
     return float(-(p * np.log(p)).sum())
 
@@ -70,9 +78,15 @@ def decompose(cluster_ids: Sequence[int], n_clarifications: int, n_answers: int)
     per_clarification = np.stack(
         [np.bincount(row, minlength=n_clusters) / n_answers for row in ids.reshape(n_clarifications, n_answers)]
     )
-    total = entropy(per_clarification.mean(axis=0))
-    epistemic = float(np.mean([entropy(p) for p in per_clarification]))
-    return {"total": total, "aleatoric": max(total - epistemic, 0.0), "epistemic": epistemic}
+    sample = NumpyCategoricalDistributionSample(
+        array=NumpyProbabilityCategoricalDistribution(per_clarification), sample_axis=0
+    )
+    parts = quantify(sample)  # probly's SecondOrderEntropyDecomposition over the clarifications
+    return {
+        "total": float(parts.total),
+        "aleatoric": max(float(parts.epistemic), 0.0),  # mutual information: the question is ambiguous
+        "epistemic": float(parts.aleatoric),  # conditional entropy: the model does not know
+    }
 
 
 def clean_clarification(text: str, question: str) -> str:
@@ -115,9 +129,9 @@ def clarify_and_answer(
         One dict per question with ``clarifications`` (``C`` texts) and ``answers``
         (``C * K`` texts, clarification by clarification).
     """
+    from common.generation import stop_at_newline_config  # noqa: PLC0415  (loads transformers)
     from scripts.generate import INSTRUCTION  # noqa: PLC0415
 
-    from common.generation import stop_at_newline_config  # noqa: PLC0415  (loads transformers)
     from probly.representer.clarifier.huggingface import HFQuestionClarifier  # noqa: PLC0415
     from probly.representer.sampler.huggingface import HFTextGenerationSampler  # noqa: PLC0415
 
