@@ -88,6 +88,58 @@ AUROC (higher is better, 0.5 = random; best per model in bold):
 - SE files were saved by hand and moved into `triviaqa_200/`; next week they will go through the runner.
 - Rejection curves for 1.5B: [`results/plots/triviaqa_200_qwen1.5b_rejection.png`](results/plots/triviaqa_200_qwen1.5b_rejection.png).
 
+## Method selector (D)
+
+Which uncertainty method should I use for my model, at my budget? The selector answers this per model
+and turns the chosen method's score into a calibrated confidence in [0, 1]. The result is one profile
+per model (`profiles/<model>.json`, format in [`CONTRACT.md`](CONTRACT.md#profile-d4-week-3)) that the API and the demo read.
+
+How it decides, per model (`selector/`):
+1. Split the questions into a calibration half (100) and a held-out half (100), stratified by correctness.
+2. On the calibration half, rank every method by AUROC and PRR with 95 % bootstrap intervals.
+3. Keep only the methods the user can run (access level and cost from `common/registry.py`).
+4. Compare every method with the best one in a paired bootstrap; among the methods that are not
+   significantly worse, choose the cheapest.
+5. Calibrate the chosen score with probly's Platt or isotonic calibration (chosen by 5-fold CV).
+
+Run it:
+
+    uv run python -m selector.select --save        # choose, calibrate, write profiles/<model>.json
+    uv run python -m selector.evaluate             # selector vs fixed methods on the held-out half
+    uv run python -m selector.combine              # stacking all methods vs the best single method
+
+**Choice per model** (TriviaQA-200):
+
+| model | chosen | why | calibration | held-out ECE |
+|---|---|---|---|---|
+| qwen0.5b | likelihood_mean | tied with the best (lexical_similarity), 11x cheaper | Platt | 0.091 |
+| qwen1.5b | likelihood_mean | tied with the best (p_true_zeroshot), 2x cheaper | Platt | 0.095 |
+| qwen3b | p_true_zeroshot | best; every cheaper method is significantly worse | isotonic | 0.219 → 0.103 |
+| qwen7b | mean_token_entropy | tied with the best (p_true_zeroshot), 2x cheaper | Platt | 0.126 |
+
+**Held-out check** (100 questions per model the selector never saw; full table:
+[`results/selector_held_out.md`](results/selector_held_out.md)):
+
+| strategy | mean AUROC | mean cost |
+|---|---|---|
+| **selector (per model)** | **0.839** | **1.2** |
+| always mean_token_entropy | 0.841 | 1 |
+| always p_true_zeroshot | 0.814 | 2 |
+| always semantic_entropy | 0.768 | 12 |
+
+**Takeaways**
+1. The selector picks different methods for different models and matches the best fixed method
+   (0.839 vs 0.841) without knowing in advance which one that is.
+2. It beats always using p(True) and every expensive method; semantic entropy costs 12x more and is worse.
+3. On this data a cheap token method is hard to beat: the selector does not beat always using
+   mean_token_entropy, and on 1.5B it is significantly below the best method on the held-out half (−0.034).
+4. With 100 calibration questions many methods are statistically tied, so the cheap ones win;
+   more questions (TriviaQA-1000) would let the selector separate them.
+5. Calibration makes the score usable as a confidence: zero-shot p(True) on 3B is overconfident
+   (ECE 0.219) and calibration halves that (0.103).
+6. Combining all methods (`selector.combine`) helps on small models: +0.062 AUROC on 0.5B (significant)
+   and +0.061 on 1.5B held-out; on 3B and 7B one method already carries the signal.
+
 ## Models & cost (BIG)
 
 All runs: TriviaQA, 200 questions, on one MacBook Air (Apple M-series, 24 GB unified memory).
@@ -126,6 +178,8 @@ Extra cost of each method, seconds per question on top of generation (`seconds_p
 - scripts/    generate.py, label.py, manual_check.py (DATA); run_benchmark.py, compare_models.py, plot_results.py, check_prefix.py (PIPE); method scripts
 - archive/week1/  superseded week-1 scripts, kept for reproducibility (not linted)
 - methods/    one plugin per uncertainty method (see CONTRACT.md)
+- selector/   method selector, calibration, stacking, held-out evaluation (D)
+- profiles/   one selector profile per model, read by the API and the demo (D)
 - configs/    one YAML file per benchmark run
 - data/<model>/      <dataset>_<n>.jsonl, .meta.json, .manual_check_part<p>.json
 - results/<model>/<dataset>_<n>/   <method>.json + summary.md (benchmark runs)
