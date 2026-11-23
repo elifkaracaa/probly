@@ -52,6 +52,31 @@ changes no score. It would add a library option, tests and a cache rule, and has
 punctuation joins numbers ("3.5" / "35"), removing articles joins different things ("The Maine" / "Maine").
 So we keep exact dedup (agreed with the reviewer of A2).
 
+## Before / after over week 3 (all four models, TriviaQA-200)
+
+NLI pairs per question, time and AUROC of SE / DSE before week 3 (week-2 results, deberta-base) and after
+A1-A5 (deberta-large, Mac, MPS). Week 2 ran SE and DSE separately, each clustering lazily (comparing a new
+answer with one answer of each cluster found so far, both directions), and `build_nli_cache` built the full
+matrix again for the analyses and graph measures. Pair counts are recomputed from the saved matrices
+(the lazy counts of 3B / 7B from the deberta-large decisions, because they had no deberta-base matrix).
+
+| model | NLI pairs / question, week 2: SE + DSE lazy + full matrix | week 3: one deduplicated matrix | reduction | SE + DSE seconds / question, week 2 | NLI seconds / question, week 3 (first run / cached run) | SE AUROC week 2 -> 3 | DSE AUROC week 2 -> 3 |
+|---|---|---|---|---|---|---|---|
+| qwen0.5b | 94 + 110 = 204 | 59.3 | -71 % | 3.25 | 0.67 / 0 | 0.740 -> 0.744 | 0.746 -> 0.751 |
+| qwen1.5b | 64 + 110 = 174 | 28.1 | -84 % | 1.49 | 0.25 / 0 | 0.781 -> 0.776 | 0.783 -> 0.779 |
+| qwen3b | 54 + 110 = 164 | 14.0 | -91 % | 0.55 | 0.13 / 0 | 0.759 -> 0.761 | 0.765 -> 0.765 |
+| qwen7b | 49 + 110 = 159 | 6.2 | -96 % | 0.40 | 0.06 / 0 | 0.735 -> 0.729 | 0.734 -> 0.729 |
+
+- **NLI pairs at least halved on every model**, and a second run does no NLI work (A5). Bigger models repeat
+  their answers more often, so dedup removes more pairs (and the NLI time falls with model size).
+- Compared with SE + DSE alone (94 / 64 / 54 / 49 lazy pairs), the shared matrix is cheaper from 1.5B on, but
+  not on 0.5B (59 vs 94): its 0.5B answers are mostly different. The matrix pays off because SE, DSE, the graph
+  measures and the hybrid scores all read it, and it is computed once and cached.
+- The time comparison is not only the NLI changes: week 3 uses deberta-large (about 3x slower than deberta-base)
+  on the GPU (A3), week 2 ran deberta-base as it was then.
+- **AUROC changes are within noise** on all models (at most 0.006; the 95 % intervals are about ±0.06; the
+  paired bootstrap for 0.5B and 1.5B is in the NLI setup table below; 0.5B DSE also gains from the tie fix).
+
 ## NLI setup (A4)
 
 Which NLI model, and should the question go in front of each answer? Compared on qwen0.5b and qwen1.5b
