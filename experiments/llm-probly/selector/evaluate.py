@@ -16,6 +16,7 @@ Run from ``experiments/llm-probly``::
 
     uv run python -m selector.evaluate
     uv run python -m selector.evaluate --out results/selector_held_out.md
+    uv run python -m selector.evaluate --splits 10 --out results/selector_held_out.md   # + 10 random splits
 """
 
 from __future__ import annotations
@@ -146,6 +147,66 @@ def to_markdown(results: list[ModelResult], dataset: str, n: int, calibration_si
     return "\n".join(lines) + "\n"
 
 
+def split_robustness(runs: dict[int, list[ModelResult]]) -> str:
+    """Render how the selector behaves over several random splits.
+
+    One split decides which 100 questions are for calibration, so the per-model choice
+    can change with the split. This section reports, over all splits, how often each
+    method is chosen per model and the mean (and range) of the selector's advantage over
+    always using one method.
+
+    Args:
+        runs: Held-out results per split seed (one ModelResult per model).
+
+    Returns:
+        A Markdown section.
+    """
+    seeds = sorted(runs)
+    models = [r.model for r in runs[seeds[0]]]
+    methods = sorted(
+        set.intersection(*(set(common_methods(results)) for results in runs.values())),
+        key=lambda m: -float(np.mean([np.mean([r.fixed_auroc[m] for r in runs[s]]) for s in seeds])),
+    )
+    selector_mean = {s: float(np.mean([r.chosen_auroc for r in runs[s]])) for s in seeds}
+    lines = [
+        f"## Over {len(seeds)} random splits (seeds {seeds[0]}-{seeds[-1]})",
+        "",
+        (
+            "The table above is one split. Which questions land in the calibration half changes the "
+            "choice per model, so the selector was rerun on every split:"
+        ),
+        "",
+        "| Model | Chosen method (number of splits) |",
+        "|---|---|",
+    ]
+    for i, model in enumerate(models):
+        counts: dict[str, int] = {}
+        for s in seeds:
+            chosen = runs[s][i].chosen
+            counts[chosen] = counts.get(chosen, 0) + 1
+        ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        lines.append(f"| {model} | " + ", ".join(f"{m} ({c})" for m, c in ranked) + " |")
+    lines += [
+        "",
+        "Mean held-out AUROC over the models, averaged over the splits:",
+        "",
+        "| Strategy | Mean AUROC (sd over splits) | Selector minus strategy: mean [min, max] over splits |",
+        "|---|---|---|",
+        (
+            f"| **Selector (per model)** | **{np.mean(list(selector_mean.values())):.3f}** "
+            f"({np.std(list(selector_mean.values())):.3f}) | |"
+        ),
+    ]
+    for m in methods:
+        fixed_mean = {s: float(np.mean([r.fixed_auroc[m] for r in runs[s]])) for s in seeds}
+        diffs = [selector_mean[s] - fixed_mean[s] for s in seeds]
+        lines.append(
+            f"| always {m} | {np.mean(list(fixed_mean.values())):.3f} ({np.std(list(fixed_mean.values())):.3f}) "
+            f"| {np.mean(diffs):+.3f} [{min(diffs):+.3f}, {max(diffs):+.3f}] |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def main() -> None:
     """Evaluate the selector on every model and print (or save) the Markdown table."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -155,14 +216,20 @@ def main() -> None:
     parser.add_argument("--calibration-size", type=int, default=DEFAULT_CALIBRATION_SIZE)
     parser.add_argument("--n-boot", type=int, default=DEFAULT_N_BOOT)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--splits", type=int, default=1, help="also rerun on seeds seed+1 .. seed+splits-1")
     parser.add_argument("--out", type=Path, default=None, help="also write the table to this Markdown file")
     args = parser.parse_args()
 
-    results = [
-        evaluate_model(m, args.dataset, args.n, args.calibration_size, args.n_boot, args.seed)
-        for m in args.models.split(",")
-    ]
-    report = to_markdown(results, args.dataset, args.n, args.calibration_size)
+    runs = {
+        seed: [
+            evaluate_model(m, args.dataset, args.n, args.calibration_size, args.n_boot, seed)
+            for m in args.models.split(",")
+        ]
+        for seed in range(args.seed, args.seed + args.splits)
+    }
+    report = to_markdown(runs[args.seed], args.dataset, args.n, args.calibration_size)
+    if args.splits > 1:
+        report += "\n" + split_robustness(runs)
     print(report)
     if args.out is not None:
         args.out.parent.mkdir(parents=True, exist_ok=True)

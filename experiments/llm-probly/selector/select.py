@@ -49,6 +49,10 @@ DEFAULT_REGISTRY: dict[str, dict] = {name: spec.to_dict() for name, spec in REGI
 
 # What each access level allows, from the registry's order (text_only < logprobs < white_box):
 # a white-box model can run everything, an API without logprobs only text methods.
+# Methods that failed on more than this share of the calibration questions are not candidates:
+# a failed question gets a placeholder score (uncertainty 1.0, see CONTRACT.md), not a real one.
+DEFAULT_MAX_FAILED = 0.05
+
 ALLOWED_ACCESS = {level: set(ACCESS_LEVELS[: i + 1]) for i, level in enumerate(ACCESS_LEVELS)}
 
 
@@ -157,6 +161,7 @@ def select_method(
     max_cost: float | None = None,
     n_boot: int = DEFAULT_N_BOOT,
     seed: int = DEFAULT_SEED,
+    max_failed: float = DEFAULT_MAX_FAILED,
 ) -> Selection:
     """Choose the cheapest method that is statistically tied with the best one.
 
@@ -168,6 +173,7 @@ def select_method(
         max_cost: Highest accepted cost per question; ``None`` = no limit.
         n_boot: Number of bootstrap resamples.
         seed: Random seed for the resamples.
+        max_failed: Methods with a larger share of failed questions are excluded.
 
     Returns:
         The selection with its reason.
@@ -177,6 +183,12 @@ def select_method(
     """
     registry = DEFAULT_REGISTRY if registry is None else registry
     candidates, excluded = filter_candidates(table.methods, registry, access, max_cost)
+    if "failed_fraction" in table.info.columns:
+        for method in list(candidates):
+            failed = float(table.info.loc[method, "failed_fraction"]) if method in table.info.index else 0.0
+            if failed > max_failed:
+                candidates.remove(method)
+                excluded[method] = f"failed on {failed:.0%} of the questions (placeholder scores)"
     if not candidates:
         msg = f"{table.model}: no candidate method left (access {access}, budget {max_cost}); excluded: {excluded}"
         raise ValueError(msg)
@@ -236,8 +248,11 @@ def build_profile(
     registry: dict[str, dict] | None = None,
     dataset: str = "triviaqa",
     model_id: str | None = None,
+    n_boot: int = DEFAULT_N_BOOT,
 ) -> Profile:
-    """Turn a selection into the D4 profile (calibration and held-out metrics are filled later).
+    """Turn a selection into the D4 profile, with the chosen method's metrics on both parts.
+
+    The calibration map is filled afterwards by ``selector.calibrate.calibrate_profile``.
 
     Args:
         selection: Result of ``select_method``.
@@ -246,12 +261,17 @@ def build_profile(
         registry: The registry the selection used.
         dataset: Dataset name.
         model_id: Hugging Face id of the model. Read from the chosen method's result file when ``None``.
+        n_boot: Bootstrap resamples for the held-out intervals.
 
     Returns:
         A profile ready for ``save_profile``.
     """
     registry = DEFAULT_REGISTRY if registry is None else registry
     entry = registry[selection.chosen]
+    held_out = subset(table, split.held_out)
+    held_out_ranking = rank_methods(
+        replace(held_out, scores=held_out.scores[[selection.chosen]]), n_boot=n_boot, seed=split.seed
+    )
     if model_id is None:
         result_file = RESULTS_ROOT / table.model / table.run / f"{selection.chosen}.json"
         model_id = json.loads(result_file.read_text())["model"]
@@ -271,6 +291,7 @@ def build_profile(
         ),
         reason=selection.reason,
         calibration_metrics=to_metrics(selection.ranking.loc[selection.chosen]),
+        held_out_metrics=to_metrics(held_out_ranking.loc[selection.chosen]),
         candidates={str(m): to_metrics(row) for m, row in selection.ranking.iterrows()},
     )
 

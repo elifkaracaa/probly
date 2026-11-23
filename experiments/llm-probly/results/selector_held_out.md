@@ -24,3 +24,30 @@ Mean over the models (selector vs always using one method):
 | always msp | 0.761 | 1 |
 | always p_true_empirical | 0.719 | 11 |
 | always verbalized_2s | 0.648 | 2 |
+
+## Over 10 random splits (seeds 0-9)
+
+The table above is one split. Which questions land in the calibration half changes the choice per model, so the selector was rerun on every split:
+
+| Model | Chosen method (number of splits) |
+|---|---|
+| qwen0.5b | likelihood_mean (9), mean_token_entropy (1) |
+| qwen1.5b | mean_token_entropy (9), likelihood_mean (1) |
+| qwen3b | mean_token_entropy (8), p_true_zeroshot (2) |
+| qwen7b | mean_token_entropy (8), msp (2) |
+
+Mean held-out AUROC over the models, averaged over the splits:
+
+| Strategy | Mean AUROC (sd over splits) | Selector minus strategy: mean [min, max] over splits |
+|---|---|---|
+| **Selector (per model)** | **0.813** (0.013) | |
+| always p_true_zeroshot | 0.821 (0.020) | -0.008 [-0.035, +0.025] |
+| always mean_token_entropy | 0.811 (0.015) | +0.002 [-0.005, +0.011] |
+| always likelihood_mean | 0.803 (0.011) | +0.010 [+0.001, +0.021] |
+| always p_true_brainstorm | 0.798 (0.010) | +0.015 [-0.029, +0.035] |
+| always discrete_semantic_entropy | 0.767 (0.017) | +0.046 [+0.018, +0.075] |
+| always msp | 0.764 (0.012) | +0.049 [+0.010, +0.078] |
+| always semantic_entropy | 0.764 (0.017) | +0.049 [+0.020, +0.078] |
+| always lexical_similarity | 0.756 (0.015) | +0.057 [+0.044, +0.091] |
+| always p_true_empirical | 0.740 (0.018) | +0.073 [+0.050, +0.120] |
+| always verbalized_2s | 0.645 (0.008) | +0.168 [+0.148, +0.191] |

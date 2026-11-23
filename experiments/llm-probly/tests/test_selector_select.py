@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -83,11 +84,22 @@ def test_no_candidate_left_raises() -> None:
         select_method(make_table(), REGISTRY, access="text_only", max_cost=1, n_boot=50)
 
 
+def test_methods_with_many_failed_questions_are_excluded() -> None:
+    table = make_table()
+    info = table.info.assign(failed_fraction=[0.0, 0.07, 0.0, 0.0])
+    selection = select_method(replace(table, info=info), REGISTRY, n_boot=200)
+    assert "strong_cheap" not in selection.ranking.index
+    assert "failed on 7%" in selection.excluded["strong_cheap"]
+    assert selection.chosen == "strong_costly"
+
+
 def test_selection_becomes_a_valid_profile(tmp_path: Path) -> None:
     table = make_table()
     selection = select_method(table, REGISTRY, n_boot=200)
-    split = Split(calibration=list(range(100)), held_out=list(range(100, 200)), seed=0)
-    profile = build_profile(selection, table, split, REGISTRY, model_id="org/m")
+    split = Split(calibration=list(range(0, 200, 2)), held_out=list(range(1, 200, 2)), seed=0)
+    profile = build_profile(selection, table, split, REGISTRY, model_id="org/m", n_boot=200)
+    assert profile.held_out_metrics is not None
+    assert profile.held_out_metrics.auroc_low <= profile.held_out_metrics.auroc <= profile.held_out_metrics.auroc_high
     assert profile.method.name == selection.chosen
     assert profile.method.cost == 1.0
     assert set(profile.candidates) == set(REGISTRY)

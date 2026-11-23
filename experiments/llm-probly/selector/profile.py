@@ -106,7 +106,7 @@ class Profile:
         method: The chosen method.
         reason: One sentence on why, shown in the demo.
         calibration_metrics: Metrics of the chosen method on the calibration part.
-        held_out_metrics: Metrics on the held-out part; None until the final run.
+        held_out_metrics: Metrics of the chosen method on the held-out part (filled by ``--save``).
         calibration: How to turn the raw score into a confidence.
         candidates: Calibration-part metrics of every method that was compared.
         schema_version: Version of this format. The loader refuses other versions.

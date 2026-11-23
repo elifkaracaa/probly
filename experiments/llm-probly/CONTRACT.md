@@ -92,7 +92,7 @@ Example: `docs/profile_example_qwen1.5b.json` (real 1.5B numbers; the chosen met
 | `method.probability` | bool | True if `1 - uncertainty` is already a probability of being correct. |
 | `reason` | str | One sentence on why this method was chosen (shown in the demo). |
 | `calibration_metrics` | object | `auroc`, `auroc_low`, `auroc_high`, `prr`, `prr_low`, `prr_high` (95 % bootstrap) on the calibration part. |
-| `held_out_metrics` | object \| null | Same fields on the held-out part; `null` until the final run (day 4). |
+| `held_out_metrics` | object \| null | Same fields for the chosen method on the held-out part; filled by `selector.select --save` (`null` only in hand-made profiles). |
 | `calibration.type` | str | `none` (not calibrated yet) \| `platt` \| `isotonic` (D3). |
 | `calibration.parameters` | object | `platt`: `a`, `b`. `isotonic`: `x` (increasing uncertainties), `y` (confidences). |
 | `calibration.ece_before`, `ece_after` | float \| null | ECE on the held-out part before and after calibration. |

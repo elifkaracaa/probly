@@ -22,11 +22,18 @@
     "prr_low": 0.1997,
     "prr_high": 0.7351
   },
-  "held_out_metrics": null,
+  "held_out_metrics": {
+    "auroc": 0.8376,
+    "auroc_low": 0.7232,
+    "auroc_high": 0.9351,
+    "prr": 0.6529,
+    "prr_low": 0.4103,
+    "prr_high": 0.8363
+  },
   "calibration": {
     "type": "platt",
     "parameters": {
-      "a": 2.7006768148124256,
+      "a": 2.700676814812425,
       "b": 0.08648083849444778
     },
     "ece_before": null,
@@ -115,5 +122,5 @@
     }
   },
   "schema_version": 1,
-  "created_at": "2026-11-22T20:30:33+00:00"
+  "created_at": "2026-11-23T20:07:33+00:00"
 }

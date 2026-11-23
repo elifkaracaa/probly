@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from selector import evaluate
-from selector.evaluate import ModelResult, common_methods, evaluate_model, to_markdown
+from selector.evaluate import ModelResult, common_methods, evaluate_model, split_robustness, to_markdown
 from selector.table import ScoreTable
 
 if TYPE_CHECKING:
@@ -90,3 +90,22 @@ def test_markdown_has_one_row_per_model_and_per_fixed_method() -> None:
     assert "**Selector (per model)** | **0.775**" in report
     assert "| always p_true_zeroshot | 0.725 |" in report
     assert "| always msp | 0.700 |" in report
+
+
+def test_split_robustness_counts_choices_and_compares_over_splits() -> None:
+    runs = {
+        0: [
+            result("a", "msp", {"msp": 0.8, "p_true_zeroshot": 0.7}),
+            result("b", "msp", {"msp": 0.6, "p_true_zeroshot": 0.8}),
+        ],
+        1: [
+            result("a", "p_true_zeroshot", {"msp": 0.7, "p_true_zeroshot": 0.9}),
+            result("b", "msp", {"msp": 0.7, "p_true_zeroshot": 0.7}),
+        ],
+    }
+    report = split_robustness(runs)
+    assert "Over 2 random splits (seeds 0-1)" in report
+    assert "| a | msp (1), p_true_zeroshot (1) |" in report
+    assert "| b | msp (2) |" in report
+    # selector means: split 0 = 0.7, split 1 = 0.8; always msp: 0.7, 0.7 -> differences 0.0 and +0.1
+    assert "| always msp | 0.700 (0.000) | +0.050 [+0.000, +0.100] |" in report
