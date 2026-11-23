@@ -2,7 +2,8 @@ Run `qwen1.5b/triviaqa_200`, 200 questions, precision float32
 
 | method | family | access | cost | status | auroc | ci_low | ci_high | vs_best | d_auroc | d_ci_low | d_ci_high | aurc | prr | ece | n_failed | seconds_per_question |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| semantic_entropy | agreement | logprobs | 12 | ok | 0.776 | 0.713 | 0.827 | tied | -0.049 | -0.131 | 0.033 | 0.455 | 0.505 |  | 0 | 0.255 |
+| largest_cluster_share | agreement | text_only | 12 | ok | 0.777 | 0.714 | 0.830 | tied | -0.049 | -0.133 | 0.030 | 0.452 | 0.507 |  | 0 | 0.000 |
+| greedy_cluster_share | agreement | text_only | 12 | ok | 0.770 | 0.705 | 0.826 | tied | -0.055 | -0.142 | 0.025 | 0.455 | 0.501 |  | 0 | 0.000 |
 | discrete_semantic_entropy | agreement | text_only | 12 | ok | 0.779 | 0.716 | 0.830 | tied | -0.046 | -0.128 | 0.035 | 0.452 | 0.508 |  | 0 | 0.000 |
 | dummy_random | baseline | text_only | 1 | ok | 0.521 | 0.439 | 0.610 | worse | -0.304 | -0.399 | -0.204 | 0.597 | 0.131 |  | 0 | 0.000 |
 | lexical_similarity | agreement | text_only | 11 | ok | 0.752 | 0.680 | 0.817 | tied | -0.073 | -0.167 | 0.006 | 0.460 | 0.479 |  | 0 | 0.000 |
@@ -12,4 +13,5 @@ Run `qwen1.5b/triviaqa_200`, 200 questions, precision float32
 | p_true_brainstorm | self_eval | logprobs | 12 | ok | 0.806 | 0.738 | 0.864 | tied | -0.019 | -0.083 | 0.044 | 0.427 | 0.577 | 0.389 | 0 | 0.505 |
 | p_true_empirical | self_eval | text_only | 11 | ok | 0.770 | 0.708 | 0.826 | worse | -0.055 | -0.092 | -0.019 | 0.467 | 0.472 | 0.314 | 0 | 2.252 |
 | p_true_zeroshot | self_eval | logprobs | 2 | ok | 0.825 | 0.764 | 0.883 | best | 0.000 | 0.000 | 0.000 | 0.411 | 0.650 | 0.335 | 0 | 0.313 |
+| semantic_entropy | agreement | logprobs | 12 | ok | 0.776 | 0.713 | 0.827 | tied | -0.049 | -0.131 | 0.033 | 0.455 | 0.505 |  | 0 | 0.255 |
 | verbalized_2s | self_eval | text_only | 2 | ok | 0.538 | 0.488 | 0.587 | worse | -0.287 | -0.366 | -0.216 | 0.606 | 0.081 | 0.563 | 0 | 0.560 |
