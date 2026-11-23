@@ -36,6 +36,22 @@ shared:
 Effect on qwen0.5b TriviaQA (50 questions, Mac, MPS): 110 -> 56 NLI pairs and 0.47 -> 0.20 s per question,
 with identical SE / DSE scores. Over all 200 questions dedup skips 46 % (0.5B) and 74 % (1.5B) of the pairs.
 
+**Decision: no answer normalization before dedup.** We measured whether treating answers that differ only in
+case, punctuation or whitespace ("Paris" / "paris." ) as identical would help (deberta-large matrices,
+TriviaQA-200, pairs equal after normalization set to entailment):
+
+| | qwen0.5b | qwen1.5b |
+|---|---|---|
+| NLI pairs skipped, exact dedup (A2) | 46.1 % | 74.5 % |
+| with normalization | 47.1 % | 77.9 % |
+| SE / DSE AUROC | unchanged (0.744 / 0.751) | unchanged (0.776 / 0.779) |
+| questions whose SE changes | 0 / 200 | 0 / 200 |
+
+The NLI model already calls every such pair the same meaning, so normalization only saves 1-3 % more pairs and
+changes no score. It would add a library option, tests and a cache rule, and has risks of its own: removing
+punctuation joins numbers ("3.5" / "35"), removing articles joins different things ("The Maine" / "Maine").
+So we keep exact dedup (agreed with the reviewer of A2).
+
 ## NLI setup (A4)
 
 Which NLI model, and should the question go in front of each answer? Compared on qwen0.5b and qwen1.5b
