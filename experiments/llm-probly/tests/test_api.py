@@ -7,6 +7,12 @@ from pathlib import Path
 import shutil
 from typing import Any
 
+import pytest
+
+# The API dependencies are an optional uv group (`uv sync --group api`): skip instead of failing collection.
+pytest.importorskip("fastapi")
+pytest.importorskip("httpx")
+
 from api.app import app
 from api.profiles import find_profile
 from api.scoring import (
@@ -25,7 +31,6 @@ from methods import (
     mean_token_entropy as plugin_mean_token_entropy,
     msp as plugin_msp,
 )
-import pytest
 from selector.profile import Calibration, MethodChoice, Metrics, Profile, save_profile
 
 MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct"
