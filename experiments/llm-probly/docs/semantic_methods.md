@@ -141,6 +141,37 @@ NLI model ready in 3.2 s
 scored 2/2 questions (0.41 s per question, about 0 s left)
 ```
 
+## Cheaper: the embedding backend
+
+Instead of the NLI model, the answers can be compared with sentence embeddings
+(`sentence-transformers/all-mpnet-base-v2`, cosine similarity above 0.9 counts as the
+same meaning). It is about 11-13x faster; on TriviaQA its AUROC was on par with NLI
+on Qwen 0.5B and about 0.03-0.04 lower on Qwen 1.5B (B3,
+`results/*/triviaqa_200/analysis/embedding_backend.md`). The clusterer is
+`probly.representer.semantic_clustering.huggingface.HFEmbeddingSemanticClusterer`,
+a drop-in for the NLI clusterer:
+
+```python
+from common.semantic_scores import semantic_scores
+
+from probly.representer.semantic_clustering.huggingface import HFEmbeddingSemanticClusterer
+
+scores = semantic_scores(samples, clusterer=HFEmbeddingSemanticClusterer.from_model_name())
+```
+
+In the benchmark, one argument switches SE, discrete SE and the graph measures
+(results go to `results/<model>/<dataset>_<n>_embedding/`, next to the NLI ones):
+
+```bash
+uv run python -m cli run --config configs/qwen0.5b_triviaqa_200.yaml --semantic-backend embedding
+```
+
+The backend is part of the NLI settings (`NliSettings(backend="embedding", threshold=0.9)`,
+also settable with `set_nli_settings(backend=...)`). It goes into the setup's tag and into every
+matrix fingerprint, so embedding matrices get their own cache file
+(`data/<model>/<dataset>_<n>.nli.embedding-all-mpnet-base-v2@0.9.npz`) and can never be read
+as NLI matrices, or the other way round.
+
 ## How many samples?
 
 10 samples are the benchmark default. With 5 the AUROC of semantic entropy drops by

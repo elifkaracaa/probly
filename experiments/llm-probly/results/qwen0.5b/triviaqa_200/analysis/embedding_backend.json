@@ -1,0 +1,109 @@
+{
+  "model": "qwen0.5b",
+  "run": "triviaqa_200",
+  "embedding_model": "sentence-transformers/all-mpnet-base-v2",
+  "selected_on": "qwen0.5b",
+  "threshold": 0.9,
+  "seconds_nli": 0.32037815415096704,
+  "seconds_embedding": 0.03004510625032708,
+  "nli": {
+    "auroc": {
+      "semantic_entropy": 0.7396036387264457,
+      "discrete_semantic_entropy": 0.7460201429499675,
+      "eig_val_laplacian": 0.7511371020142951,
+      "deg_mat": 0.7404158544509422,
+      "num_semantic_sets": 0.753654970760234,
+      "mean_clusters": 5.015
+    }
+  },
+  "embedding": {
+    "0.6": {
+      "auroc": {
+        "semantic_entropy": 0.7132878492527616,
+        "discrete_semantic_entropy": 0.7112573099415205,
+        "eig_val_laplacian": 0.7780214424951267,
+        "deg_mat": 0.7687621832358673,
+        "num_semantic_sets": 0.7077647823261859,
+        "mean_clusters": 2.475
+      },
+      "same_as_nli": 0.135
+    },
+    "0.65": {
+      "auroc": {
+        "semantic_entropy": 0.7119070825211176,
+        "discrete_semantic_entropy": 0.712962962962963,
+        "eig_val_laplacian": 0.776559454191033,
+        "deg_mat": 0.7685997400909681,
+        "num_semantic_sets": 0.7143437296946069,
+        "mean_clusters": 2.695
+      },
+      "same_as_nli": 0.14
+    },
+    "0.7": {
+      "auroc": {
+        "semantic_entropy": 0.7331059129304743,
+        "discrete_semantic_entropy": 0.7378167641325537,
+        "eig_val_laplacian": 0.776559454191033,
+        "deg_mat": 0.7685997400909681,
+        "num_semantic_sets": 0.7344866796621183,
+        "mean_clusters": 3.01
+      },
+      "same_as_nli": 0.15
+    },
+    "0.75": {
+      "auroc": {
+        "semantic_entropy": 0.7332683560753737,
+        "discrete_semantic_entropy": 0.737735542560104,
+        "eig_val_laplacian": 0.775422352176738,
+        "deg_mat": 0.7661630929174787,
+        "num_semantic_sets": 0.7378167641325537,
+        "mean_clusters": 3.4
+      },
+      "same_as_nli": 0.155
+    },
+    "0.8": {
+      "auroc": {
+        "semantic_entropy": 0.7422027290448343,
+        "discrete_semantic_entropy": 0.7460201429499675,
+        "eig_val_laplacian": 0.7744476933073423,
+        "deg_mat": 0.7651884340480831,
+        "num_semantic_sets": 0.7518680961663418,
+        "mean_clusters": 4.04
+      },
+      "same_as_nli": 0.175
+    },
+    "0.85": {
+      "auroc": {
+        "semantic_entropy": 0.7349740090968162,
+        "discrete_semantic_entropy": 0.74545159194282,
+        "eig_val_laplacian": 0.7749350227420402,
+        "deg_mat": 0.7640513320337882,
+        "num_semantic_sets": 0.7509746588693957,
+        "mean_clusters": 4.76
+      },
+      "same_as_nli": 0.23
+    },
+    "0.9": {
+      "auroc": {
+        "semantic_entropy": 0.7448018193632229,
+        "discrete_semantic_entropy": 0.7548732943469785,
+        "eig_val_laplacian": 0.7742852501624431,
+        "deg_mat": 0.7620207927225471,
+        "num_semantic_sets": 0.7633203378817414,
+        "mean_clusters": 5.525
+      },
+      "same_as_nli": 0.28
+    },
+    "0.95": {
+      "auroc": {
+        "semantic_entropy": 0.701591942820013,
+        "discrete_semantic_entropy": 0.7134502923976609,
+        "eig_val_laplacian": 0.7736354775828459,
+        "deg_mat": 0.7623456790123456,
+        "num_semantic_sets": 0.7233593242365173,
+        "mean_clusters": 6.31
+      },
+      "same_as_nli": 0.295
+    }
+  }
+}

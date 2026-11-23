@@ -7,7 +7,9 @@ the NLI model runs only for the first one.
 
 Which NLI model is used, and whether the question goes in front of each answer, comes from
 ``common.nli_matrix.nli_settings()`` (default deberta-large, answers only; the runner sets it
-from the config keys ``nli_model`` and ``nli_use_question``). Each record says which setup it used
+from the config keys ``nli_model`` and ``nli_use_question``). The same settings can switch to the
+embedding backend (B3, ``--semantic-backend embedding``): its matrices have their own tag, cache
+file and fingerprints, so they never mix with NLI matrices. Each record says which setup it used
 in its ``nli`` field.
 
 The matrices are also kept on disk (A5): when the runner has set a cache file
@@ -39,7 +41,7 @@ from common.nli_matrix import (
     se_and_dse,
 )
 
-from probly.representer.semantic_clustering.huggingface import HFGreedySemanticClusterer
+from probly.representer.semantic_clustering.huggingface import HFEmbeddingSemanticClusterer, HFGreedySemanticClusterer
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -58,13 +60,20 @@ nli_pairs_scored = 0
 
 
 def get_clusterer() -> HFGreedySemanticClusterer:
-    """Load the NLI clusterer of the current settings once per process."""
-    name = nli_settings().hf_name
+    """Load the clusterer of the current settings once per process (NLI model or, B3, embeddings)."""
+    settings = nli_settings()
+    name = settings.hf_name
     if name not in _clusterers:
-        clusterer = HFGreedySemanticClusterer.from_model_name(name)
-        clusterer.model.to(pick_device())
-        _clusterers[name] = clusterer
-    return _clusterers[name]
+        if settings.backend == "embedding":
+            _clusterers[name] = HFEmbeddingSemanticClusterer.from_model_name(name, threshold=settings.threshold)
+        else:
+            clusterer = HFGreedySemanticClusterer.from_model_name(name)
+            clusterer.model.to(pick_device())
+            _clusterers[name] = clusterer
+    clusterer = _clusterers[name]
+    if isinstance(clusterer, HFEmbeddingSemanticClusterer):  # one loaded model serves every threshold
+        clusterer.threshold = settings.threshold
+    return clusterer
 
 
 def matrix_key(row: dict) -> str:
