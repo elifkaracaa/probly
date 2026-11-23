@@ -123,8 +123,8 @@ Embedding rows for MMLU and all result files: `results/<model>/<dataset>_<n>[_em
    samples agree saves 18–48% of the generations but costs 0.03–0.10 (B2,
    `results/*/triviaqa_200/analysis/sample_count.md`).
 4. Splitting the uncertainty by input clarification (B4, opt-in) shows *why* an answer is uncertain but does
-   not detect wrong answers better (50 questions of 0.5B: 0.71 total vs 0.86 SE;
-   `results/qwen0.5b/triviaqa_200/analysis/decomposed_se.md`).
+   not detect wrong answers better: on the same first 50 questions of 0.5B, the total reaches 0.71 AUROC and
+   plain SE 0.86 (`results/qwen0.5b/triviaqa_200/analysis/decomposed_se.md`).
 5. On MMLU every method is near chance, the baselines included: the models are barely above guessing
    (accuracy 20% and 36% with four options), and with single-letter answers there is little meaning to compare.
 
