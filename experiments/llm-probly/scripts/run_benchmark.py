@@ -180,7 +180,9 @@ def find_methods() -> dict[str, MethodSpec]:
 def choose_methods(methods: dict[str, MethodSpec], config: dict, args: argparse.Namespace) -> dict[str, MethodSpec]:
     """Keep only the methods this run should use."""
     wanted = args.methods.split(",") if args.methods else config["methods"]
-    if wanted != "all":
+    if wanted == "all":  # opt-in methods (many extra generations) run only when named
+        methods = {name: spec for name, spec in methods.items() if not spec.opt_in}
+    else:
         unknown = [name for name in wanted if name not in methods]
         if unknown:
             msg = f"unknown methods {unknown}; available: {sorted(methods)}"

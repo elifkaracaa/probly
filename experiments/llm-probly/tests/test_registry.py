@@ -39,19 +39,22 @@ def test_cost_counts_greedy_samples_extra_calls_and_nli():
     assert get("p_true_zeroshot").cost == 2
 
 
-def test_methods_that_need_the_model_are_self_evaluation():
-    assert {s.name for s in REGISTRY.values() if s.needs_model} == {
+def test_methods_that_need_the_model_are_self_evaluation_or_opt_in():
+    # decomposed SE (B4) generates clarifications and answers, so it needs the model; it is opt-in.
+    assert {s.name for s in REGISTRY.values() if s.needs_model and not s.opt_in} == {
         "p_true_zeroshot",
         "p_true_brainstorm",
         "p_true_empirical",
         "verbalized_2s",
     }
+    assert {s.name for s in REGISTRY.values() if s.opt_in} == {"decomposed_semantic_entropy"}
 
 
 def test_nli_methods_cost_one_more_than_their_llm_passes():
     for spec in REGISTRY.values():
-        if spec.uses_nli:
+        if spec.uses_nli and not spec.opt_in:
             assert spec.cost == 12
+    assert get("decomposed_semantic_entropy").cost == 1 + 3 + 15 + 1  # greedy, clarifications, answers, NLI
 
 
 def test_text_only_methods_match_f2():
@@ -65,6 +68,7 @@ def test_text_only_methods_match_f2():
         "eig_val_laplacian",
         "deg_mat",
         "eccentricity",
+        "decomposed_semantic_entropy",
         "verbalized_2s",
         "p_true_empirical",
         "dummy_random",
