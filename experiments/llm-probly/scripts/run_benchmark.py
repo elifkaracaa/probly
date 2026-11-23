@@ -15,6 +15,11 @@ Steps, in order. Each step is skipped if its output file already exists
 4. evaluate  -> AUROC, AURC, bootstrap interval per method (common/summary.py)
 5. table     -> results/<model>/<dataset>/summary.md (with family, access and cost from the registry)
 
+``--semantic-backend embedding`` (B3) runs the NLI-based methods (``uses_nli`` in the registry)
+with sentence embeddings instead of NLI: it sets ``backend="embedding"`` in the NLI settings, so the
+matrices go to their own cache (``.nli.embedding-<model>@<threshold>.npz``) and the results to
+``results/<model>/<dataset>_<n>_embedding/``; the NLI cache and results stay untouched.
+
 See CONTRACT.md for the plugin interface. ``python -m cli run`` calls this module.
 """
 
@@ -31,6 +36,7 @@ from typing import TYPE_CHECKING
 from common.data import DATASETS, cache_path, load_jsonl
 from common.io import RESULTS_ROOT, save_scores
 from common.nli_matrix import (
+    BACKENDS,
     DEFAULT_NLI_MODEL,
     count_cached_questions,
     nli_cache_path,
@@ -57,6 +63,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         "--skip-model-methods", action="store_true", help="skip methods with needs_model=True in the registry"
     )
     parser.add_argument("--force", action="store_true", help="recompute method results even if they exist")
+    parser.add_argument(
+        "--semantic-backend",
+        choices=BACKENDS,
+        default="nli",
+        help="how the semantic methods compare answers; 'embedding' writes to <run>_embedding/",
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -254,15 +266,20 @@ def run(args: argparse.Namespace) -> None:
     """Run all steps for one config."""
     config = load_config(args.config)
     run_name = f"{config['model']}/{config['dataset']}_{config['n']}"  # results/<run>/
+    backend = getattr(args, "semantic_backend", "nli")
+    if backend != "nli":
+        run_name += f"_{backend}"
     print(f"run: {run_name}")
 
     rows = prepare_data(config)
     precision = cache_precision(config)
-    nli = set_nli_settings(config["nli_model"], use_question=config["nli_use_question"])
+    nli = set_nli_settings(config["nli_model"], use_question=config["nli_use_question"], backend=backend)
     nli_file = nli_cache_path(cache_path(config["model"], config["n"], config["dataset"]), nli)
     cached = count_cached_questions(nli_file, nli, rows)
     print(f"NLI for the semantic methods: {nli.tag}, cache {shown(nli_file)} ({cached}/{len(rows)} questions cached)")
     methods = choose_methods(find_methods(), config, args)
+    if backend != "nli":  # only the methods that compare answers change with the backend
+        methods = {name: spec for name, spec in methods.items() if spec.uses_nli}
     set_nli_cache_file(nli_file)
     try:
         run_methods(methods, rows, config, run_name, args.force)

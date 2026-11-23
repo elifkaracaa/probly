@@ -133,6 +133,40 @@ _SPECS = (
         uses_nli=True,
         note="NLI clusters weighted by sample likelihoods",
     ),
+    # Graph measures (B1, LM-Polygraph / Lin et al. 2024): read the same NLI matrix as SE, so next to
+    # SE they add no NLI pass; alone they cost the same as discrete SE.
+    MethodSpec(
+        "num_semantic_sets",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="number of NLI clusters (the clusters of SE)",
+    ),
+    MethodSpec(
+        "eig_val_laplacian",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="Laplacian eigenvalues of the NLI similarity graph",
+    ),
+    MethodSpec(
+        "deg_mat",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="mean degree of the NLI similarity graph",
+    ),
+    MethodSpec(
+        "eccentricity",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="spread of the samples in the graph's spectral embedding",
+    ),
     # Cluster shares (A, for the selector D2): read the same NLI matrix as SE.
     MethodSpec(
         "largest_cluster_share",

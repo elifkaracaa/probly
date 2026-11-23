@@ -56,10 +56,15 @@ def test_nli_methods_cost_one_more_than_their_llm_passes():
 
 def test_text_only_methods_match_f2():
     # F2 runs exactly these through an OpenAI-compatible API (plus the random reference).
+    # The B1 graph measures need only the sample texts and the NLI matrix, like discrete SE.
     text_only = {s.name for s in candidates(access="text_only")}
     assert text_only == {
         "lexical_similarity",
         "discrete_semantic_entropy",
+        "num_semantic_sets",
+        "eig_val_laplacian",
+        "deg_mat",
+        "eccentricity",
         "largest_cluster_share",
         "greedy_cluster_share",
         "verbalized_2s",
