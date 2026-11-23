@@ -1,8 +1,9 @@
 """Tests for the reply parsing of verbalized confidence (common/verbalized.py)."""
 
-import pytest
+from __future__ import annotations
 
-from common.verbalized import parse_confidence
+from common.verbalized import ASK, ASK_ANCHORED, parse_confidence
+import pytest
 
 
 @pytest.mark.parametrize(
@@ -23,3 +24,10 @@ def test_parse_confidence(reply, scale, expected):
         assert result is None
     else:
         assert result == pytest.approx(expected)
+
+
+def test_anchored_prompt_explains_both_ends_of_the_scale():
+    assert "0 to 10" in ASK_ANCHORED
+    assert "certainly wrong" in ASK_ANCHORED
+    assert "certainly correct" in ASK_ANCHORED
+    assert ASK_ANCHORED not in ASK.values()
