@@ -746,7 +746,12 @@ class HFEmbeddingSemanticClusterer(HFGreedySemanticClusterer):
     @property
     @override
     def predictor(self) -> PreTrainedModel:
-        """The underlying sentence-transformers model (not a ``PreTrainedModel``)."""
+        """The underlying sentence-transformers model.
+
+        It is a ``SentenceTransformer``, not a ``PreTrainedModel``: the annotation is inherited from the NLI
+        clusterer, so callers must not use it as a transformers model (no ``.config``, no NLI forward pass).
+        Use :meth:`embed` to get embeddings.
+        """
         return self.embedder.predictor  # ty: ignore[invalid-return-type]
 
     def embed(self, statements: Sequence[str] | np.ndarray) -> torch.Tensor:
