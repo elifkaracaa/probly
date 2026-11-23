@@ -88,6 +88,41 @@ AUROC (higher is better, 0.5 = random; best per model in bold):
 - SE files were saved by hand and moved into `triviaqa_200/`; next week they will go through the runner.
 - Rejection curves for 1.5B: [`results/plots/triviaqa_200_qwen1.5b_rejection.png`](results/plots/triviaqa_200_qwen1.5b_rejection.png).
 
+## Semantic methods (SEM)
+
+Semantic entropy (SE) and discrete SE sample 10 answers, group them by meaning with an NLI model, and
+measure how spread the answers are over the groups. All semantic methods (SE, discrete SE, the graph
+measures) read **one NLI matrix per question**: every ordered pair of [greedy answer, 10 samples] is
+scored once (A1), identical answers only once (A2), 16 questions share the model batches on the GPU (A3).
+
+**NLI setup (A4).** Default `deberta-large`, answers only: it agrees best with 80 hand-labelled answer
+pairs (0.971 vs 0.937 for deberta-base; a second labeller agreed on 20/20). Change it per run in the config:
+
+    nli_model: deberta-base      # or deberta-large (default), or any Hugging Face NLI model
+    nli_use_question: true       # put the question in front of each answer (default false)
+
+**NLI cache (A5).** The matrices are saved next to the data, `data/<model>/<dataset>_<n>.nli.<setup>.npz`,
+and reused automatically: a second run does no NLI work. Changed answers or another NLI setup are
+detected (fingerprints) and only those questions are computed again.
+
+    caffeinate -i uv run python -m cli run --config configs/qwen1.5b_triviaqa_200.yaml \
+        --methods semantic_entropy,discrete_semantic_entropy --force
+    # NLI for the semantic methods: deberta-large, cache data/qwen1.5b/triviaqa_200.nli.deberta-large.npz (200/200 questions cached)
+
+In your own code:
+
+    from common.data import cache_path, load_data
+    from common.nli_matrix import load_nli_cache, nli_cache_path, nli_settings
+
+    rows = load_data("qwen1.5b", 200)
+    cache = load_nli_cache(nli_cache_path(cache_path("qwen1.5b", 200), nli_settings()))
+    cache["matrices"][0].shape   # (11, 11, 3): contradiction / neutral / entailment per ordered pair
+
+**Effect over week 3** (TriviaQA-200): NLI pairs per question 204 → 59 (0.5B), 174 → 28 (1.5B),
+164 → 14 (3B), 159 → 6 (7B), and 0 on a cached rerun; AUROC unchanged (at most 0.006).
+Details, the hand labels and the decisions (e.g. no answer normalization before dedup):
+[docs/methods.md](docs/methods.md).
+
 ## Models & cost (BIG)
 
 All runs: TriviaQA, 200 questions, on one MacBook Air (Apple M-series, 24 GB unified memory).
