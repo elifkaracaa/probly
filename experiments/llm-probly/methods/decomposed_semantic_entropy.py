@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from common.decomposed_se import N_ANSWERS, N_CLARIFICATIONS, clarify_and_answer, decompose
 from common.nli_matrix import QUESTIONS_PER_BATCH, compute_matrices, nli_pair_count, nli_settings, sample_block
+import torch
 
 from methods import _se_common
 from probly.representer.semantic_clustering.huggingface import HFGreedySemanticClusterer
@@ -31,6 +32,8 @@ if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 NAME = "decomposed_semantic_entropy"
+SEED = 0
+"""Random seed set before the clarifications and answers are sampled, so a rerun gives the same numbers."""
 
 
 def score(
@@ -43,6 +46,7 @@ def score(
         msg = f"{NAME} generates clarifications and answers, so it needs the model and tokenizer."
         raise ValueError(msg)
     start = time.perf_counter()
+    torch.manual_seed(SEED)
     generated = clarify_and_answer(model, tok, [r["question"] for r in rows])
     pseudo_rows = [
         {"question": r["question"], "greedy_answer": r["greedy_answer"], "samples": g["answers"]}

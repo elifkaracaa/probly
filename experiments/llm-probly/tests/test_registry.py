@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from common.decomposed_se import N_ANSWERS, N_CLARIFICATIONS
 from common.registry import (
     ACCESS_LEVELS,
     FAMILIES,
@@ -54,7 +55,8 @@ def test_nli_methods_cost_one_more_than_their_llm_passes():
     for spec in REGISTRY.values():
         if spec.uses_nli and not spec.opt_in:
             assert spec.cost == 12
-    assert get("decomposed_semantic_entropy").cost == 1 + 3 + 15 + 1  # greedy, clarifications, answers, NLI
+    # greedy, clarifications, answers, NLI: tied to the constants the plugin samples with
+    assert get("decomposed_semantic_entropy").cost == 1 + N_CLARIFICATIONS + N_CLARIFICATIONS * N_ANSWERS + 1
 
 
 def test_text_only_methods_match_f2():

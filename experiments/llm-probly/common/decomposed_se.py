@@ -124,16 +124,16 @@ def clarify_and_answer(
         questions: Question texts.
         n_clarifications: Clarifications per question.
         n_answers: Answers per clarification.
-        temperature: Sampling temperature for clarifications and answers.
+        temperature: Sampling temperature of the answers (the clarifier always samples at 1.0).
         max_new_tokens: Token limit of an answer (clarifications get 48).
 
     Returns:
         One dict per question with ``clarifications`` (``C`` texts) and ``answers``
         (``C * K`` texts, clarification by clarification).
     """
-    from common.generation import stop_at_newline_config  # noqa: PLC0415  (loads transformers)
     from scripts.generate import INSTRUCTION  # noqa: PLC0415
 
+    from common.generation import stop_at_newline_config  # noqa: PLC0415  (loads transformers)
     from probly.representer.clarifier.huggingface import HFQuestionClarifier  # noqa: PLC0415
     from probly.representer.sampler.huggingface import HFTextGenerationSampler  # noqa: PLC0415
 
