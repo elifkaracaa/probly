@@ -18,8 +18,8 @@ With ``p_c`` the cluster distribution of clarification ``c`` and ``p`` their mea
   reading, so the *model* does not know.
 
 total = aleatoric + epistemic. :func:`decompose` computes them with probly's
-``quantify`` on a sample of categorical distributions (one per clarification),
-i.e. probly's ``SecondOrderEntropyDecomposition``. probly names the parts for a
+``SecondOrderEntropyDecomposition`` (what ``quantify`` returns) on a sample of
+categorical distributions, one per clarification. probly names the parts for a
 *model* ensemble (conditional entropy = aleatoric, mutual information =
 epistemic); here the ensemble members are *readings of the question*, so, as in
 Hou et al., the mutual information is the ambiguity of the input (aleatoric)
@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
-from probly.quantification import quantify
+from probly.quantification import SecondOrderEntropyDecomposition
 from probly.representation.distribution.numpy_categorical import (
     NumpyCategoricalDistributionSample,
     NumpyProbabilityCategoricalDistribution,
@@ -81,11 +81,13 @@ def decompose(cluster_ids: Sequence[int], n_clarifications: int, n_answers: int)
     sample = NumpyCategoricalDistributionSample(
         array=NumpyProbabilityCategoricalDistribution(per_clarification), sample_axis=0
     )
-    parts = quantify(sample)  # probly's SecondOrderEntropyDecomposition over the clarifications
+    # What probly's quantify() returns for a DistributionSample; its type hints only name SecondOrderDistributionLike.
+    parts = SecondOrderEntropyDecomposition(sample)  # ty: ignore[invalid-argument-type]
+    total, conditional, mutual = np.asarray([parts.total, parts.aleatoric, parts.epistemic], dtype=float)
     return {
-        "total": float(parts.total),
-        "aleatoric": max(float(parts.epistemic), 0.0),  # mutual information: the question is ambiguous
-        "epistemic": float(parts.aleatoric),  # conditional entropy: the model does not know
+        "total": float(total),
+        "aleatoric": max(float(mutual), 0.0),  # mutual information: the question is ambiguous
+        "epistemic": float(conditional),  # conditional entropy: the model does not know
     }
 
 
