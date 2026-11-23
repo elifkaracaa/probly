@@ -10,6 +10,7 @@ from common.io import validate_scores
 from common.nli_matrix import (
     NliSettings,
     load_nli_cache,
+    nli_cache_path,
     nli_pair_count,
     nli_settings,
     question_texts,
@@ -28,14 +29,25 @@ from probly.representer.semantic_clustering.huggingface import expand_unique_nli
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def stored_results_and_their_cache(model: str) -> tuple[list[dict], dict, dict, dict]:
+    """Rows, NLI cache and stored SE / DSE records of TriviaQA-200, the cache matching the records' NLI setup.
+
+    Records without an ``nli`` field are from week 2 (deberta-base, answers only, file ``.nli.npz``).
+    """
+    data_file = ROOT / f"data/{model}/triviaqa_200.jsonl"
+    rows = [json.loads(line) for line in data_file.open()]
+    results = ROOT / f"results/{model}/triviaqa_200"
+    se = json.loads((results / "semantic_entropy.json").read_text())
+    dse = json.loads((results / "discrete_semantic_entropy.json").read_text())
+    tag = se.get("nli", "deberta-base")
+    settings = NliSettings(tag.removesuffix("+question"), use_question=tag.endswith("+question"))
+    return rows, load_nli_cache(nli_cache_path(data_file, settings)), se, dse
+
+
 @pytest.mark.parametrize("model", ["qwen0.5b", "qwen1.5b"])
 def test_se_from_cached_matrix_equals_old_results(model):
-    """Equivalence: SE / DSE from the week-2 NLI cache = the stored week-2 results (all 200 questions)."""
-    cache = load_nli_cache(ROOT / f"data/{model}/triviaqa_200.nli.npz")
-    rows = [json.loads(line) for line in (ROOT / f"data/{model}/triviaqa_200.jsonl").open()]
-    results = ROOT / f"results/{model}/triviaqa_200"
-    old_se = json.loads((results / "semantic_entropy.json").read_text())
-    old_dse = json.loads((results / "discrete_semantic_entropy.json").read_text())
+    """Equivalence: SE / DSE from the NLI cache = the stored results made with it (all 200 questions)."""
+    rows, cache, old_se, old_dse = stored_results_and_their_cache(model)
 
     assert cache["ids"] == [r["id"] for r in rows] == old_se["ids"]
     new = np.array([se_and_dse(m, r["samples_ll_mean"]) for m, r in zip(cache["matrices"], rows, strict=True)])
@@ -47,11 +59,8 @@ def test_se_from_cached_matrix_equals_old_results(model):
 @pytest.mark.parametrize("model", ["qwen0.5b", "qwen1.5b"])
 def test_deduplicated_matrix_gives_the_same_se(model: str) -> None:
     """A2: scoring each distinct text once (identical pairs = entailment) keeps SE / DSE unchanged."""
-    cache = load_nli_cache(ROOT / f"data/{model}/triviaqa_200.nli.npz")
-    rows = [json.loads(line) for line in (ROOT / f"data/{model}/triviaqa_200.jsonl").open()]
-    results = ROOT / f"results/{model}/triviaqa_200"
-    old_se = json.loads((results / "semantic_entropy.json").read_text())["uncertainty"]
-    old_dse = json.loads((results / "discrete_semantic_entropy.json").read_text())["uncertainty"]
+    rows, cache, se_record, dse_record = stored_results_and_their_cache(model)
+    old_se, old_dse = se_record["uncertainty"], dse_record["uncertainty"]
 
     new = []
     for matrix, row in zip(cache["matrices"], rows, strict=True):
@@ -142,6 +151,7 @@ def test_se_and_dse_plugins_share_one_nli_pass(monkeypatch):
     fake = CountingClusterer()
     monkeypatch.setattr(_se_common, "_clusterers", {nli_settings().hf_name: fake})
     monkeypatch.setattr(_se_common, "_matrices", {})
+    monkeypatch.setattr(_se_common, "_nli_seconds", {})
     rows = [
         {"id": i, "model": "m", "greedy_answer": "Paris", "samples": ["Paris"] * 3, "samples_ll_mean": [-0.1] * 3}
         for i in range(2)
@@ -166,6 +176,7 @@ def test_questions_are_batched_in_chunks(monkeypatch):
     fake = CountingClusterer()
     monkeypatch.setattr(_se_common, "_clusterers", {nli_settings().hf_name: fake})
     monkeypatch.setattr(_se_common, "_matrices", {})
+    monkeypatch.setattr(_se_common, "_nli_seconds", {})
     monkeypatch.setattr(_se_common, "QUESTIONS_PER_BATCH", 2)
     rows = [{"greedy_answer": f"g{i}", "samples": [f"s{i}"]} for i in range(5)]
 
@@ -199,6 +210,7 @@ def test_se_plugins_use_the_nli_settings(monkeypatch):
     fake = CountingClusterer()
     monkeypatch.setattr(_se_common, "_clusterers", {"microsoft/deberta-base-mnli": fake})
     monkeypatch.setattr(_se_common, "_matrices", {})
+    monkeypatch.setattr(_se_common, "_nli_seconds", {})
     monkeypatch.setattr(nli_matrix, "_settings", NliSettings("deberta-base", use_question=True))
     rows = [
         {

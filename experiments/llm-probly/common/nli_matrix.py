@@ -10,7 +10,18 @@ The matrix itself comes from probly
 entailment). This module only adds what the experiments need on top: which texts
 go in, SE / discrete SE from a matrix, and the ``.nli.npz`` cache file format.
 
-Cache file format (``data/<model>/<dataset>_<n>.nli.npz``, version 1)::
+The cache is persistent (A5): the runner reads it before computing anything and writes new
+matrices back, so a second run of SE / DSE on the same data does no NLI work. One file per
+data cache and NLI setup, named by :func:`nli_cache_path`::
+
+    data/<model>/<dataset>_<n>.nli.npz                  deberta-base, answers only (week-2 name)
+    data/<model>/<dataset>_<n>.nli.<tag>.npz            any other setup, e.g. .nli.deberta-large.npz
+
+A cached matrix is only reused if the file was made with the same NLI model and conditioning
+and the question's fingerprint (:func:`matrix_fingerprint`: NLI model, question if used, and the
+exact answer texts) is unchanged; otherwise that question is computed again and the file updated.
+
+Cache file format (version 2; version 1 files load too, but have no fingerprints)::
 
     nli                   float32 (N, K+1, K+1, 3)  index 0 = greedy answer, NaN = diagonal/padding
     n_texts               int16   (N,)              1 + number of samples per question
@@ -20,6 +31,7 @@ Cache file format (``data/<model>/<dataset>_<n>.nli.npz``, version 1)::
     use_question          bool    ()                True if the question was put in front of each text
     deduplicate           bool    ()                True if identical texts were scored once (A2); missing = False
     seconds_per_question  float   ()                NLI time when the file was built
+    fingerprints          str     (N,)              per question, see matrix_fingerprint (version 2)
 
 The file stores the last axis as ``labels`` says (entail, neutral, contradict,
 as in the week-2 files). :func:`load_nli_cache` always returns probly's order.
@@ -28,6 +40,9 @@ as in the week-2 files). :func:`load_nli_cache` always returns probly's order.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -39,11 +54,10 @@ from probly.representer.semantic_clustering.huggingface import NLI_LABELS, HFGre
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from pathlib import Path
 
     from probly.representer.semantic_clustering.huggingface import HFSemanticClusterer
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 GREEDY_INDEX = 0
 FILE_LABELS = ("entail", "neutral", "contradict")
 """Order of the last axis inside ``.nli.npz`` files (kept from week 2 so old readers keep working)."""
@@ -110,6 +124,39 @@ def set_nli_settings(model: str | None = None, *, use_question: bool | None = No
     return _settings
 
 
+_cache_file: Path | None = None
+
+
+def nli_cache_file() -> Path | None:
+    """The persistent NLI cache the semantic methods read and update in this process (None = memory only)."""
+    return _cache_file
+
+
+def set_nli_cache_file(path: str | Path | None) -> None:
+    """Set the persistent NLI cache file (the runner calls this, see :func:`nli_cache_path`).
+
+    Args:
+        path: The ``.nli*.npz`` file, or None to keep matrices in memory only.
+    """
+    global _cache_file  # noqa: PLW0603
+    _cache_file = None if path is None else Path(path)
+
+
+def nli_cache_path(data_file: str | Path, settings: NliSettings) -> Path:
+    """Path of the NLI cache that belongs to a data cache and an NLI setup.
+
+    Args:
+        data_file: The data cache, e.g. ``data/qwen0.5b/triviaqa_200.jsonl`` (model and dataset are in the path).
+        settings: The NLI setup; deberta-base on answers only keeps the week-2 name ``.nli.npz``.
+
+    Returns:
+        E.g. ``data/qwen0.5b/triviaqa_200.nli.deberta-large.npz``.
+    """
+    data_file = Path(data_file)
+    tag = "" if settings.tag == "deberta-base" else f".{settings.tag}"
+    return data_file.with_name(f"{data_file.stem}.nli{tag}.npz")
+
+
 def question_texts(row: dict) -> list[str]:
     """Return the texts that go into the NLI matrix of one question.
 
@@ -156,6 +203,25 @@ def resolve_dtype(name: str, device: str) -> torch.dtype:
         msg = "float16 NLI needs a GPU (cuda or mps); use float32 on the CPU."
         raise ValueError(msg)
     return dtypes[name]
+
+
+def matrix_fingerprint(row: dict, settings: NliSettings) -> str:
+    """Short hash of everything a question's NLI matrix depends on.
+
+    Args:
+        row: One row of the data cache.
+        settings: The NLI setup.
+
+    Returns:
+        16 hex characters of the SHA-256 of the NLI model name, the question (only if it is
+        put in front of the answers) and the answer texts. Any change gives another fingerprint.
+    """
+    content = {
+        "nli_model": settings.hf_name,
+        "question": row["question"] if settings.use_question else None,
+        "texts": question_texts(row),
+    }
+    return hashlib.sha256(json.dumps(content, ensure_ascii=False).encode()).hexdigest()[:16]
 
 
 def compute_matrices(
@@ -322,6 +388,7 @@ def save_nli_cache(
     use_question: bool,
     seconds_per_question: float,
     deduplicate: bool = True,
+    fingerprints: Sequence[str] | None = None,
 ) -> None:
     """Save question matrices (probly order) as a ``.nli.npz`` file.
 
@@ -333,6 +400,8 @@ def save_nli_cache(
         use_question: Whether the question was put in front of each text.
         seconds_per_question: Measured NLI time per question.
         deduplicate: Whether identical texts were scored once.
+        fingerprints: :func:`matrix_fingerprint` of each question; without them the runner
+            does not trust the file and computes the matrices again.
     """
     n_texts = np.array([m.shape[0] for m in matrices], dtype=np.int16)
     size = int(n_texts.max()) if len(matrices) else 0
@@ -352,6 +421,7 @@ def save_nli_cache(
         seconds_per_question=np.array(seconds_per_question),
         deduplicate=np.array(deduplicate),
         format_version=np.array(FORMAT_VERSION),
+        fingerprints=np.array([] if fingerprints is None else list(fingerprints), dtype=str),  # empty = unknown
     )
 
 
@@ -363,7 +433,8 @@ def load_nli_cache(path: str | Path) -> dict:
 
     Returns:
         Dict with ``matrices`` (list of ``(n_i, n_i, 3)`` float32 tensors, probly order),
-        ``ids``, ``nli_model``, ``use_question``, ``seconds_per_question`` and ``deduplicate``.
+        ``ids``, ``nli_model``, ``use_question``, ``seconds_per_question``, ``deduplicate`` and
+        ``fingerprints`` (None for files without them).
     """
     with np.load(path, allow_pickle=False) as z:
         columns = _file_to_probly_order(z["labels"].tolist())
@@ -376,4 +447,70 @@ def load_nli_cache(path: str | Path) -> dict:
             "use_question": bool(z["use_question"]),
             "seconds_per_question": float(z["seconds_per_question"]),
             "deduplicate": bool(z["deduplicate"]) if "deduplicate" in z.files else False,
+            "fingerprints": z["fingerprints"].tolist()
+            if "fingerprints" in z.files and z["fingerprints"].size
+            else None,
         }
+
+
+def read_cached_matrices(path: str | Path, settings: NliSettings) -> dict[int, tuple[str, torch.Tensor]]:
+    """Read the reusable entries of a persistent NLI cache.
+
+    Args:
+        path: The cache file; a missing file gives an empty dict.
+        settings: The NLI setup of this run.
+
+    Returns:
+        ``{question id: (fingerprint, matrix)}``. Empty if the file was made with another NLI
+        model or conditioning, or has no fingerprints (version 1): then nothing in it can be
+        checked, so everything is computed again and the file is rewritten.
+    """
+    path = Path(path)
+    if not path.exists():
+        return {}
+    cache = load_nli_cache(path)
+    same_setup = (
+        NLI_MODELS.get(cache["nli_model"], cache["nli_model"]) == settings.hf_name
+        and cache["use_question"] == settings.use_question
+    )
+    if not same_setup:
+        print(f"   NLI cache {path.name}: made with another NLI setup, computing again")
+        return {}
+    if cache["fingerprints"] is None:
+        print(f"   NLI cache {path.name}: no fingerprints (old format), computing again")
+        return {}
+    return {
+        int(qid): (fp, matrix)
+        for qid, fp, matrix in zip(cache["ids"], cache["fingerprints"], cache["matrices"], strict=True)
+    }
+
+
+def cached_nli_seconds(path: str | Path) -> float:
+    """NLI time per question stored in a cache file (0.0 if the file does not exist).
+
+    Args:
+        path: The cache file.
+
+    Returns:
+        The file's ``seconds_per_question``: what building its matrices cost.
+    """
+    path = Path(path)
+    if not path.exists():
+        return 0.0
+    with np.load(path, allow_pickle=False) as z:
+        return float(z["seconds_per_question"])
+
+
+def count_cached_questions(path: str | Path, settings: NliSettings, rows: Sequence[dict]) -> int:
+    """Number of ``rows`` whose NLI matrix the cache file can give without any NLI work.
+
+    Args:
+        path: The cache file.
+        settings: The NLI setup of this run.
+        rows: Rows of the data cache (with ``id``).
+
+    Returns:
+        How many rows have a matching fingerprint in the file.
+    """
+    entries = read_cached_matrices(path, settings)
+    return sum(1 for row in rows if row["id"] in entries and entries[row["id"]][0] == matrix_fingerprint(row, settings))

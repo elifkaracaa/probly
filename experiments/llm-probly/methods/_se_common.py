@@ -9,6 +9,15 @@ Which NLI model is used, and whether the question goes in front of each answer, 
 ``common.nli_matrix.nli_settings()`` (default deberta-large, answers only; the runner sets it
 from the config keys ``nli_model`` and ``nli_use_question``). Each record says which setup it used
 in its ``nli`` field.
+
+The matrices are also kept on disk (A5): when the runner has set a cache file
+(``common.nli_matrix.set_nli_cache_file``), matrices whose fingerprint matches are read from it,
+only the missing or changed questions go to the NLI model, and the file is updated. A second run
+on the same data therefore does no NLI work (``nli_pairs_per_question`` is 0).
+
+``seconds_per_question`` is the time of this run (CONTRACT.md: about 0 when the matrices come from
+the cache). So that the cost of the NLI step is not lost, every record also has
+``nli_seconds_per_question``: what building the matrices it used took, measured now or stored in the cache.
 """
 
 from __future__ import annotations
@@ -18,21 +27,32 @@ from typing import TYPE_CHECKING
 
 from common.nli_matrix import (
     QUESTIONS_PER_BATCH,
+    cached_nli_seconds,
     compute_matrices,
+    matrix_fingerprint,
+    nli_cache_file,
     nli_pair_count,
     nli_settings,
     pick_device,
-    question_texts,
+    read_cached_matrices,
+    save_nli_cache,
     se_and_dse,
 )
 
 from probly.representer.semantic_clustering.huggingface import HFGreedySemanticClusterer
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import torch
 
 _clusterers: dict[str, HFGreedySemanticClusterer] = {}
-_matrices: dict[tuple, torch.Tensor] = {}
+_matrices: dict[str, torch.Tensor] = {}
+"""In-memory matrices of this process, keyed by :func:`matrix_key`."""
+_disk: dict[Path, dict[int, tuple[str, torch.Tensor]]] = {}
+"""Entries of each persistent cache file read in this process: ``{question id: (fingerprint, matrix)}``."""
+_nli_seconds: dict[str, float] = {}
+"""NLI seconds it took to build each matrix in ``_matrices`` (measured, or the cache file's value)."""
 nli_pairs_scored = 0
 """Number of NLI pairs sent to the model in this process (for before / after reports)."""
 
@@ -47,26 +67,72 @@ def get_clusterer() -> HFGreedySemanticClusterer:
     return _clusterers[name]
 
 
-def matrix_key(row: dict) -> tuple:
-    """Memo key of a question matrix: NLI setup, question (if used) and the answers."""
-    settings = nli_settings()
-    question = row["question"] if settings.use_question else None
-    return (settings.tag, question, *question_texts(row))
+def matrix_key(row: dict) -> str:
+    """Key of a question matrix: its fingerprint under the current NLI settings (model, question if used, answers)."""
+    return matrix_fingerprint(row, nli_settings())
+
+
+def _disk_entries(path: Path) -> dict[int, tuple[str, torch.Tensor]]:
+    """Reusable entries of a cache file, read once per process."""
+    if path not in _disk:
+        _disk[path] = read_cached_matrices(path, nli_settings())
+    return _disk[path]
 
 
 def prepare_matrices(rows: list[dict]) -> None:
-    """Compute the missing NLI matrices of ``rows``, ``QUESTIONS_PER_BATCH`` questions per model batch."""
+    """Make the NLI matrices of ``rows`` available: from memory, then from the cache file, else computed.
+
+    Missing matrices are computed ``QUESTIONS_PER_BATCH`` questions per model batch. If a cache
+    file is set and anything was computed, the file is rewritten with the old and new entries.
+    """
     global nli_pairs_scored  # noqa: PLW0603
+    path = nli_cache_file()
+    entries = _disk_entries(path) if path is not None else {}
+    for row in rows:
+        key = matrix_key(row)
+        cached = entries.get(row["id"]) if path is not None else None
+        if key not in _matrices and cached is not None and cached[0] == key:
+            _matrices[key] = cached[1]
+            _nli_seconds[key] = cached_nli_seconds(path) if path is not None else 0.0
+
     missing = {matrix_key(row): row for row in rows if matrix_key(row) not in _matrices}
     todo = list(missing.items())
     for start in range(0, len(todo), QUESTIONS_PER_BATCH):
         chunk = todo[start : start + QUESTIONS_PER_BATCH]
+        t0 = time.time()
         matrices = compute_matrices(
             get_clusterer(), [row for _, row in chunk], use_question=nli_settings().use_question
         )
+        seconds = (time.time() - t0) / len(chunk)
         for (key, row), matrix in zip(chunk, matrices, strict=True):
             _matrices[key] = matrix
+            _nli_seconds[key] = seconds
             nli_pairs_scored += nli_pair_count(row)
+
+    if path is not None and todo:
+        old_seconds = cached_nli_seconds(path)
+        for row in rows:
+            entries[row["id"]] = (matrix_key(row), _matrices[matrix_key(row)])
+        per_entry = [_nli_seconds.get(fp, old_seconds) for fp, _ in entries.values()]
+        _write_cache(path, entries, seconds_per_question=sum(per_entry) / len(per_entry))
+
+
+def _write_cache(path: Path, entries: dict[int, tuple[str, torch.Tensor]], *, seconds_per_question: float) -> None:
+    """Write all entries of a cache file, sorted by question id (the order of the data cache)."""
+    ids = sorted(entries)
+    settings = nli_settings()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp.npz")  # written fully first, so a stopped run never leaves half a file
+    save_nli_cache(
+        tmp,
+        [entries[i][1] for i in ids],
+        ids,
+        nli_model=settings.hf_name,
+        use_question=settings.use_question,
+        seconds_per_question=seconds_per_question,
+        fingerprints=[entries[i][0] for i in ids],
+    )
+    tmp.replace(path)
 
 
 def get_matrix(row: dict) -> torch.Tensor:
@@ -103,5 +169,6 @@ def score_rows(rows: list[dict], name: str, which: int) -> dict:
         "failed": failed,
         "seconds_per_question": (time.time() - t0) / len(rows),
         "nli_pairs_per_question": (nli_pairs_scored - pairs_before) / len(rows),
+        "nli_seconds_per_question": sum(_nli_seconds[matrix_key(r)] for r in rows) / len(rows),
         "nli": nli_settings().tag,
     }

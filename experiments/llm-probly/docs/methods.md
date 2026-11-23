@@ -36,6 +36,47 @@ shared:
 Effect on qwen0.5b TriviaQA (50 questions, Mac, MPS): 110 -> 56 NLI pairs and 0.47 -> 0.20 s per question,
 with identical SE / DSE scores. Over all 200 questions dedup skips 46 % (0.5B) and 74 % (1.5B) of the pairs.
 
+**Decision: no answer normalization before dedup.** We measured whether treating answers that differ only in
+case, punctuation or whitespace ("Paris" / "paris." ) as identical would help (deberta-large matrices,
+TriviaQA-200, pairs equal after normalization set to entailment):
+
+| | qwen0.5b | qwen1.5b |
+|---|---|---|
+| NLI pairs skipped, exact dedup (A2) | 46.1 % | 74.5 % |
+| with normalization | 47.1 % | 77.9 % |
+| SE / DSE AUROC | unchanged (0.744 / 0.751) | unchanged (0.776 / 0.779) |
+| questions whose SE changes | 0 / 200 | 0 / 200 |
+
+The NLI model already calls every such pair the same meaning, so normalization only saves 1-3 % more pairs and
+changes no score. It would add a library option, tests and a cache rule, and has risks of its own: removing
+punctuation joins numbers ("3.5" / "35"), removing articles joins different things ("The Maine" / "Maine").
+So we keep exact dedup (agreed with the reviewer of A2).
+
+## Before / after over week 3 (all four models, TriviaQA-200)
+
+NLI pairs per question, time and AUROC of SE / DSE before week 3 (week-2 results, deberta-base) and after
+A1-A5 (deberta-large, Mac, MPS). Week 2 ran SE and DSE separately, each clustering lazily (comparing a new
+answer with one answer of each cluster found so far, both directions), and `build_nli_cache` built the full
+matrix again for the analyses and graph measures. Pair counts are recomputed from the saved matrices
+(the lazy counts of 3B / 7B from the deberta-large decisions, because they had no deberta-base matrix).
+
+| model | NLI pairs / question, week 2: SE + DSE lazy + full matrix | week 3: one deduplicated matrix | reduction | SE + DSE seconds / question, week 2 | NLI seconds / question, week 3 (first run / cached run) | SE AUROC week 2 -> 3 | DSE AUROC week 2 -> 3 |
+|---|---|---|---|---|---|---|---|
+| qwen0.5b | 94 + 110 = 204 | 59.3 | -71 % | 3.25 | 0.67 / 0 | 0.740 -> 0.744 | 0.746 -> 0.751 |
+| qwen1.5b | 64 + 110 = 174 | 28.1 | -84 % | 1.49 | 0.25 / 0 | 0.781 -> 0.776 | 0.783 -> 0.779 |
+| qwen3b | 54 + 110 = 164 | 14.0 | -91 % | 0.55 | 0.13 / 0 | 0.759 -> 0.761 | 0.765 -> 0.765 |
+| qwen7b | 49 + 110 = 159 | 6.2 | -96 % | 0.40 | 0.06 / 0 | 0.735 -> 0.729 | 0.734 -> 0.729 |
+
+- **NLI pairs at least halved on every model**, and a second run does no NLI work (A5). Bigger models repeat
+  their answers more often, so dedup removes more pairs (and the NLI time falls with model size).
+- Compared with SE + DSE alone (94 / 64 / 54 / 49 lazy pairs), the shared matrix is cheaper from 1.5B on, but
+  not on 0.5B (59 vs 94): its 0.5B answers are mostly different. The matrix pays off because SE, DSE, the graph
+  measures and the hybrid scores all read it, and it is computed once and cached.
+- The time comparison is not only the NLI changes: week 3 uses deberta-large (about 3x slower than deberta-base)
+  on the GPU (A3), week 2 ran deberta-base as it was then.
+- **AUROC changes are within noise** on all models (at most 0.006; the 95 % intervals are about ±0.06; the
+  paired bootstrap for 0.5B and 1.5B is in the NLI setup table below; 0.5B DSE also gains from the tie fix).
+
 ## NLI setup (A4)
 
 Which NLI model, and should the question go in front of each answer? Compared on qwen0.5b and qwen1.5b
@@ -64,6 +105,42 @@ agreement with the labels is weighted to the real mix of answer pairs (the label
   on 20/20 (Cohen's kappa 1.00; 14 of them were not near duplicates). The sample is small, so this shows the
   labelling guideline is clear, not that the labels are perfect.
 - Change the setup with `nli_model` / `nli_use_question` in a config (see `docs/pipeline.md`).
+
+## Persistent NLI cache (A5)
+
+The NLI matrices are kept on disk, one file per data cache and NLI setup:
+`data/<model>/<dataset>_<n>.nli.<tag>.npz` (e.g. `triviaqa_200.nli.deberta-large.npz`; deberta-base on
+answers only keeps the week-2 name `.nli.npz`). The runner reads it before SE / DSE and writes new matrices
+back, so **a second run on the same data does no NLI work** (`nli_pairs_per_question` is 0 in the record).
+
+Measured on qwen0.5b TriviaQA-200 (deberta-large, Mac, MPS), two runs of
+`run_benchmark --methods semantic_entropy,discrete_semantic_entropy --force`:
+
+| run | questions cached | NLI pairs per question | SE seconds per question |
+|---|---|---|---|
+| 1st (file from before A5, no fingerprints) | 0/200 | 59.3 | 0.67 |
+| 2nd | 200/200 | 0 | 0.00 (0.1 s for all 200, NLI model not loaded) |
+
+Discrete SE shows 0 pairs in both runs because it reads the matrices SE has just made (A1).
+
+`seconds_per_question` in a record is the time of that run, so it is about 0 when the matrices come from
+the cache (as CONTRACT.md asks). The cost of the NLI step is kept in `nli_seconds_per_question`: what
+building the matrices took (0.67 s per question above), measured in this run or stored in the cache file.
+The registry cost of SE / DSE (12) already counts the NLI pass, so the report's picks are not affected.
+
+A cached matrix is only reused when nothing it depends on has changed:
+
+| changes | what happens |
+|---|---|
+| generator model or dataset (or n) | another data cache, so another file |
+| NLI model or question conditioning | another file name; a file whose stored setup does not match is not used |
+| the answers of a question (data regenerated) | that question's fingerprint changes, only it is computed again |
+| file from before A5 (no fingerprints) | everything is computed again and the file is rewritten |
+
+The fingerprint (`common.nli_matrix.matrix_fingerprint`) is a hash of the NLI model name, the question (only
+when it is put in front of the answers) and the exact answer texts. Other code that needs the matrices
+(e.g. graph measures, hybrid scores) should find the file with `nli_cache_path(data_file, nli_settings())`
+and read it with `load_nli_cache`, instead of writing the file name by hand.
 
 ## Known limitations
 

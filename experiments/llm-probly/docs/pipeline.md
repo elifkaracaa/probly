@@ -54,6 +54,11 @@ nli_use_question: false    # optional; put the question in front of each answer 
 The two `nli_*` keys are optional; the defaults come from `common/nli_matrix.py` and are explained in
 `docs/methods.md` ("NLI setup"). SE and discrete SE write the setup they used into their record (`"nli"`).
 
+**NLI cache.** SE and discrete SE read and update `data/<model>/<dataset>_<n>.nli.<tag>.npz`. The runner
+prints how many questions are already cached (`cache data/... (200/200 questions cached)`); with all of them
+cached a `--force` rerun of SE / DSE sends nothing to the NLI model. Changed answers or another NLI setup are
+detected and recomputed (see `docs/methods.md`, "Persistent NLI cache").
+
 **Precision must match the cache.** The runner reads the precision from the cache's
 `.meta.json` and stops if the config asks for another one. Precision changes the answers
 (bfloat16 → float32 changed 9 of 50 answers on 0.5B), so a table must never mix them
