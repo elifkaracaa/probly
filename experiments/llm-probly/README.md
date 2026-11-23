@@ -93,8 +93,7 @@ AUROC (higher is better, 0.5 = random; best per model in bold):
 Agreement methods that compare the meaning of 10 sampled answers. All of them read one shared
 pairwise NLI matrix per question (A1), so asking for all of them costs one NLI pass. NLI model:
 `microsoft/deberta-large-mnli` (A4); matrices are cached in `data/<model>/<dataset>_<n>.nli.<tag>.npz` (A5).
-User guide: [`docs/semantic_methods.md`](docs/semantic_methods.md); library page in the Sphinx docs:
-`docs/source/guide/methods/semantic.rst`.
+User guide with a runnable example: [`docs/semantic_methods.md`](docs/semantic_methods.md).
 
 AUROC (higher is better, 0.5 = random). NumSemSets, EigVal, DegMat and Eccentricity are the
 LM-Polygraph graph measures (B1); "embedding" is the cheap backend (B3, `--semantic-backend embedding`).
