@@ -60,6 +60,8 @@ def test_text_only_methods_match_f2():
     assert text_only == {
         "lexical_similarity",
         "discrete_semantic_entropy",
+        "largest_cluster_share",
+        "greedy_cluster_share",
         "verbalized_2s",
         "p_true_empirical",
         "dummy_random",
