@@ -83,9 +83,10 @@ cluster count). `eig_val_laplacian` is a bit above 1 because the NLI model gives
 paraphrases ("Paris." vs "Paris, a city known for ...") an entailment probability
 below 1: the graph scores see *how strongly* the answers agree, not only whether.
 
-transformers may print `Exception in thread Thread-auto_conversion ... KeyError: 'event_id'`
-while loading the NLI model. It is a background attempt to convert the model
-file to safetensors and does not affect the scores.
+If you load the NLI model yourself, transformers may print a long red traceback ending in
+`KeyError: 'event_id'` while it loads. It is a background attempt to convert the model file to
+safetensors and does not affect the scores; the helper switches it off
+(`DISABLE_SAFETENSORS_CONVERSION=1`), so you can also set that variable yourself.
 
 Already have answers from another model or an API? Skip the generation:
 

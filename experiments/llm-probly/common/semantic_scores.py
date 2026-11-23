@@ -23,6 +23,7 @@ from __future__ import annotations
 from itertools import combinations
 import logging
 import math
+import os
 import time
 from typing import TYPE_CHECKING
 
@@ -154,10 +155,15 @@ _clusterer: HFSemanticClusterer | None = None
 def default_clusterer() -> HFSemanticClusterer:
     """The benchmark's NLI clusterer (``nli_settings()``, deberta-large by default), loaded once.
 
-    The first call downloads the NLI model (~1.6 GB for deberta-large).
+    The first call downloads the NLI model (~1.6 GB for deberta-large). The model is kept for the
+    rest of the process: changing the NLI settings afterwards does not change it here (pass
+    ``clusterer=`` to the scoring functions instead).
     """
     global _clusterer  # noqa: PLW0603
     if _clusterer is None:
+        # transformers otherwise tries to convert the .bin weights to safetensors in a background thread and
+        # prints a long, harmless "KeyError: 'event_id'" traceback while the model loads.
+        os.environ.setdefault("DISABLE_SAFETENSORS_CONVERSION", "1")
         from methods._se_common import get_clusterer  # noqa: PLC0415  (loads torch models)
 
         log.info("loading the NLI model %s (first call only)", nli_settings().hf_name)
@@ -180,7 +186,7 @@ def semantic_scores_many(
             optionally ``sample_log_likelihoods``, ``answer`` (the answer being
             judged; default: the first sample) and ``question``.
         clusterer: NLI clusterer; default: the benchmark's, see :func:`default_clusterer`.
-        log_every: Log progress after this many questions.
+        log_every: Questions whose NLI pairs share one model batch; progress is logged after each batch.
 
     Returns:
         One dict per question: the scores of :data:`SCORES`, ``clusters`` (cluster
