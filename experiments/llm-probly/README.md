@@ -116,7 +116,7 @@ Run it:
 
 | model | chosen | why | calibration | held-out ECE |
 |---|---|---|---|---|
-| qwen0.5b | likelihood_mean | tied with the best (lexical_similarity), 11x cheaper | Platt | 0.091 |
+| qwen0.5b | likelihood_mean | tied with the best (eccentricity), 12x cheaper | Platt | 0.091 |
 | qwen1.5b | likelihood_mean | tied with the best (p_true_zeroshot), 2x cheaper | Platt | 0.095 |
 | qwen3b | p_true_zeroshot | best; every cheaper method is significantly worse | isotonic | 0.219 → 0.103 |
 | qwen7b | mean_token_entropy | tied with the best (p_true_zeroshot), 2x cheaper | Platt | 0.126 |
@@ -138,7 +138,7 @@ was repeated over 10 random splits ([`results/selector_held_out.md`](results/sel
 | always p_true_zeroshot | 0.821 (0.020) | −0.008 [−0.035, +0.025] | 2 |
 | always mean_token_entropy | 0.811 (0.015) | +0.002 [−0.005, +0.011] | 1 |
 | always likelihood_mean | 0.803 (0.011) | +0.010 [+0.001, +0.021] | 1 |
-| always semantic_entropy | 0.764 (0.017) | +0.049 [+0.020, +0.078] | 12 |
+| always semantic_entropy | 0.759 (0.017) | +0.054 [+0.032, +0.082] | 12 |
 
 **Takeaways**
 1. Over 10 splits the selector is on par with the best fixed methods: within ±0.01 AUROC of always using
@@ -152,8 +152,10 @@ was repeated over 10 random splits ([`results/selector_held_out.md`](results/sel
    calibration questions are excluded (only p_true_empirical on 7B, 7 %).
 5. Calibration makes the score usable as a confidence: zero-shot p(True) on 3B is overconfident
    (ECE 0.219) and calibration halves that (0.103).
-6. Combining all methods (`selector.combine`) helps on small models: +0.062 AUROC on 0.5B (significant)
-   and +0.061 on 1.5B held-out; on 3B and 7B one method already carries the signal.
+6. Combining all methods (`selector.combine`) helps on small models: +0.069 AUROC on 0.5B and +0.067 on 1.5B
+   held-out (both significant); on 3B nothing, on 7B +0.041 but not significant.
+7. Results use deberta-large for the semantic methods (A4/A5); B1's graph measures are candidates where they
+   exist (0.5B, 1.5B). On 0.5B eccentricity is the best single method, but likelihood_mean is tied and 12x cheaper.
 
 ## Models & cost (BIG)
 

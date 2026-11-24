@@ -73,20 +73,28 @@
       "prr_high": 0.7169
     },
     "discrete_semantic_entropy": {
-      "auroc": 0.7549,
-      "auroc_low": 0.6551,
-      "auroc_high": 0.8448,
-      "prr": 0.4965,
-      "prr_low": 0.2514,
-      "prr_high": 0.6942
+      "auroc": 0.7525,
+      "auroc_low": 0.6472,
+      "auroc_high": 0.8429,
+      "prr": 0.4922,
+      "prr_low": 0.2398,
+      "prr_high": 0.6817
     },
     "semantic_entropy": {
-      "auroc": 0.7542,
-      "auroc_low": 0.6527,
-      "auroc_high": 0.8465,
-      "prr": 0.4985,
-      "prr_low": 0.2504,
-      "prr_high": 0.6906
+      "auroc": 0.7506,
+      "auroc_low": 0.6452,
+      "auroc_high": 0.839,
+      "prr": 0.4923,
+      "prr_low": 0.2366,
+      "prr_high": 0.6778
+    },
+    "eig_val_laplacian": {
+      "auroc": 0.7451,
+      "auroc_low": 0.6323,
+      "auroc_high": 0.8405,
+      "prr": 0.4679,
+      "prr_low": 0.2073,
+      "prr_high": 0.6762
     },
     "p_true_empirical": {
       "auroc": 0.7424,
@@ -96,6 +104,22 @@
       "prr_low": 0.2457,
       "prr_high": 0.6075
     },
+    "num_semantic_sets": {
+      "auroc": 0.7413,
+      "auroc_low": 0.6292,
+      "auroc_high": 0.8324,
+      "prr": 0.4754,
+      "prr_low": 0.2198,
+      "prr_high": 0.6639
+    },
+    "deg_mat": {
+      "auroc": 0.7345,
+      "auroc_low": 0.6221,
+      "auroc_high": 0.8288,
+      "prr": 0.4583,
+      "prr_low": 0.199,
+      "prr_high": 0.6631
+    },
     "msp": {
       "auroc": 0.7241,
       "auroc_low": 0.6015,
@@ -103,6 +127,14 @@
       "prr": 0.5187,
       "prr_low": 0.2816,
       "prr_high": 0.6982
+    },
+    "eccentricity": {
+      "auroc": 0.6974,
+      "auroc_low": 0.58,
+      "auroc_high": 0.8031,
+      "prr": 0.4006,
+      "prr_low": 0.1317,
+      "prr_high": 0.613
     },
     "lexical_similarity": {
       "auroc": 0.6944,
@@ -122,5 +154,5 @@
     }
   },
   "schema_version": 1,
-  "created_at": "2026-11-23T20:07:55+00:00"
+  "created_at": "2026-11-24T10:10:01+00:00"
 }

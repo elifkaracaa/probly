@@ -13,7 +13,7 @@
     "parameters": {},
     "probability": false
   },
-  "reason": "likelihood_mean (AUROC 0.744) is not significantly worse than the best, lexical_similarity (difference -0.013, 95 % interval [-0.124, +0.089]), and costs 11x less.",
+  "reason": "likelihood_mean (AUROC 0.744) is not significantly worse than the best, eccentricity (difference -0.015, 95 % interval [-0.191, +0.155]), and costs 12x less.",
   "calibration_metrics": {
     "auroc": 0.744,
     "auroc_low": 0.5904,
@@ -40,6 +40,14 @@
     "ece_after": 0.0907
   },
   "candidates": {
+    "eccentricity": {
+      "auroc": 0.7593,
+      "auroc_low": 0.6105,
+      "auroc_high": 0.8994,
+      "prr": 0.6119,
+      "prr_low": 0.3622,
+      "prr_high": 0.8148
+    },
     "lexical_similarity": {
       "auroc": 0.7573,
       "auroc_low": 0.6146,
@@ -56,6 +64,22 @@
       "prr_low": 0.1997,
       "prr_high": 0.7351
     },
+    "discrete_semantic_entropy": {
+      "auroc": 0.7144,
+      "auroc_low": 0.5512,
+      "auroc_high": 0.8676,
+      "prr": 0.4941,
+      "prr_low": 0.2238,
+      "prr_high": 0.7601
+    },
+    "num_semantic_sets": {
+      "auroc": 0.7128,
+      "auroc_low": 0.5483,
+      "auroc_high": 0.8629,
+      "prr": 0.4847,
+      "prr_low": 0.2106,
+      "prr_high": 0.7411
+    },
     "mean_token_entropy": {
       "auroc": 0.7122,
       "auroc_low": 0.5635,
@@ -64,13 +88,29 @@
       "prr_low": 0.0713,
       "prr_high": 0.609
     },
-    "discrete_semantic_entropy": {
-      "auroc": 0.7066,
-      "auroc_low": 0.5473,
-      "auroc_high": 0.8617,
-      "prr": 0.4596,
-      "prr_low": 0.1942,
-      "prr_high": 0.7205
+    "deg_mat": {
+      "auroc": 0.7096,
+      "auroc_low": 0.5407,
+      "auroc_high": 0.8683,
+      "prr": 0.5664,
+      "prr_low": 0.2973,
+      "prr_high": 0.7952
+    },
+    "semantic_entropy": {
+      "auroc": 0.707,
+      "auroc_low": 0.5365,
+      "auroc_high": 0.8608,
+      "prr": 0.4856,
+      "prr_low": 0.2131,
+      "prr_high": 0.7526
+    },
+    "eig_val_laplacian": {
+      "auroc": 0.7037,
+      "auroc_low": 0.5349,
+      "auroc_high": 0.8636,
+      "prr": 0.5473,
+      "prr_low": 0.2423,
+      "prr_high": 0.7772
     },
     "msp": {
       "auroc": 0.7011,
@@ -79,14 +119,6 @@
       "prr": 0.4749,
       "prr_low": 0.1847,
       "prr_high": 0.6828
-    },
-    "semantic_entropy": {
-      "auroc": 0.7005,
-      "auroc_low": 0.5414,
-      "auroc_high": 0.8611,
-      "prr": 0.4466,
-      "prr_low": 0.1759,
-      "prr_high": 0.7085
     },
     "p_true_brainstorm": {
       "auroc": 0.6985,
@@ -122,5 +154,5 @@
     }
   },
   "schema_version": 1,
-  "created_at": "2026-11-23T20:07:33+00:00"
+  "created_at": "2026-11-24T10:09:32+00:00"
 }
