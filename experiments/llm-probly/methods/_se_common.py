@@ -44,6 +44,7 @@ from common.nli_matrix import (
 from probly.representer.semantic_clustering.huggingface import HFEmbeddingSemanticClusterer, HFGreedySemanticClusterer
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     import torch
@@ -157,6 +158,20 @@ def compute_se_and_dse(row: dict) -> tuple[float, float]:
 
 def score_rows(rows: list[dict], name: str, which: int) -> dict:
     """Score record for SE (``which=0``) or discrete SE (``which=1``), see CONTRACT.md."""
+    return score_rows_with(rows, name, lambda row: compute_se_and_dse(row)[which])
+
+
+def score_rows_with(rows: list[dict], name: str, measure: Callable[[dict], float]) -> dict:
+    """Score record of any measure that reads the shared NLI matrix, see CONTRACT.md.
+
+    Args:
+        rows: Rows of the data cache.
+        name: Method name for the record.
+        measure: Uncertainty of one row; it may call :func:`get_matrix` (the matrices are ready).
+
+    Returns:
+        The score record, with the NLI fields of SE (pairs, seconds and setup).
+    """
     ids, unc, failed = [], [], []
     pairs_before = nli_pairs_scored
     t0 = time.time()
@@ -164,7 +179,7 @@ def score_rows(rows: list[dict], name: str, which: int) -> dict:
     for i, r in enumerate(rows):
         ids.append(r.get("id", i))
         try:
-            unc.append(compute_se_and_dse(r)[which])
+            unc.append(measure(r))
             failed.append(False)
         except Exception:  # noqa: BLE001
             unc.append(1.0)

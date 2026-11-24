@@ -18,7 +18,7 @@ numbers below are shared by every method.
 | Qwen2.5-3B | TriviaQA | **1000** | 0.445 | float32, mps | 5.5 | 0.798 [0.77, 0.82] |
 | Qwen2.5-3B | MMLU | 200 | 0.635 | float32, cpu | 29.1 | 0.768 [0.70, 0.83] |
 | Qwen2.5-7B | TriviaQA | 200 | 0.590 | float16, mps | 9.2 | 0.817 [0.75, 0.87] |
-| Qwen2.5-7B | MMLU | 200 | *missing, see below* | | | |
+| Qwen2.5-7B | MMLU | 200 | *dropped, see below* | | | |
 | SmolLM2-1.7B | TriviaQA | 200 | 0.360 | float32, mps | 2.3 | 0.809 [0.74, 0.87] |
 | SmolLM2-1.7B | MMLU | 200 | 0.450 | float32, cpu | 33.0 | 0.583 [0.51, 0.67] |
 
@@ -42,11 +42,16 @@ MMLU has 4 options, so 0.25 is chance. TriviaQA accuracy is the share of greedy 
   (0.360). As noted in the data doc, MMLU is only informative from 3B on.
 - **Likelihood is no signal on MMLU for small models** (AUROC 0.51-0.58 for 0.5B, 1.5B and SmolLM2): the
   answer is one letter, so its log-probability says little. 3B reaches 0.768.
-- **Qwen2.5-7B MMLU is missing.** On mps, the long MMLU prompts (up to 2.5k characters) x 10 samples ran
-  out of GPU memory (3B, 7B and SmolLM2 all failed). 3B and SmolLM2 were re-run on cpu. 7B on cpu needs
-  bfloat16 (float32 does not fit in 24 GB), and bfloat16 on the Apple cpu ran at about 20 minutes per
-  question (35 questions in 11.5 h), so the run was stopped. Next step: generate the samples in smaller
-  batches on mps, after checking that the longest question fits.
+- **Qwen2.5-7B MMLU is missing, and is dropped for this week.** Every way to run it on a 24 GB MacBook
+  Air failed:
+  - mps, 10 samples at once: out of GPU memory on the long MMLU prompts (up to 2.5k characters; 3B and
+    SmolLM2 failed the same way and were re-run on cpu).
+  - cpu: float32 does not fit in 24 GB, and bfloat16 on the Apple cpu ran at about 20 minutes per
+    question (35 questions in 11.5 h, and the fanless laptop overheated), so the run was stopped.
+  - mps, samples in batches of 2: fits in memory, but the logits become NaN after a few dozen questions
+    (float16 at question 29, bfloat16 with sdpa attention at question 28), so the samples are not usable.
+  All other 7B results (TriviaQA) are complete. A GPU with more memory (e.g. a CUDA machine) would be
+  needed for 7B MMLU.
 
 ## Second model family
 

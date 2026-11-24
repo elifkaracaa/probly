@@ -81,8 +81,7 @@ def decompose(cluster_ids: Sequence[int], n_clarifications: int, n_answers: int)
     sample = NumpyCategoricalDistributionSample(
         array=NumpyProbabilityCategoricalDistribution(per_clarification), sample_axis=0
     )
-    # What probly's quantify() returns for a DistributionSample; its type hints only name SecondOrderDistributionLike.
-    parts = SecondOrderEntropyDecomposition(sample)  # ty: ignore[invalid-argument-type]
+    parts = SecondOrderEntropyDecomposition(sample)
     total, conditional, mutual = np.asarray([parts.total, parts.aleatoric, parts.epistemic], dtype=float)
     return {
         "total": float(total),

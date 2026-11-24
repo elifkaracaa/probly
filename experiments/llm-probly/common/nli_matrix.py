@@ -365,6 +365,27 @@ def sample_block(matrix: torch.Tensor) -> torch.Tensor:
     return matrix[GREEDY_INDEX + 1 :, GREEDY_INDEX + 1 :]
 
 
+def cluster_shares(matrix: torch.Tensor) -> tuple[float, float]:
+    """How concentrated the samples are, from one question matrix (features for the selector, D2).
+
+    Uses the same greedy clustering rule as semantic entropy.
+
+    Args:
+        matrix: Question matrix of shape ``(K+1, K+1, 3)`` in probly's label order, greedy answer first.
+
+    Returns:
+        ``(largest_share, greedy_share)``: the share of the K samples in the largest cluster of the
+        samples, and the share of the K samples that have the same meaning as the greedy answer
+        (they join the greedy answer's cluster when the greedy answer is clustered first).
+    """
+    n_samples = matrix.shape[0] - 1
+    sample_ids = HFGreedySemanticClusterer.cluster_nli_matrix(sample_block(matrix))
+    largest = int(torch.bincount(sample_ids).max())
+    all_ids = HFGreedySemanticClusterer.cluster_nli_matrix(matrix)
+    with_greedy = int((all_ids[GREEDY_INDEX + 1 :] == all_ids[GREEDY_INDEX]).sum())
+    return largest / n_samples, with_greedy / n_samples
+
+
 def canonical_group_ids(group_ids: torch.Tensor) -> torch.Tensor:
     """Renumber clusters by size (largest first, ties by first appearance).
 
