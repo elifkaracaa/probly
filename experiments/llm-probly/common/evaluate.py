@@ -51,7 +51,7 @@ def aurc(
         perm = rng.permutation(len(u))
         value, _bin_losses = selective_prediction(u[perm], losses[perm], n_bins=n_bins)
         values.append(value)
-    return float(np.mean(values))
+    return float(np.mean(np.asarray(values, dtype=float)))
 
 
 def _rejection_area(u: np.ndarray, quality: np.ndarray) -> float:
