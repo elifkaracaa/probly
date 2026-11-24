@@ -64,6 +64,14 @@
       "prr_low": 0.1997,
       "prr_high": 0.7351
     },
+    "largest_cluster_share": {
+      "auroc": 0.7164,
+      "auroc_low": 0.5565,
+      "auroc_high": 0.8616,
+      "prr": 0.4861,
+      "prr_low": 0.2108,
+      "prr_high": 0.7488
+    },
     "discrete_semantic_entropy": {
       "auroc": 0.7144,
       "auroc_low": 0.5512,
@@ -128,6 +136,14 @@
       "prr_low": 0.1373,
       "prr_high": 0.6541
     },
+    "greedy_cluster_share": {
+      "auroc": 0.6936,
+      "auroc_low": 0.5255,
+      "auroc_high": 0.8491,
+      "prr": 0.457,
+      "prr_low": 0.1922,
+      "prr_high": 0.7279
+    },
     "p_true_zeroshot": {
       "auroc": 0.6543,
       "auroc_low": 0.535,
@@ -154,5 +170,5 @@
     }
   },
   "schema_version": 1,
-  "created_at": "2026-11-24T10:09:32+00:00"
+  "created_at": "2026-11-24T11:39:54+00:00"
 }

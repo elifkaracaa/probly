@@ -49,8 +49,9 @@ DEFAULT_REGISTRY: dict[str, dict] = {name: spec.to_dict() for name, spec in REGI
 
 # What each access level allows, from the registry's order (text_only < logprobs < white_box):
 # a white-box model can run everything, an API without logprobs only text methods.
-# Methods that failed on more than this share of the calibration questions are not candidates:
+# Methods that failed on more than this share of all questions in the run are not candidates:
 # a failed question gets a placeholder score (uncertainty 1.0, see CONTRACT.md), not a real one.
+# Failing does not depend on correctness, so using all questions leaks no labels.
 DEFAULT_MAX_FAILED = 0.05
 
 ALLOWED_ACCESS = {level: set(ACCESS_LEVELS[: i + 1]) for i, level in enumerate(ACCESS_LEVELS)}

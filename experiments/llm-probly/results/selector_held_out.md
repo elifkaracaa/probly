@@ -20,8 +20,10 @@ Mean over the models (selector vs always using one method):
 | always p_true_brainstorm | 0.804 | 12 |
 | always lexical_similarity | 0.773 | 11 |
 | always discrete_semantic_entropy | 0.772 | 12 |
+| always greedy_cluster_share | 0.771 | 12 |
 | always semantic_entropy | 0.765 | 12 |
 | always msp | 0.761 | 1 |
+| always largest_cluster_share | 0.760 | 12 |
 | always p_true_empirical | 0.719 | 11 |
 | always verbalized_2s | 0.648 | 2 |
 
@@ -48,6 +50,8 @@ Mean held-out AUROC over the models, averaged over the splits:
 | always msp | 0.764 (0.012) | +0.049 [+0.010, +0.078] |
 | always discrete_semantic_entropy | 0.763 (0.017) | +0.050 [+0.029, +0.079] |
 | always semantic_entropy | 0.759 (0.017) | +0.054 [+0.032, +0.082] |
+| always greedy_cluster_share | 0.757 (0.016) | +0.056 [+0.044, +0.076] |
 | always lexical_similarity | 0.756 (0.015) | +0.057 [+0.044, +0.091] |
+| always largest_cluster_share | 0.755 (0.017) | +0.058 [+0.037, +0.086] |
 | always p_true_empirical | 0.740 (0.018) | +0.073 [+0.050, +0.120] |
 | always verbalized_2s | 0.645 (0.008) | +0.168 [+0.148, +0.191] |

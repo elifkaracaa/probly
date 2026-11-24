@@ -187,17 +187,20 @@ was repeated over 10 random splits ([`results/selector_held_out.md`](results/sel
 | always mean_token_entropy | 0.811 (0.015) | +0.002 [−0.005, +0.011] | 1 |
 | always likelihood_mean | 0.803 (0.011) | +0.010 [+0.001, +0.021] | 1 |
 | always semantic_entropy | 0.759 (0.017) | +0.054 [+0.032, +0.082] | 12 |
+| always greedy_cluster_share | 0.757 (0.016) | +0.056 [+0.044, +0.076] | 12 |
+| always largest_cluster_share | 0.755 (0.017) | +0.058 [+0.037, +0.086] | 12 |
 
 **Takeaways**
 1. Over 10 splits the selector is on par with the best fixed methods: within ±0.01 AUROC of always using
    p_true_zeroshot or mean_token_entropy, with no consistent winner (the min/max ranges include 0).
-2. It is clearly better than every expensive method: semantic entropy costs 12x more and is 0.05 worse.
+2. It is clearly better than every expensive method: semantic entropy and the two cluster shares (D2) cost
+   12x more and are about 0.05 worse. All methods: [`results/selector_held_out.md`](results/selector_held_out.md).
 3. With 100 calibration questions most methods are statistically tied, so the selector mostly picks the
    cheapest good one (mean_token_entropy). The per-model choice depends on the split; the single split in the
    first table (seed 0, mean 0.839) was a favourable one. More calibration questions (TriviaQA-1000) would let
    the selector separate the methods.
-4. Failed questions (placeholder scores) are not trusted: methods that failed on more than 5 % of the
-   calibration questions are excluded (only p_true_empirical on 7B, 7 %).
+4. Failed questions (placeholder scores) are not trusted: methods that failed on more than 5 % of all
+   questions in the run are excluded (only p_true_empirical on 7B, 7 %).
 5. Calibration makes the score usable as a confidence: zero-shot p(True) on 3B is overconfident
    (ECE 0.219) and calibration halves that (0.103).
 6. Combining all methods (`selector.combine`) helps on small models: +0.069 AUROC on 0.5B and +0.067 on 1.5B
