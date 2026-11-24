@@ -10,6 +10,8 @@ The selector reads the same registry.
 |---|---|---|---|
 | semantic_entropy | agreement | yes (sample log-likelihoods, `samples_ll_mean`) | 0 LLM calls (reads the 10 cached samples) + one shared NLI matrix per question |
 | discrete_semantic_entropy | agreement | no (cluster sizes only) | 0 LLM calls + the same shared NLI matrix |
+| largest_cluster_share | agreement | no | 1 - share of the 10 samples in their largest meaning cluster; 0 LLM calls + the same shared NLI matrix (feature for the selector, D2) |
+| greedy_cluster_share | agreement | no | 1 - share of the 10 samples with the same meaning as the greedy answer; 0 LLM calls + the same shared NLI matrix (feature for the selector, D2) |
 | lexical_similarity | agreement | no (text only, Rouge-L between samples) | 0 |
 | p_true_zeroshot | self-eval | yes (probability of "True") | 1 extra LLM call |
 | p_true_brainstorm | self-eval | yes (probability of the answer option "A" vs "B") | 1 extra LLM call (the 10 cached samples are shown in the prompt) |
