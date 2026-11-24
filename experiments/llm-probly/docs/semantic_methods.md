@@ -173,6 +173,32 @@ matrix fingerprint, so embedding matrices get their own cache file
 (`data/<model>/<dataset>_<n>.nli.embedding-all-mpnet-base-v2@0.9.npz`) and can never be read
 as NLI matrices, or the other way round.
 
+## Why uncertain? Decomposed semantic entropy
+
+`decomposed_semantic_entropy` (B4, Hou et al., 2024) asks *why* the answers disagree.
+The model rephrases the question 3 times and answers each rephrasing 5 times; all 15
+answers are clustered together and the entropy splits into
+
+- **aleatoric**: the answers change with the reading of the question, so the question
+  is ambiguous ("Who won the World Cup?" without a year);
+- **epistemic**: the answers disagree even for one reading, so the model does not know.
+
+total = aleatoric + epistemic. It costs about 20 generation passes per question, so a
+normal benchmark run skips it (opt-in in the registry). Run it on 50 questions:
+
+```bash
+uv run python -m scripts.decomposed_example --model qwen0.5b --questions 50
+```
+
+or on a whole run with `--methods decomposed_semantic_entropy`. The record has
+`aleatoric`, `epistemic` and the clarifications, answers and clusters per question.
+Results: `results/qwen0.5b/triviaqa_200/analysis/decomposed_se.md`.
+On the first 50 TriviaQA questions of Qwen 0.5B (8 answered correctly) the AUROC was 0.71 for
+the total, 0.72 for the epistemic and 0.57 for the aleatoric part, against 0.86 for plain
+semantic entropy on the same questions. With only 8 correct answers these numbers move by
+several points between runs (an earlier run with deberta-base gave 0.76 for the total), so the
+split is for explaining *why* an answer is uncertain, not a better error detector.
+
 ## How many samples?
 
 10 samples are the benchmark default. With 5 the AUROC of semantic entropy drops by
