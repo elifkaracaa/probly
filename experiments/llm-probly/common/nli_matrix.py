@@ -50,7 +50,12 @@ import torch
 
 from probly.quantification import entropy
 from probly.representation.distribution.torch_sparse_log_categorical import TorchSparseLogCategoricalDistribution
-from probly.representer.semantic_clustering.huggingface import NLI_LABELS, HFGreedySemanticClusterer
+from probly.representer.embedder.huggingface import DEFAULT_EMBEDDING_MODEL
+from probly.representer.semantic_clustering.huggingface import (
+    DEFAULT_EMBEDDING_THRESHOLD,
+    NLI_LABELS,
+    HFGreedySemanticClusterer,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -74,27 +79,58 @@ cost that is paid once per cache. probly's library default stays deberta-base.
 """
 
 
+BACKENDS = ("nli", "embedding")
+"""How answers are compared: ``nli`` (cross-encoder, default) or ``embedding`` (cosine similarity, B3)."""
+
+
 @dataclass(frozen=True)
 class NliSettings:
-    """Which NLI model the semantic methods use, and whether the question goes in front of each answer.
+    """How the semantic methods compare answers: backend, model, and whether the question goes first.
+
+    The backend and, for embeddings, the threshold are part of :attr:`tag` (the cache file name)
+    and of :func:`matrix_fingerprint`, so matrices of different setups never share a cache entry.
 
     Attributes:
-        model: Short name from ``NLI_MODELS`` or a Hugging Face model name.
+        model: NLI model: short name from ``NLI_MODELS`` or a Hugging Face model name.
         use_question: Put the question in front of every answer before NLI (A4: no clear gain, 2x slower).
+        backend: ``"nli"`` or ``"embedding"`` (B3: sentence embeddings instead of the NLI model).
+        embedding_model: Sentence-transformers model of the embedding backend.
+        threshold: Cosine similarity above which two answers are equivalent (embedding backend only).
     """
 
     model: str = DEFAULT_NLI_MODEL
     use_question: bool = False
+    backend: str = "nli"
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL
+    threshold: float = DEFAULT_EMBEDDING_THRESHOLD
+
+    def __post_init__(self) -> None:
+        """Reject an unknown backend.
+
+        Raises:
+            ValueError: If ``backend`` is not one of ``BACKENDS``.
+        """
+        if self.backend not in BACKENDS:
+            msg = f"semantic backend must be one of {BACKENDS}, got {self.backend!r}."
+            raise ValueError(msg)
 
     @property
     def hf_name(self) -> str:
-        """Hugging Face name of the NLI model."""
+        """Hugging Face name of the model that compares the answers (NLI or embedding model)."""
+        if self.backend == "embedding":
+            return self.embedding_model
         return NLI_MODELS.get(self.model, self.model)
 
     @property
     def tag(self) -> str:
-        """Short label for file names and records, e.g. ``deberta-large+question``."""
-        name = next((short for short, hf in NLI_MODELS.items() if hf == self.hf_name), self.hf_name.split("/")[-1])
+        """Short label for file names and records.
+
+        E.g. ``deberta-large``, ``deberta-large+question`` or ``embedding-all-mpnet-base-v2@0.9``.
+        """
+        if self.backend == "embedding":
+            name = f"embedding-{self.embedding_model.split('/')[-1]}@{self.threshold:g}"
+        else:
+            name = next((short for short, hf in NLI_MODELS.items() if hf == self.hf_name), self.hf_name.split("/")[-1])
         return f"{name}+question" if self.use_question else name
 
 
@@ -106,20 +142,34 @@ def nli_settings() -> NliSettings:
     return _settings
 
 
-def set_nli_settings(model: str | None = None, *, use_question: bool | None = None) -> NliSettings:
+def set_nli_settings(
+    model: str | None = None,
+    *,
+    use_question: bool | None = None,
+    backend: str | None = None,
+    threshold: float | None = None,
+) -> NliSettings:
     """Change the NLI settings for this process (the runner calls this with the config values).
 
     Args:
         model: Short name from ``NLI_MODELS`` or a Hugging Face name; None keeps the current one.
         use_question: Whether to put the question in front of each answer; None keeps the current value.
+        backend: ``"nli"`` or ``"embedding"``; None keeps the current one.
+        threshold: Cosine threshold of the embedding backend; None keeps the current one.
 
     Returns:
         The new settings.
+
+    Raises:
+        ValueError: For an unknown backend.
     """
     global _settings  # noqa: PLW0603
     _settings = NliSettings(
         model=_settings.model if model is None else model,
         use_question=_settings.use_question if use_question is None else use_question,
+        backend=_settings.backend if backend is None else backend,
+        embedding_model=_settings.embedding_model,
+        threshold=_settings.threshold if threshold is None else threshold,
     )
     return _settings
 
@@ -213,14 +263,17 @@ def matrix_fingerprint(row: dict, settings: NliSettings) -> str:
         settings: The NLI setup.
 
     Returns:
-        16 hex characters of the SHA-256 of the NLI model name, the question (only if it is
-        put in front of the answers) and the answer texts. Any change gives another fingerprint.
+        16 hex characters of the SHA-256 of the model name, the question (only if it is
+        put in front of the answers), the answer texts and, for the embedding backend, the
+        backend and threshold. Any change gives another fingerprint.
     """
     content = {
         "nli_model": settings.hf_name,
         "question": row["question"] if settings.use_question else None,
         "texts": question_texts(row),
     }
+    if settings.backend != "nli":  # NLI fingerprints stay as before, so existing caches remain valid
+        content |= {"backend": settings.backend, "threshold": settings.threshold}
     return hashlib.sha256(json.dumps(content, ensure_ascii=False).encode()).hexdigest()[:16]
 
 
@@ -310,6 +363,27 @@ def same_meaning(matrix: torch.Tensor, a: int, b: int, rule: str = "probly") -> 
 def sample_block(matrix: torch.Tensor) -> torch.Tensor:
     """Return the samples-vs-samples part of a question matrix (drops the greedy answer)."""
     return matrix[GREEDY_INDEX + 1 :, GREEDY_INDEX + 1 :]
+
+
+def cluster_shares(matrix: torch.Tensor) -> tuple[float, float]:
+    """How concentrated the samples are, from one question matrix (features for the selector, D2).
+
+    Uses the same greedy clustering rule as semantic entropy.
+
+    Args:
+        matrix: Question matrix of shape ``(K+1, K+1, 3)`` in probly's label order, greedy answer first.
+
+    Returns:
+        ``(largest_share, greedy_share)``: the share of the K samples in the largest cluster of the
+        samples, and the share of the K samples that have the same meaning as the greedy answer
+        (they join the greedy answer's cluster when the greedy answer is clustered first).
+    """
+    n_samples = matrix.shape[0] - 1
+    sample_ids = HFGreedySemanticClusterer.cluster_nli_matrix(sample_block(matrix))
+    largest = int(torch.bincount(sample_ids).max())
+    all_ids = HFGreedySemanticClusterer.cluster_nli_matrix(matrix)
+    with_greedy = int((all_ids[GREEDY_INDEX + 1 :] == all_ids[GREEDY_INDEX]).sum())
+    return largest / n_samples, with_greedy / n_samples
 
 
 def canonical_group_ids(group_ids: torch.Tensor) -> torch.Tensor:

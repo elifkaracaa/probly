@@ -1,4 +1,4 @@
-"""Semantic clustering representers backed by Hugging Face NLI models."""
+"""Semantic clustering representers backed by Hugging Face NLI or sentence-embedding models."""
 
 from __future__ import annotations
 
@@ -14,18 +14,22 @@ from probly.representation.distribution.torch_sparse_log_categorical import (
     TorchSparseLogCategoricalDistribution,
     TorchSparseLogCategoricalDistributionSample,
 )
+from probly.representation.embedding.torch import TorchEmbedding
 from probly.representation.text_generation.torch import (
     TorchTextGeneration,
     TorchTextGenerationSample,
     TorchTextGenerationSampleSample,
 )
 from probly.representer._representer import Representer
+from probly.representer.embedder.huggingface import DEFAULT_EMBEDDING_MODEL, HFTextEmbedder
 
 if TYPE_CHECKING:
     from os import PathLike
 
 
 DEFAULT_NLI_MODEL = "microsoft/deberta-base-mnli"
+DEFAULT_EMBEDDING_THRESHOLD = 0.9
+"""Cosine similarity above which :class:`HFEmbeddingSemanticClusterer` treats two texts as equivalent."""
 
 type SemanticClusterInput = TorchTextGeneration | TorchTextGenerationSample | TorchTextGenerationSampleSample
 type SemanticClusterOutput = TorchSparseLogCategoricalDistribution | TorchSparseLogCategoricalDistributionSample
@@ -618,3 +622,168 @@ class HFGreedySemanticClusterer(HFSemanticClusterer):
             next_id += 1
 
         return semantic_ids
+
+
+def cosine_to_nli_probabilities(cosine: torch.Tensor, threshold: float) -> torch.Tensor:
+    """Express cosine similarities as contradiction / neutral / entailment probabilities.
+
+    For similarity ``s`` (clipped at 0) and threshold ``t``: entailment ``s / (s + t)``,
+    contradiction ``t / (s + t)``, neutral 0. Entailment is the most likely label exactly when
+    ``s > t`` (at ``s == t`` the two tie and the argmax picks contradiction), so the greedy rule of
+    :class:`HFGreedySemanticClusterer` groups two texts exactly when their embeddings are more than
+    ``t`` similar, and the entailment probability still grows with the similarity (0.5 at the
+    threshold) for methods that read it as a soft agreement.
+
+    Args:
+        cosine: Cosine similarities of any shape.
+        threshold: Similarity above which two texts count as equivalent, in ``(0, 1]``.
+
+    Returns:
+        Float32 tensor of shape ``(*cosine.shape, 3)`` ordered as ``NLI_LABELS``.
+
+    Raises:
+        ValueError: If ``threshold`` is not in ``(0, 1]``.
+    """
+    if not 0.0 < threshold <= 1.0:
+        msg = f"threshold must be in (0, 1], got {threshold}."
+        raise ValueError(msg)
+    similarity = cosine.float().clamp(min=0.0)
+    probabilities = torch.zeros((*similarity.shape, 3), dtype=torch.float32)
+    probabilities[..., _ENTAILMENT] = similarity / (similarity + threshold)
+    probabilities[..., _CONTRADICTION] = threshold / (similarity + threshold)
+    return probabilities
+
+
+class HFEmbeddingSemanticClusterer(HFGreedySemanticClusterer):
+    """Greedy semantic clustering with sentence embeddings instead of an NLI model.
+
+    A cheaper drop-in for :class:`HFGreedySemanticClusterer`: every text is embedded once and two
+    texts are compared by cosine similarity, instead of running a cross-encoder on every ordered
+    pair. :meth:`pairwise_nli`, :meth:`pairwise_nli_many`, :meth:`cluster_nli_matrix` and
+    :meth:`represent` behave as for the NLI clusterer, so code written for one works with the
+    other. The "NLI" matrices hold :func:`cosine_to_nli_probabilities` of the similarities.
+
+    Example:
+        >>> clusterer = HFEmbeddingSemanticClusterer.from_model_name()  # doctest: +SKIP
+        >>> matrix = clusterer.pairwise_nli(["Paris", "It is Paris.", "Lyon"])  # doctest: +SKIP
+        >>> HFEmbeddingSemanticClusterer.cluster_nli_matrix(matrix)  # doctest: +SKIP
+        tensor([0, 0, 1])
+    """
+
+    embedder: HFTextEmbedder
+    threshold: float
+
+    def __init__(
+        self,
+        embedder: HFTextEmbedder,
+        *,
+        threshold: float = DEFAULT_EMBEDDING_THRESHOLD,
+        batch_size: int = 32,
+        max_length: int | None = None,
+        truncation: bool = True,
+    ) -> None:
+        """Initialize the clusterer.
+
+        Args:
+            embedder: probly text embedder (sentence-transformers model).
+            threshold: Cosine similarity above which two texts count as equivalent, in ``(0, 1]``.
+            batch_size: Kept for the NLI clusterer's signature; the embedder has its own batch size.
+            max_length: Kept for the NLI clusterer's signature; not used.
+            truncation: Kept for the NLI clusterer's signature; not used.
+        """
+        cosine_to_nli_probabilities(torch.ones(1), threshold)  # validates the threshold
+        if batch_size <= 0:
+            msg = "batch_size must be positive."
+            raise ValueError(msg)
+        self.embedder = embedder
+        self.threshold = threshold
+        self.batch_size = batch_size
+        self.max_length = max_length
+        self.truncation = truncation
+        self._label_id_to_canonical = {}
+
+    @classmethod
+    @override
+    def from_model_name(
+        cls,
+        model_name: str | None = None,
+        *,
+        cache_dir: str | PathLike[str] | None = None,
+        force_download: bool = False,
+        model_kwargs: Mapping[str, object] | None = None,
+        tokenizer_kwargs: Mapping[str, object] | None = None,
+        batch_size: int = 32,
+        max_length: int | None = None,
+        truncation: bool = True,
+        threshold: float = DEFAULT_EMBEDDING_THRESHOLD,
+    ) -> Self:
+        """Load a sentence-transformers model by name and initialize the clusterer.
+
+        Args:
+            model_name: Hugging Face model name or local path. Defaults to ``DEFAULT_EMBEDDING_MODEL``.
+            cache_dir: Optional Hugging Face cache directory.
+            force_download: Not used (sentence-transformers manages downloads); kept for the signature.
+            model_kwargs: Additional keyword arguments forwarded to ``SentenceTransformer``.
+            tokenizer_kwargs: Not used; kept for the NLI clusterer's signature.
+            batch_size: Number of texts per embedding call.
+            max_length: Not used; kept for the NLI clusterer's signature.
+            truncation: Not used; kept for the NLI clusterer's signature.
+            threshold: Cosine similarity above which two texts count as equivalent.
+
+        Returns:
+            A clusterer backed by the loaded embedding model.
+        """
+        del force_download, tokenizer_kwargs
+        embedder = HFTextEmbedder.from_model_name(
+            DEFAULT_EMBEDDING_MODEL if model_name is None else model_name,
+            cache_dir=cache_dir,
+            model_kwargs=model_kwargs,
+            batch_size=batch_size,
+            normalize_embeddings=True,
+        )
+        return cls(embedder, threshold=threshold, batch_size=batch_size, max_length=max_length, truncation=truncation)
+
+    @property
+    @override
+    def predictor(self) -> PreTrainedModel:
+        """The underlying sentence-transformers model.
+
+        It is a ``SentenceTransformer``, not a ``PreTrainedModel``: the annotation is inherited from the NLI
+        clusterer, so callers must not use it as a transformers model (no ``.config``, no NLI forward pass).
+        Use :meth:`embed` to get embeddings.
+        """
+        return self.embedder.predictor  # ty: ignore[invalid-return-type]
+
+    def embed(self, statements: Sequence[str] | np.ndarray) -> torch.Tensor:
+        """Unit-length embedding of every statement, shape ``(n, dim)``, on the CPU."""
+        texts = np.asarray(statements, dtype=object).reshape(-1)
+        generation = TorchTextGeneration(log_likelihood=torch.zeros(texts.shape[0]), text=texts)
+        embedding = self.embedder.represent(generation)
+        if not isinstance(embedding, TorchEmbedding):
+            msg = f"expected one embedding per statement, got {type(embedding).__name__}."
+            raise TypeError(msg)
+        return torch.nn.functional.normalize(embedding.embeddings.float().cpu(), dim=-1)
+
+    @override
+    def _predict_pair_probabilities(self, statements: np.ndarray, pairs: torch.Tensor) -> torch.Tensor:
+        self._check_pairs(pairs)
+        if pairs.numel() == 0:
+            return torch.empty((0, 3), dtype=torch.float32)
+        used = torch.unique(pairs)
+        embedded = self.embed(statements[used.numpy()])
+        vectors = torch.zeros((len(statements), embedded.shape[-1]))
+        vectors[used] = embedded
+        cosine = (vectors[pairs[:, 0]] * vectors[pairs[:, 1]]).sum(dim=-1)
+        return cosine_to_nli_probabilities(cosine, self.threshold)
+
+    @override
+    def _predict_pair_labels(self, statements: np.ndarray, pairs: torch.Tensor) -> torch.Tensor:
+        return torch.argmax(self._predict_pair_probabilities(statements, pairs), dim=-1)
+
+    @override
+    def _cluster_row(self, statements: np.ndarray) -> torch.Tensor:
+        # Embed the row once and cluster the matrix (same greedy rule) instead of embedding per step.
+        if statements.ndim != 1:
+            msg = "statements must be a one-dimensional numpy array."
+            raise ValueError(msg)
+        return self.cluster_nli_matrix(self.pairwise_nli(statements))

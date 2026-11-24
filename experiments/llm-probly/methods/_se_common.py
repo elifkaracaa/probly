@@ -7,7 +7,9 @@ the NLI model runs only for the first one.
 
 Which NLI model is used, and whether the question goes in front of each answer, comes from
 ``common.nli_matrix.nli_settings()`` (default deberta-large, answers only; the runner sets it
-from the config keys ``nli_model`` and ``nli_use_question``). Each record says which setup it used
+from the config keys ``nli_model`` and ``nli_use_question``). The same settings can switch to the
+embedding backend (B3, ``--semantic-backend embedding``): its matrices have their own tag, cache
+file and fingerprints, so they never mix with NLI matrices. Each record says which setup it used
 in its ``nli`` field.
 
 The matrices are also kept on disk (A5): when the runner has set a cache file
@@ -39,9 +41,10 @@ from common.nli_matrix import (
     se_and_dse,
 )
 
-from probly.representer.semantic_clustering.huggingface import HFGreedySemanticClusterer
+from probly.representer.semantic_clustering.huggingface import HFEmbeddingSemanticClusterer, HFGreedySemanticClusterer
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     import torch
@@ -58,13 +61,20 @@ nli_pairs_scored = 0
 
 
 def get_clusterer() -> HFGreedySemanticClusterer:
-    """Load the NLI clusterer of the current settings once per process."""
-    name = nli_settings().hf_name
+    """Load the clusterer of the current settings once per process (NLI model or, B3, embeddings)."""
+    settings = nli_settings()
+    name = settings.hf_name
     if name not in _clusterers:
-        clusterer = HFGreedySemanticClusterer.from_model_name(name)
-        clusterer.model.to(pick_device())
-        _clusterers[name] = clusterer
-    return _clusterers[name]
+        if settings.backend == "embedding":
+            _clusterers[name] = HFEmbeddingSemanticClusterer.from_model_name(name, threshold=settings.threshold)
+        else:
+            clusterer = HFGreedySemanticClusterer.from_model_name(name)
+            clusterer.model.to(pick_device())
+            _clusterers[name] = clusterer
+    clusterer = _clusterers[name]
+    if isinstance(clusterer, HFEmbeddingSemanticClusterer):  # one loaded model serves every threshold
+        clusterer.threshold = settings.threshold
+    return clusterer
 
 
 def matrix_key(row: dict) -> str:
@@ -148,6 +158,20 @@ def compute_se_and_dse(row: dict) -> tuple[float, float]:
 
 def score_rows(rows: list[dict], name: str, which: int) -> dict:
     """Score record for SE (``which=0``) or discrete SE (``which=1``), see CONTRACT.md."""
+    return score_rows_with(rows, name, lambda row: compute_se_and_dse(row)[which])
+
+
+def score_rows_with(rows: list[dict], name: str, measure: Callable[[dict], float]) -> dict:
+    """Score record of any measure that reads the shared NLI matrix, see CONTRACT.md.
+
+    Args:
+        rows: Rows of the data cache.
+        name: Method name for the record.
+        measure: Uncertainty of one row; it may call :func:`get_matrix` (the matrices are ready).
+
+    Returns:
+        The score record, with the NLI fields of SE (pairs, seconds and setup).
+    """
     ids, unc, failed = [], [], []
     pairs_before = nli_pairs_scored
     t0 = time.time()
@@ -155,7 +179,7 @@ def score_rows(rows: list[dict], name: str, which: int) -> dict:
     for i, r in enumerate(rows):
         ids.append(r.get("id", i))
         try:
-            unc.append(compute_se_and_dse(r)[which])
+            unc.append(measure(r))
             failed.append(False)
         except Exception:  # noqa: BLE001
             unc.append(1.0)

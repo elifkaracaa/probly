@@ -24,6 +24,8 @@ Fields of a method:
 - ``needs_model``: the runner loads the LLM and passes it to ``score()``.
 - ``uses_nli``: the method also runs the NLI model on sample pairs (cheap
   compared with the LLM, but it is reported separately).
+- ``opt_in``: skipped when a run asks for ``all`` methods; it runs only when
+  named (``--methods``), e.g. because it needs many extra generations.
 
 Example::
 
@@ -71,6 +73,7 @@ class MethodSpec:
         uses_nli: True if the method also runs the NLI model.
         probability: True if ``1 - uncertainty`` is a probability of being correct
             (ECE is computed only for these).
+        opt_in: True if a run over ``all`` methods skips it; it runs only when named.
         note: One line on where the cost comes from.
     """
 
@@ -81,6 +84,7 @@ class MethodSpec:
     needs_model: bool = False
     uses_nli: bool = False
     probability: bool = False
+    opt_in: bool = False
     note: str = ""
 
     def __post_init__(self) -> None:
@@ -132,6 +136,68 @@ _SPECS = (
         GREEDY + SAMPLES + NLI,
         uses_nli=True,
         note="NLI clusters weighted by sample likelihoods",
+    ),
+    # Graph measures (B1, LM-Polygraph / Lin et al. 2024): read the same NLI matrix as SE, so next to
+    # SE they add no NLI pass; alone they cost the same as discrete SE.
+    MethodSpec(
+        "num_semantic_sets",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="number of NLI clusters (the clusters of SE)",
+    ),
+    MethodSpec(
+        "eig_val_laplacian",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="Laplacian eigenvalues of the NLI similarity graph",
+    ),
+    MethodSpec(
+        "deg_mat",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="mean degree of the NLI similarity graph",
+    ),
+    MethodSpec(
+        "eccentricity",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="spread of the samples in the graph's spectral embedding",
+    ),
+    # Decomposed SE (B4, Hou et al. 2024): 3 clarifications + 3 x 5 answers + NLI over all of them.
+    MethodSpec(
+        "decomposed_semantic_entropy",
+        "agreement",
+        "text_only",
+        GREEDY + 3 + 3 * 5 + NLI,
+        needs_model=True,
+        uses_nli=True,
+        opt_in=True,
+        note="clarify the question 3x, answer each 5x; total = aleatoric + epistemic",
+    ),
+    # Cluster shares (A, for the selector D2): read the same NLI matrix as SE.
+    MethodSpec(
+        "largest_cluster_share",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="1 - share of the samples in the largest NLI cluster",
+    ),
+    MethodSpec(
+        "greedy_cluster_share",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="1 - share of the samples with the same meaning as the greedy answer",
     ),
     # --- self-evaluation: ask the model about its own answer -----------------------------------
     MethodSpec(
