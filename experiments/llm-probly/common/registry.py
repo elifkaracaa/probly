@@ -167,6 +167,23 @@ _SPECS = (
         uses_nli=True,
         note="spread of the samples in the graph's spectral embedding",
     ),
+    # Cluster shares (A, for the selector D2): read the same NLI matrix as SE.
+    MethodSpec(
+        "largest_cluster_share",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="1 - share of the samples in the largest NLI cluster",
+    ),
+    MethodSpec(
+        "greedy_cluster_share",
+        "agreement",
+        "text_only",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="1 - share of the samples with the same meaning as the greedy answer",
+    ),
     # --- self-evaluation: ask the model about its own answer -----------------------------------
     MethodSpec(
         "p_true_zeroshot",

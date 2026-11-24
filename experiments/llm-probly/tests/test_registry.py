@@ -65,6 +65,8 @@ def test_text_only_methods_match_f2():
         "eig_val_laplacian",
         "deg_mat",
         "eccentricity",
+        "largest_cluster_share",
+        "greedy_cluster_share",
         "verbalized_2s",
         "p_true_empirical",
         "dummy_random",
