@@ -92,6 +92,54 @@ SE and discrete SE use `microsoft/deberta-large-mnli` (A4) since week 3; with we
 - All methods have run on all four sizes through the runner; SE / DSE read the persistent NLI cache (A5).
 - Rejection curves for 1.5B: [`results/plots/triviaqa_200_qwen1.5b_rejection.png`](results/plots/triviaqa_200_qwen1.5b_rejection.png).
 
+## Semantic methods (B1–B5)
+
+Agreement methods that compare the meaning of 10 sampled answers. All of them read one shared
+pairwise NLI matrix per question (A1), so asking for all of them costs one NLI pass. NLI model:
+`microsoft/deberta-large-mnli` (A4); matrices are cached in `data/<model>/<dataset>_<n>.nli.<tag>.npz` (A5).
+User guide with a runnable example: [`docs/semantic_methods.md`](docs/semantic_methods.md).
+
+AUROC (higher is better, 0.5 = random). NumSemSets, EigVal, DegMat and Eccentricity are the
+LM-Polygraph graph measures (B1); "embedding" is the cheap backend (B3, `--semantic-backend embedding`).
+
+| model | data | backend | SE | discrete SE | NumSemSets | EigVal | DegMat | Eccentricity |
+|---|---|---|---|---|---|---|---|---|
+| 0.5B | TriviaQA-200 | NLI | 0.744 | 0.751 | 0.759 | 0.758 | 0.751 | 0.750 |
+| 0.5B | TriviaQA-200 | embedding | 0.745 | 0.755 | 0.763 | 0.774 | 0.762 | 0.751 |
+| 0.5B | TriviaQA-1000 | NLI | 0.730 | 0.732 | 0.735 | **0.752** | 0.743 | 0.710 |
+| 0.5B | TriviaQA-1000 | embedding | 0.724 | 0.728 | 0.727 | 0.724 | 0.720 | 0.710 |
+| 0.5B | MMLU-200 | NLI | 0.504 | 0.517 | 0.533 | 0.522 | 0.503 | 0.518 |
+| 1.5B | TriviaQA-200 | NLI | 0.776 | 0.779 | 0.775 | 0.784 | 0.779 | 0.748 |
+| 1.5B | TriviaQA-200 | embedding | 0.744 | 0.749 | 0.748 | 0.752 | 0.751 | 0.733 |
+| 1.5B | TriviaQA-1000 | NLI | 0.772 | 0.775 | 0.772 | **0.777** | 0.775 | 0.753 |
+| 1.5B | TriviaQA-1000 | embedding | 0.759 | 0.764 | 0.763 | 0.764 | 0.759 | 0.743 |
+| 1.5B | MMLU-200 | NLI | 0.520 | 0.520 | 0.526 | 0.524 | 0.524 | 0.550 |
+
+Embedding rows for MMLU and all result files: `results/<model>/<dataset>_<n>[_embedding]/`.
+
+**Takeaways**
+1. The graph measures (B1) are as good as semantic entropy and need no likelihoods; EigVal is the best
+   semantic score on TriviaQA-1000 for both models. With 200 questions the 95% interval is about ±0.05,
+   so the differences between the semantic scores are not significant.
+2. The embedding backend (B3) is 26–33x cheaper than deberta-large. It matches NLI on the model its
+   threshold was chosen on (0.5B, TriviaQA-200) and is 0.006–0.03 lower elsewhere. NLI stays the default.
+3. Five samples instead of ten cost 0.006 (0.5B) to 0.022 (1.5B) AUROC for SE; stopping when the first 2–3
+   samples agree saves 18–48% of the generations but costs 0.03–0.10 (B2,
+   `results/*/triviaqa_200/analysis/sample_count.md`).
+4. Splitting the uncertainty by input clarification (B4, opt-in) shows *why* an answer is uncertain but does
+   not detect wrong answers better: on the same first 50 questions of 0.5B, the total reaches 0.71 AUROC and
+   plain SE 0.86 (`results/qwen0.5b/triviaqa_200/analysis/decomposed_se.md`).
+5. On MMLU every method is near chance, the baselines included: the models are barely above guessing
+   (accuracy 20% and 36% with four options), and with single-letter answers there is little meaning to compare.
+
+One call for all seven scores of a list of answers (B5):
+
+```python
+from common.semantic_scores import semantic_scores
+
+scores = semantic_scores(["Paris", "It is Paris.", "Lyon"], sample_log_likelihoods=[-0.1, -0.3, -1.2])
+```
+
 ## Models & cost (BIG)
 
 All runs: TriviaQA, 200 questions, on one MacBook Air (Apple M-series, 24 GB unified memory).

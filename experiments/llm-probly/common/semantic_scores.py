@@ -25,7 +25,7 @@ import logging
 import math
 import os
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from methods.lexical_similarity import rouge_l
 
@@ -177,6 +177,7 @@ def semantic_scores_many(
     items: Iterable[dict],
     *,
     clusterer: HFSemanticClusterer | None = None,
+    use_question: bool | None = None,
     log_every: int = QUESTIONS_PER_BATCH,
 ) -> list[dict]:
     """Score many questions; the NLI pairs of several questions share model batches.
@@ -184,8 +185,11 @@ def semantic_scores_many(
     Args:
         items: One dict per question with ``samples`` (list of answers) and
             optionally ``sample_log_likelihoods``, ``answer`` (the answer being
-            judged; default: the first sample) and ``question``.
+            judged; default: the first sample) and ``question`` (the question text).
         clusterer: NLI clusterer; default: the benchmark's, see :func:`default_clusterer`.
+        use_question: Put each item's ``question`` in front of every answer before NLI, as the
+            benchmark's ``nli_use_question`` (A4). None: the benchmark's setting
+            (``nli_settings().use_question``, False by default).
         log_every: Questions whose NLI pairs share one model batch; progress is logged after each batch.
 
     Returns:
@@ -196,14 +200,23 @@ def semantic_scores_many(
         SemanticInputError: If a question's inputs cannot be scored; the message names the question.
     """
     items = list(items)
-    rows = []
+    if use_question is None:
+        use_question = nli_settings().use_question
+    rows: list[dict[str, Any]] = []
     for i, item in enumerate(items):
         if "samples" not in item:
             msg = f"question {i}: missing 'samples' (the list of sampled answers)."
             raise SemanticInputError(msg)
         check_inputs(item["samples"], item.get("sample_log_likelihoods"), where=f"question {i}: ")
+        question = item.get("question")
+        if use_question and not (isinstance(question, str) and question.strip()):
+            msg = (
+                f"question {i}: use_question=True needs the question text. "
+                "Pass question='...' (or 'question' in the item), or use_question=False."
+            )
+            raise SemanticInputError(msg)
         samples = list(item["samples"])
-        rows.append({"greedy_answer": item.get("answer") or samples[0], "samples": samples})
+        rows.append({"question": question, "greedy_answer": item.get("answer") or samples[0], "samples": samples})
 
     nli = clusterer or default_clusterer()
     results: list[dict] = []
@@ -211,7 +224,7 @@ def semantic_scores_many(
     for first in range(0, len(rows), log_every):
         batch_start = time.perf_counter()
         chunk = rows[first : first + log_every]
-        matrices = compute_matrices(nli, chunk)
+        matrices = compute_matrices(nli, chunk, use_question=use_question)
         per_question = (time.perf_counter() - batch_start) / len(chunk)
         for offset, (row, matrix) in enumerate(zip(chunk, matrices, strict=True)):
             item = items[first + offset]
@@ -236,6 +249,8 @@ def semantic_scores(
     *,
     sample_log_likelihoods: Sequence[float] | None = None,
     answer: str | None = None,
+    question: str | None = None,
+    use_question: bool | None = None,
     clusterer: HFSemanticClusterer | None = None,
 ) -> dict:
     """Every semantic uncertainty score of one question.
@@ -246,6 +261,10 @@ def semantic_scores(
             sample; needed only for ``semantic_entropy`` (NaN without them).
         answer: The answer being judged (e.g. the greedy answer). Default: the
             first sample. The scores themselves compare the samples only.
+        question: The question text. Used only when ``use_question`` is on.
+        use_question: Put ``question`` in front of every answer before NLI (A4's ``nli_use_question``;
+            helps when short answers like "1969" only make sense with the question). None: the
+            benchmark's setting (``nli_settings().use_question``, False by default).
         clusterer: NLI clusterer; default: the benchmark's, see :func:`default_clusterer`.
 
     Returns:
@@ -255,8 +274,13 @@ def semantic_scores(
     Raises:
         SemanticInputError: If the inputs cannot be scored; the message says how to fix them.
     """
-    item = {"samples": samples, "sample_log_likelihoods": sample_log_likelihoods, "answer": answer}
+    item = {
+        "samples": samples,
+        "sample_log_likelihoods": sample_log_likelihoods,
+        "answer": answer,
+        "question": question,
+    }
     try:
-        return semantic_scores_many([item], clusterer=clusterer, log_every=1)[0]
+        return semantic_scores_many([item], clusterer=clusterer, use_question=use_question, log_every=1)[0]
     except SemanticInputError as error:
         raise SemanticInputError(str(error).removeprefix("question 0: ")) from None
