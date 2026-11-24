@@ -92,12 +92,51 @@ SE and discrete SE use `microsoft/deberta-large-mnli` (A4) since week 3; with we
 - All methods have run on all four sizes through the runner; SE / DSE read the persistent NLI cache (A5).
 - Rejection curves for 1.5B: [`results/plots/triviaqa_200_qwen1.5b_rejection.png`](results/plots/triviaqa_200_qwen1.5b_rejection.png).
 
-## Semantic methods (B1–B5)
+## Semantic methods (A1–A5, B1–B5)
 
 Agreement methods that compare the meaning of 10 sampled answers. All of them read one shared
 pairwise NLI matrix per question (A1), so asking for all of them costs one NLI pass. NLI model:
 `microsoft/deberta-large-mnli` (A4); matrices are cached in `data/<model>/<dataset>_<n>.nli.<tag>.npz` (A5).
 User guide with a runnable example: [`docs/semantic_methods.md`](docs/semantic_methods.md).
+
+### Shared NLI matrix, NLI setup and cache (A1–A5)
+
+Every ordered pair of [greedy answer, 10 samples] is scored once per question (A1), identical answers
+only once (A2), and 16 questions share the model batches on the GPU (A3).
+
+**NLI setup (A4).** Default `deberta-large`, answers only: it agrees best with 80 hand-labelled answer
+pairs (0.971 vs 0.937 for deberta-base; a second labeller agreed on 20/20). Change it per run in the config:
+
+    nli_model: deberta-base      # or deberta-large (default), or any Hugging Face NLI model
+    nli_use_question: true       # put the question in front of each answer (default false)
+
+**NLI cache (A5).** The matrices are saved next to the data, `data/<model>/<dataset>_<n>.nli.<setup>.npz`,
+and reused automatically: a second run does no NLI work. Changed answers or another NLI setup are
+detected (fingerprints) and only those questions are computed again.
+
+    caffeinate -i uv run python -m cli run --config configs/qwen1.5b_triviaqa_200.yaml \
+        --methods semantic_entropy,discrete_semantic_entropy --force
+    # NLI for the semantic methods: deberta-large, cache data/qwen1.5b/triviaqa_200.nli.deberta-large.npz (200/200 questions cached)
+
+In your own code:
+
+    from common.data import cache_path, load_data
+    from common.nli_matrix import load_nli_cache, nli_cache_path, nli_settings
+
+    rows = load_data("qwen1.5b", 200)
+    cache = load_nli_cache(nli_cache_path(cache_path("qwen1.5b", 200), nli_settings()))
+    cache["matrices"][0].shape   # (11, 11, 3): contradiction / neutral / entailment per ordered pair
+
+**Effect over week 3** (TriviaQA-200): NLI pairs per question 204 → 59 (0.5B), 174 → 28 (1.5B),
+164 → 14 (3B), 159 → 6 (7B), and 0 on a cached rerun; AUROC unchanged (at most 0.006).
+Details, the hand labels and the decisions (e.g. no answer normalization before dedup):
+[docs/methods.md](docs/methods.md).
+
+Two more agreement scores read the same matrix (for the selector, D2): `largest_cluster_share` and
+`greedy_cluster_share` (1 − share of the samples in the largest cluster / in the greedy answer's cluster).
+They carry about the same information as discrete SE and are never chosen by the selector.
+
+### Results and graph measures (B1–B5)
 
 AUROC (higher is better, 0.5 = random). NumSemSets, EigVal, DegMat and Eccentricity are the
 LM-Polygraph graph measures (B1); "embedding" is the cheap backend (B3, `--semantic-backend embedding`).
