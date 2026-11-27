@@ -37,6 +37,7 @@ COLUMNS = [
     "prr",
     "ece",
     "n_failed",
+    "coverage",  # mean P(A)+P(B) (p(True) methods) or parsed fraction (empirical); blank for other methods
     "seconds_per_question",
 ]
 
@@ -56,6 +57,20 @@ MODEL_ORDER = ("smollm135m", "smollm2", "qwen0.5b", "qwen1.5b", "qwen3b", "qwen7
 
 SANITY_ROOT = RESULTS_ROOT / "sanity"
 SANITY_COLUMNS = ["method", "model", "auroc", "gap", "n_distinct", "verdict"]
+
+
+def mean_coverage(record: dict) -> float:
+    """Mean answer coverage of a result record, or NaN if the method does not store one (C3).
+
+    Coverage is ``P(A) + P(B)`` per question for the p(True) methods: how much probability mass
+    the model puts on the two allowed answers. For ``p_true_empirical`` the analogue is
+    ``parsed_fraction``, the share of sampled replies that could be read as True or False.
+    A low value means the score rests on a few tokens the model hardly wanted to produce.
+    """
+    values = record.get("coverage", record.get("parsed_fraction"))
+    if not values:
+        return float("nan")
+    return float(sum(values) / len(values))
 
 
 def summary_table(
@@ -107,6 +122,7 @@ def summary_table(
                 "prr": scores["prr"],
                 "ece": calibration,
                 "n_failed": int(sum(record["failed"])),
+                "coverage": mean_coverage(record),
                 "seconds_per_question": record["seconds_per_question"],
             },
         )
