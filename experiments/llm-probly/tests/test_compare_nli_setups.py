@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 
-from common.nli_matrix import NLI_MODELS, load_nli_cache, question_texts, save_nli_cache
+from common.nli_matrix import NLI_MODELS, load_nli_cache, question_texts, save_nli_cache, se_and_dse
+import numpy as np
 import pytest
 import torch
 
@@ -98,11 +100,18 @@ def test_main_with_reuse_writes_the_table(tmp_path, monkeypatch, capsys):
     )
     monkeypatch.setattr(compare_nli_setups, "load_jsonl", lambda _: rows)
     monkeypatch.setattr(compare_nli_setups, "load_labels", lambda: labels)
+    benchmark = tmp_path / "results" / "m" / "triviaqa_200"
+    benchmark.mkdir(parents=True)
+    se = [se_and_dse(fake_matrix(question_texts(r)), r["samples_ll_mean"])[0] for r in rows]
+    (benchmark / "semantic_entropy.json").write_text(json.dumps({"uncertainty": se}))
 
     compare_nli_setups.main(0, reuse=True)
 
+    out = capsys.readouterr().out
     table = (tmp_path / "results" / "nli_setups.md").read_text(encoding="utf-8")
-    assert table in capsys.readouterr().out
+    assert table in out
+    assert "  deberta-large            m 0/8" in out  # same fake matrices in every setup
+    assert "check vs benchmark SE (m, deberta-large): max |difference| 0.00e+00 -> OK" in out
     lines = [line for line in table.splitlines() if line.startswith("| deberta-")]
     assert [line.split(" | ")[0] for line in lines] == [
         "| deberta-base",
@@ -114,3 +123,18 @@ def test_main_with_reuse_writes_the_table(tmp_path, monkeypatch, capsys):
     assert "reference" in lines[0]
     assert all(line.endswith("| 0.25 |") for line in lines)
     assert len(load_nli_cache(out_dir / "m_deberta-base.nli.npz")["matrices"]) == 8  # --reuse does not rewrite
+
+
+def test_check_against_benchmark_flags_different_scores(tmp_path, monkeypatch, capsys):
+    rows = rows_for_test()[:2]
+    result = compare_nli_setups.SetupResult()
+    result.se["m"] = np.array([0.0, 1.0])
+    monkeypatch.setattr(compare_nli_setups, "ROOT", tmp_path)
+    compare_nli_setups.check_against_benchmark({"deberta-large": result}, {"m": rows, "other": rows})
+    assert "no semantic_entropy.json, skipped" in capsys.readouterr().out
+
+    benchmark = tmp_path / "results" / "m" / "triviaqa_200"
+    benchmark.mkdir(parents=True)
+    (benchmark / "semantic_entropy.json").write_text(json.dumps({"uncertainty": [0.0, 0.5, 9.9]}))
+    compare_nli_setups.check_against_benchmark({"deberta-large": result}, {"m": rows})
+    assert "max |difference| 5.00e-01 -> DIFFERENT" in capsys.readouterr().out

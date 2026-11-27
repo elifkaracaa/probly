@@ -58,7 +58,7 @@ from probly.representer.semantic_clustering.huggingface import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
     from probly.representer.semantic_clustering.huggingface import HFSemanticClusterer
 
@@ -326,8 +326,9 @@ def nli_pair_count(row: dict, *, deduplicate: bool = True) -> int:
     return m * (m - 1)
 
 
-RULES = ("probly", "strict")
-"""Equivalence rules: ``probly`` = semantic entropy's rule; ``strict`` = entailment in both directions."""
+RULES = ("probly", "strict", "lenient")
+"""Equivalence rules: ``probly`` = semantic entropy's rule; ``strict`` = entailment in both directions;
+``lenient`` = no contradiction in either direction."""
 
 
 def same_meaning(matrix: torch.Tensor, a: int, b: int, rule: str = "probly") -> bool:
@@ -337,12 +338,13 @@ def same_meaning(matrix: torch.Tensor, a: int, b: int, rule: str = "probly") -> 
     :meth:`HFGreedySemanticClusterer.cluster_nli_matrix` on the 2 x 2 block): no contradiction in
     either direction and not neutral in both directions. ``rule="strict"`` asks for entailment in
     both directions (bidirectional entailment), which never merges a vaguer answer with a specific one.
+    ``rule="lenient"`` only asks for no contradiction in either direction.
 
     Args:
         matrix: Question matrix of shape ``(n, n, 3)`` in probly's label order.
         a: Index of the first text.
         b: Index of the second text.
-        rule: ``"probly"`` or ``"strict"``.
+        rule: One of ``RULES``.
 
     Returns:
         True if the two texts are treated as having the same meaning.
@@ -356,8 +358,38 @@ def same_meaning(matrix: torch.Tensor, a: int, b: int, rule: str = "probly") -> 
     if rule == "strict":
         entailment = NLI_LABELS.index("entailment")
         return bool(matrix[a, b].argmax() == entailment and matrix[b, a].argmax() == entailment)
+    if rule == "lenient":
+        contradiction = NLI_LABELS.index("contradiction")
+        return bool(matrix[a, b].argmax() != contradiction and matrix[b, a].argmax() != contradiction)
     msg = f"rule must be one of {RULES}, got {rule!r}."
     raise ValueError(msg)
+
+
+def greedy_clusters(matrix: torch.Tensor, indices: Iterable[int], rule: str = "probly") -> list[list[int]]:
+    """Cluster texts greedily, as probly does: each text joins the first cluster whose first member matches.
+
+    Args:
+        matrix: Question matrix of shape ``(n, n, 3)`` in probly's label order.
+        indices: Texts to cluster, in order (e.g. ``range(1, n)`` for the samples only).
+        rule: One of ``RULES``, see :func:`same_meaning`.
+
+    Returns:
+        The clusters as lists of text indices, in order of first appearance.
+    """
+    clusters: list[list[int]] = []
+    for text in indices:
+        for cluster in clusters:
+            if same_meaning(matrix, cluster[0], text, rule):
+                cluster.append(text)
+                break
+        else:
+            clusters.append([text])
+    return clusters
+
+
+def as_partition(clusters: Iterable[Iterable[int]]) -> set[frozenset[int]]:
+    """Return clusters as a set of sets, so the order and the cluster ids do not matter."""
+    return {frozenset(cluster) for cluster in clusters}
 
 
 def sample_block(matrix: torch.Tensor) -> torch.Tensor:

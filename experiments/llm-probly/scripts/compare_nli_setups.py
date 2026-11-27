@@ -9,7 +9,10 @@ For each setup ({deberta-base, deberta-large} x {answers only, question + answer
    matrices, with probly's rule and with the strict rule (entailment both ways), and reports the
    agreement with the labels, weighted to the real mix of pairs (``weighted_agreement``),
 3. computes SE / DSE AUROC with a bootstrap interval, and the paired bootstrap difference of SE
-   against the reference setup (deberta-base, answers only).
+   against the reference setup (deberta-base, answers only),
+4. prints how many questions get different sample clusters than with the reference setup, and
+   checks that SE of the benchmark's setup (deberta-large, answers only) equals the benchmark's
+   ``results/<model>/triviaqa_200/semantic_entropy.json``.
 
 The table goes to ``results/nli_setups.md``. Run from ``experiments/llm-probly``::
 
@@ -25,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
 import time
 from typing import TYPE_CHECKING
@@ -33,10 +37,13 @@ from common.data import cache_path, load_jsonl
 from common.evaluate import auroc, bootstrap_auroc, paired_bootstrap
 from common.nli_labels import candidate_pairs, load_labels, stratum_shares, weighted_agreement
 from common.nli_matrix import (
+    DEFAULT_NLI_MODEL,
     NLI_MODELS,
     QUESTIONS_PER_BATCH,
     RULES,
+    as_partition,
     compute_matrices,
+    greedy_clusters,
     load_nli_cache,
     pick_device,
     same_meaning,
@@ -151,7 +158,46 @@ def main(limit: int, *, reuse: bool = False) -> None:
                 ]
                 result.agreement[rule] = weighted_agreement(labels, decisions, shares)
 
+    print_cluster_changes(results, data)
+    check_against_benchmark(results, data)
     write_table(results, data)
+
+
+def print_cluster_changes(results: dict[str, SetupResult], data: dict[str, list[dict]]) -> None:
+    """Print, per setup and model, how many questions get other sample clusters than the reference setup."""
+    print("\nquestions with different sample clusters than the reference setup:")
+    for name, result in results.items():
+        if name == REFERENCE:
+            continue
+        changed = []
+        for model, rows in data.items():
+            pairs = zip(result.matrices[model], results[REFERENCE].matrices[model], rows, strict=True)
+            n = sum(
+                as_partition(greedy_clusters(m, range(1, len(r["samples"]) + 1)))
+                != as_partition(greedy_clusters(ref, range(1, len(r["samples"]) + 1)))
+                for m, ref, r in pairs
+            )
+            changed.append(f"{model} {n}/{len(rows)}")
+        print(f"  {name:<24} " + "   ".join(changed))
+
+
+def check_against_benchmark(
+    results: dict[str, SetupResult], data: dict[str, list[dict]], tolerance: float = 1e-4
+) -> None:
+    """Print whether SE of the benchmark's NLI setup equals the benchmark's saved SE scores.
+
+    A mismatch means the comparison does not use the same matrices as the benchmark (another
+    machine, NLI model version or data cache). Models without a saved result are skipped.
+    """
+    for model, rows in data.items():
+        path = ROOT / "results" / model / "triviaqa_200" / "semantic_entropy.json"
+        if not path.exists():
+            print(f"check vs benchmark SE ({model}): no {path.name}, skipped")
+            continue
+        theirs = np.array(json.loads(path.read_text())["uncertainty"][: len(rows)], dtype=float)
+        diff = float(np.abs(theirs - results[DEFAULT_NLI_MODEL].se[model]).max())
+        verdict = "OK" if diff < tolerance else "DIFFERENT"
+        print(f"check vs benchmark SE ({model}, {DEFAULT_NLI_MODEL}): max |difference| {diff:.2e} -> {verdict}")
 
 
 def write_table(results: dict[str, SetupResult], data: dict[str, list[dict]]) -> None:
