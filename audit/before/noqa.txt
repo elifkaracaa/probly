@@ -1,0 +1,49 @@
+experiments/llm-probly/methods/_se_common.py:98:    global nli_pairs_scored  # noqa: PLW0603
+experiments/llm-probly/methods/_se_common.py:184:        except Exception:  # noqa: BLE001
+experiments/llm-probly/methods/decomposed_semantic_entropy.py:68:        except Exception:  # noqa: BLE001
+experiments/llm-probly/methods/dummy_random.py:23:    rng = random.Random(0)  # noqa: S311 - not security related; fixed seed, so the dummy result is the same every run
+experiments/llm-probly/methods/_graph_common.py:30:    nli_seconds = _se_common._nli_seconds  # noqa: SLF001 - what building each matrix took (A5), as in score_rows of SE
+experiments/llm-probly/methods/_graph_common.py:40:        except Exception:  # noqa: BLE001
+experiments/llm-probly/archive/week1/scripts/r3_real_data.py:26:import r3_methods as r3  # noqa: E402
+experiments/llm-probly/archive/week1/scripts/sanity_r3.py:23:import r3_methods as r3  # noqa: E402
+experiments/llm-probly/archive/week1/scripts/sanity_r3.py:24:from common.sanity import run_sanity, save_sanity  # noqa: E402
+experiments/llm-probly/tests/test_mmlu.py:56:    from scripts.generate import INSTRUCTION, build_prompt  # noqa: PLC0415
+experiments/llm-probly/tests/test_selector_evaluate.py:57:    def load(model: str, dataset: str = "triviaqa", n: int = 200) -> ScoreTable:  # noqa: ARG001
+experiments/llm-probly/tests/test_nli_equivalence.py:80:    rng = random.Random(seed)  # noqa: S311  (test data, not crypto)
+experiments/llm-probly/tests/test_embedding_backend.py:105:def test_an_embedding_run_never_writes_into_or_reads_from_the_nli_cache(fresh_state, tmp_path):  # noqa: ARG001
+experiments/llm-probly/tests/test_embedding_backend.py:123:    assert all(_se_common.matrix_key(row) not in _se_common._matrices for row in rows)  # noqa: SLF001
+experiments/llm-probly/tests/test_embedding_backend.py:127:def test_plugins_compute_embedding_matrices_with_the_settings_threshold(fresh_state):  # noqa: ARG001
+experiments/llm-probly/tests/test_generation.py:13:from common.generation import generate_answers, stop_at_newline_config  # noqa: E402
+experiments/llm-probly/tests/test_generation.py:15:from probly.representer.sampler.huggingface import HFTextGenerationSampler  # noqa: E402
+experiments/llm-probly/tests/test_generation.py:24:    backend = tokenizers.Tokenizer(tokenizers.models.WordLevel(vocab=vocab, unk_token="a"))  # noqa: S106
+experiments/llm-probly/tests/test_generation.py:28:        pad_token="<pad>",  # noqa: S106
+experiments/llm-probly/tests/test_generation.py:29:        eos_token="<eos>",  # noqa: S106
+experiments/llm-probly/common/semantic_scores.py:162:    global _clusterer  # noqa: PLW0603
+experiments/llm-probly/common/semantic_scores.py:167:        from methods._se_common import get_clusterer  # noqa: PLC0415  (loads torch models)
+experiments/llm-probly/common/summary.py:192:    wide = long.pivot(index="method", columns="model", values=metric)[models]  # noqa: PD010 - one value per cell
+experiments/llm-probly/common/decomposed_se.py:133:    from scripts.generate import INSTRUCTION  # noqa: PLC0415
+experiments/llm-probly/common/decomposed_se.py:135:    from common.generation import stop_at_newline_config  # noqa: PLC0415  (loads transformers)
+experiments/llm-probly/common/decomposed_se.py:136:    from probly.representer.clarifier.huggingface import HFQuestionClarifier  # noqa: PLC0415
+experiments/llm-probly/common/decomposed_se.py:137:    from probly.representer.sampler.huggingface import HFTextGenerationSampler  # noqa: PLC0415
+experiments/llm-probly/common/nli_matrix.py:166:    global _settings  # noqa: PLW0603
+experiments/llm-probly/common/nli_matrix.py:191:    global _cache_file  # noqa: PLW0603
+experiments/llm-probly/common/data.py:45:    random.Random(seed).shuffle(indices)  # noqa: S311 (not used for security)
+experiments/llm-probly/common/data.py:94:    random.Random(seed).shuffle(indices)  # noqa: S311 (not used for security)
+experiments/llm-probly/cli.py:60:    from scripts import run_benchmark  # noqa: PLC0415 - keeps `cli methods` free of pandas/yaml
+experiments/llm-probly/scripts/run_benchmark.py:114:    subprocess.run(command, cwd=ROOT, check=True)  # noqa: S603 - fixed module names; check=True stops on failure
+experiments/llm-probly/scripts/run_benchmark.py:200:    from scripts.generate import MODELS, PRECISIONS as TORCH_DTYPES  # noqa: PLC0415
+experiments/llm-probly/scripts/run_benchmark.py:202:    from probly.representer.sampler.huggingface import load_model  # noqa: PLC0415
+experiments/llm-probly/scripts/embedding_vs_nli.py:77:    from methods._se_common import get_clusterer  # noqa: PLC0415  (loads the NLI model)
+experiments/llm-probly/scripts/embedding_vs_nli.py:88:    from methods import _se_common  # noqa: PLC0415  (loads the NLI model only if something is missing)
+experiments/llm-probly/scripts/manual_check.py:50:    rng = random.Random(seed)  # noqa: S311 (not used for security)
+experiments/llm-probly/scripts/check_nli_equivalence.py:66:        labels, probabilities = clusterer._predict_pair_labels, clusterer._predict_pair_probabilities  # noqa: SLF001
+experiments/llm-probly/scripts/check_nli_equivalence.py:76:        clusterer._predict_pair_labels = count_labels  # noqa: SLF001
+experiments/llm-probly/scripts/check_nli_equivalence.py:77:        clusterer._predict_pair_probabilities = count_probabilities  # noqa: SLF001
+experiments/llm-probly/scripts/check_nli_equivalence.py:100:    clusters = [clusterer._cluster_row(np.asarray(r["samples"], dtype=object)) for r in rows]  # noqa: SLF001
+experiments/llm-probly/scripts/check_nli_equivalence.py:233:    clusterer._cluster_row(np.asarray(["warm", "up"], dtype=object))  # noqa: SLF001  (first call is slow on mps)
+experiments/llm-probly/scripts/make_readme_demo.py:16:# ruff: noqa: E501
+experiments/llm-probly/scripts/make_readme_demo.py:32:from common.data import load_data  # noqa: E402
+experiments/llm-probly/scripts/make_readme_demo.py:33:from common.io import RESULTS_ROOT, load_scores  # noqa: E402
+experiments/llm-probly/scripts/check_nli_cache.py:89:        ids = clusterer._cluster_row(samples).tolist()  # noqa: SLF001 - one semantic id per sample, same as SE uses
+experiments/llm-probly/scripts/build_nli_cache.py:22:from common.nli_matrix import (  # noqa: F401  (load_nli_cache: re-export)
+experiments/llm-probly/scripts/report.py:148:    if value is None or (isinstance(value, float) and value != value):  # noqa: PLR0124 - NaN check
