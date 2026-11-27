@@ -1,154 +1,35 @@
-"""Build the LLM-probly demo from the selector profiles (task F3).
+"""Build the LLM-probly demo from the selector profiles.
 
-The script reads every per-model profile written by the selector (D4, ``profiles/<model>.json``, see
-``selector/profile.py`` and CONTRACT.md) and regenerates three outputs from them:
+The script reads every per-model profile written by the method selector (``profiles/<model>.json``, loaded
+with ``selector.profile.load_profile``, format in CONTRACT.md) and regenerates three outputs from them:
 
 1. A Markdown block in the README, between ``<!-- llm-probly-demo:start -->`` and
    ``<!-- llm-probly-demo:end -->``. Everything else in the README is left untouched.
 2. A standalone demo page (Markdown) with one section per model.
 3. A light and a dark SVG card with the selector's choice and the calibrated reliability per model.
 
-Each profile already holds the metrics of every candidate method, so no separate results file is needed.
-Only the standard library is used, so the demo can be rebuilt on any laptop without a model.
+Each profile already holds the metrics of every candidate method, so no separate results file is needed,
+and no model is loaded.
 
-Example:
-    uv run python experiments/llm-probly/demo/build_demo.py --readme README.md
+Example (from ``experiments/llm-probly``)::
+
+    uv run python -m demo.build_demo --readme README.md
 """
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass, field
 import html
-import json
 from pathlib import Path
-from typing import Any
 
-SCHEMA_VERSION = 1
+from selector.profile import Metrics, Profile, load_profile
+
 START_MARKER = "<!-- llm-probly-demo:start -->"
 END_MARKER = "<!-- llm-probly-demo:end -->"
 
 
-@dataclass
-class Metrics:
-    """AUROC and PRR of one method with their 95 % intervals (D4 ``Metrics``).
-
-    Attributes:
-        auroc: AUROC.
-        auroc_low: Lower end of the AUROC interval.
-        auroc_high: Upper end of the AUROC interval.
-        prr: Prediction-rejection ratio.
-    """
-
-    auroc: float
-    auroc_low: float | None = None
-    auroc_high: float | None = None
-    prr: float | None = None
-
-
-@dataclass
-class DemoProfile:
-    """The fields of one D4 profile that the demo shows.
-
-    Attributes:
-        model: Short model name, e.g. ``qwen1.5b``.
-        model_id: Hugging Face id, e.g. ``Qwen/Qwen2.5-1.5B-Instruct``.
-        dataset: Dataset the selector ran on.
-        n_questions: Number of questions in the run.
-        calibration_size: Number of questions the selector chose and fitted on.
-        method: Name of the chosen method (or ``stack``).
-        family: Family of the chosen method.
-        access: What the chosen method needs from the model.
-        cost: Relative cost per question of the chosen method.
-        reason: One sentence on why the method was chosen.
-        metrics: Metrics of the chosen method (held-out if available, else calibration part).
-        metrics_split: ``"held-out"`` or ``"calibration"``, the part ``metrics`` comes from.
-        calibration: Calibration type (``none``, ``platt`` or ``isotonic``).
-        ece_before: ECE before calibration, or ``None``.
-        ece_after: ECE after calibration, or ``None``.
-        candidates: Metrics of every compared method, by name.
-        source: Path of the profile file.
-    """
-
-    model: str
-    model_id: str
-    dataset: str
-    n_questions: int
-    calibration_size: int
-    method: str
-    family: str
-    access: str
-    cost: float
-    reason: str
-    metrics: Metrics
-    metrics_split: str
-    calibration: str
-    ece_before: float | None
-    ece_after: float | None
-    candidates: dict[str, Metrics] = field(default_factory=dict)
-    source: Path | None = None
-
-    @property
-    def best_candidate(self) -> tuple[str, Metrics] | None:
-        """The candidate with the highest AUROC, or ``None`` if there are no candidates."""
-        return max(self.candidates.items(), key=lambda item: item[1].auroc, default=None)
-
-
-def _metrics(raw: dict[str, Any]) -> Metrics:
-    return Metrics(
-        auroc=float(raw["auroc"]),
-        auroc_low=raw.get("auroc_low"),
-        auroc_high=raw.get("auroc_high"),
-        prr=raw.get("prr"),
-    )
-
-
-def load_profile(path: Path) -> DemoProfile:
-    """Read one D4 profile file.
-
-    Args:
-        path: Path to ``profiles/<model>.json``.
-
-    Returns:
-        The fields the demo needs.
-
-    Raises:
-        ValueError: If the schema version differs or a required field is missing.
-    """
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if data.get("schema_version") != SCHEMA_VERSION:
-        msg = f"{path}: schema_version is {data.get('schema_version')!r}, expected {SCHEMA_VERSION}"
-        raise ValueError(msg)
-    try:
-        method = data["method"]
-        held_out = data.get("held_out_metrics")
-        calibration = data.get("calibration") or {}
-        return DemoProfile(
-            model=data["model"],
-            model_id=data.get("model_id") or data["model"],
-            dataset=data["dataset"],
-            n_questions=int(data["n_questions"]),
-            calibration_size=int(data["calibration_size"]),
-            method=method["name"],
-            family=method["family"],
-            access=method["access"],
-            cost=float(method["cost"]),
-            reason=data["reason"],
-            metrics=_metrics(held_out or data["calibration_metrics"]),
-            metrics_split="held-out" if held_out else "calibration",
-            calibration=calibration.get("type", "none"),
-            ece_before=calibration.get("ece_before"),
-            ece_after=calibration.get("ece_after"),
-            candidates={name: _metrics(m) for name, m in (data.get("candidates") or {}).items()},
-            source=path,
-        )
-    except (KeyError, TypeError, ValueError) as error:
-        msg = f"{path}: not a valid profile ({error!r})"
-        raise ValueError(msg) from error
-
-
-def load_profiles(directory: Path) -> list[DemoProfile]:
-    """Load every ``*.json`` profile in a directory, sorted by model name.
+def load_profiles(directory: Path) -> list[Profile]:
+    """Load and check every ``*.json`` profile in a directory, sorted by model name.
 
     Args:
         directory: The ``profiles/`` directory.
@@ -164,6 +45,33 @@ def load_profiles(directory: Path) -> list[DemoProfile]:
         msg = f"no profile files (*.json) in {directory}"
         raise FileNotFoundError(msg)
     return sorted((load_profile(f) for f in files), key=lambda p: p.model)
+
+
+def shown_metrics(p: Profile) -> tuple[Metrics, str]:
+    """Pick the metrics of the chosen method that the demo shows.
+
+    Args:
+        p: Profile.
+
+    Returns:
+        The held-out metrics if the profile has them, else the calibration-part metrics, and the name of
+        the part they come from (``"held-out"`` or ``"calibration"``).
+    """
+    if p.held_out_metrics is not None:
+        return p.held_out_metrics, "held-out"
+    return p.calibration_metrics, "calibration"
+
+
+def best_candidate(p: Profile) -> tuple[str, Metrics] | None:
+    """Find the compared method with the highest AUROC.
+
+    Args:
+        p: Profile.
+
+    Returns:
+        Name and metrics of the best candidate, or ``None`` if the profile has no candidates.
+    """
+    return max(p.candidates.items(), key=lambda item: item[1].auroc, default=None)
 
 
 def fmt(value: float | None, digits: int = 3) -> str:
@@ -188,12 +96,10 @@ def fmt_auroc(m: Metrics) -> str:
     Returns:
         The formatted string.
     """
-    if m.auroc_low is None or m.auroc_high is None:
-        return fmt(m.auroc)
     return f"{fmt(m.auroc)} [{fmt(m.auroc_low)}, {fmt(m.auroc_high)}]"
 
 
-def fmt_ece(p: DemoProfile) -> str:
+def fmt_ece(p: Profile) -> str:
     """Format the ECE before and after calibration.
 
     Args:
@@ -202,12 +108,13 @@ def fmt_ece(p: DemoProfile) -> str:
     Returns:
         ``before -> after``, or only ``after`` when there is no before value.
     """
-    if p.ece_before is None:
-        return fmt(p.ece_after)
-    return f"{fmt(p.ece_before)} -> {fmt(p.ece_after)}"
+    cal = p.calibration
+    if cal.ece_before is None:
+        return fmt(cal.ece_after)
+    return f"{fmt(cal.ece_before)} -> {fmt(cal.ece_after)}"
 
 
-def render_summary_table(profiles: list[DemoProfile]) -> str:
+def render_summary_table(profiles: list[Profile]) -> str:
     """Render the 'which method for which model' Markdown table.
 
     Args:
@@ -221,16 +128,17 @@ def render_summary_table(profiles: list[DemoProfile]) -> str:
         "|---|---|---|---|---|---|---|",
     ]
     for p in profiles:
-        best = p.best_candidate
+        best = best_candidate(p)
         best_txt = f"{best[0]} ({fmt(best[1].auroc)})" if best else "-"
+        metrics, _ = shown_metrics(p)
         lines.append(
-            f"| {p.model_id} | `{p.method}` | {fmt_auroc(p.metrics)} | {best_txt} | {p.calibration} "
-            f"| {fmt_ece(p)} | {p.cost:g} |"
+            f"| {p.model_id} | `{p.method.name}` | {fmt_auroc(metrics)} | {best_txt} | {p.calibration.type} "
+            f"| {fmt_ece(p)} | {p.method.cost:g} |"
         )
     return "\n".join(lines)
 
 
-def render_readme_block(profiles: list[DemoProfile], svg_base: str) -> str:
+def render_readme_block(profiles: list[Profile], svg_base: str) -> str:
     """Render the README demo block (without the markers).
 
     Args:
@@ -255,7 +163,7 @@ def render_readme_block(profiles: list[DemoProfile], svg_base: str) -> str:
     return "\n\n".join([intro, picture, render_summary_table(profiles), note])
 
 
-def render_page(profiles: list[DemoProfile]) -> str:
+def render_page(profiles: list[Profile]) -> str:
     """Render the standalone demo page with one section per model.
 
     Args:
@@ -271,27 +179,31 @@ def render_page(profiles: list[DemoProfile]) -> str:
         render_summary_table(profiles),
     ]
     for p in profiles:
+        metrics, split = shown_metrics(p)
         section = [
             f"## {p.model_id}",
-            f"- **Chosen method:** `{p.method}` ({p.family}, needs {p.access}, relative cost {p.cost:g})",
+            (
+                f"- **Chosen method:** `{p.method.name}` ({p.method.family}, needs {p.method.access}, "
+                f"relative cost {p.method.cost:g})"
+            ),
             f"- **Why:** {p.reason}",
-            f"- **AUROC:** {fmt_auroc(p.metrics)} on the {p.metrics_split} part",
-            f"- **PRR:** {fmt(p.metrics.prr)}",
-            f"- **Calibration:** {p.calibration}, ECE {fmt_ece(p)}",
+            f"- **AUROC:** {fmt_auroc(metrics)} on the {split} part",
+            f"- **PRR:** {fmt(metrics.prr)}",
+            f"- **Calibration:** {p.calibration.type}, ECE {fmt_ece(p)}",
             f"- **Data:** {p.dataset}, {p.n_questions} questions, {p.calibration_size} used to choose and fit",
         ]
         if p.candidates:
             section.append("\n| Method | AUROC [95 % CI] | PRR |\n|---|---|---|")
             ranked = sorted(p.candidates.items(), key=lambda item: item[1].auroc, reverse=True)
             section.extend(
-                f"| {f'**{name}** (chosen)' if name == p.method else name} | {fmt_auroc(m)} | {fmt(m.prr)} |"
+                f"| {f'**{name}** (chosen)' if name == p.method.name else name} | {fmt_auroc(m)} | {fmt(m.prr)} |"
                 for name, m in ranked
             )
         parts.append("\n".join(section))
     return "\n\n".join(parts) + "\n"
 
 
-def render_svg(profiles: list[DemoProfile], dark: bool) -> str:
+def render_svg(profiles: list[Profile], dark: bool) -> str:
     """Render an SVG card with one row per model: chosen method and a reliability bar.
 
     The bar shows ``1 - ECE`` after calibration; it is empty when the profile is not calibrated yet.
@@ -314,14 +226,15 @@ def render_svg(profiles: list[DemoProfile], dark: bool) -> str:
     ]
     for i, p in enumerate(profiles):
         y = 60 + i * row_h
-        reliability = None if p.ece_after is None else max(0.0, min(1.0, 1.0 - p.ece_after))
+        ece_after = p.calibration.ece_after
+        reliability = None if ece_after is None else max(0.0, min(1.0, 1.0 - ece_after))
         name = html.escape(p.model_id.rsplit("/", 1)[-1])
         bar = 160 * (reliability or 0.0)
         label = fmt(reliability, 2)
         out.extend(
             [
                 f'<text x="20" y="{y + 6}" font-size="14" fill="{fg}">{name}</text>',
-                f'<text x="250" y="{y + 6}" font-size="14" fill="{accent}">{html.escape(p.method)}</text>',
+                f'<text x="250" y="{y + 6}" font-size="14" fill="{accent}">{html.escape(p.method.name)}</text>',
                 f'<rect x="560" y="{y - 6}" width="160" height="12" rx="6" fill="{track}"/>',
                 f'<rect x="560" y="{y - 6}" width="{bar:.1f}" height="12" rx="6" fill="{accent}"/>',
                 f'<text x="755" y="{y + 5}" font-size="12" fill="{muted}" text-anchor="end">{label}</text>',
@@ -359,7 +272,7 @@ def build(
     """Regenerate every demo output from the profiles.
 
     Args:
-        profiles_dir: Directory with the D4 profile files.
+        profiles_dir: Directory with the selector profile files.
         readme: README to update in place, or ``None`` to skip.
         page: Demo page to write, or ``None`` to skip.
         svg_dir: Directory for the SVG cards, or ``None`` to skip.
@@ -398,7 +311,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--readme", type=Path, default=None, help="README to update (skipped if not given)")
     parser.add_argument("--page", type=Path, default=here / "DEMO.md")
     parser.add_argument("--svg-dir", type=Path, default=here / "assets")
-    parser.add_argument("--svg-base", default="experiments/llm-probly/demo/assets", help="SVG link prefix in README")
+    parser.add_argument(
+        "--svg-base", default="demo/assets", help="SVG link prefix in the README block, relative to the README"
+    )
     args = parser.parse_args(argv)
     for path in build(args.profiles, args.readme, args.page, args.svg_dir, args.svg_base):
         print(f"wrote {path}")

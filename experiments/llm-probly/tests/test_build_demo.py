@@ -1,68 +1,78 @@
-"""Tests for the F3 demo builder."""
-# ruff: noqa: S101, ANN001, ANN201
+"""Tests for the demo builder (demo/build_demo.py)."""
 
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
 import shutil
-import sys
 
+from demo import build_demo
 import pytest
 
-DEMO_DIR = Path(__file__).resolve().parents[1] / "demo"
 PROFILES = Path(__file__).resolve().parent / "fixtures" / "demo_profiles"
-
-_spec = importlib.util.spec_from_file_location("build_demo", DEMO_DIR / "build_demo.py")
-assert _spec is not None
-assert _spec.loader is not None
-build_demo = importlib.util.module_from_spec(_spec)
-sys.modules["build_demo"] = build_demo
-_spec.loader.exec_module(build_demo)
 
 
 def _profile_data() -> dict:
     return json.loads((PROFILES / "qwen1.5b.json").read_text())
 
 
-def test_load_real_d4_profile():
+def _write(tmp_path: Path, data: dict) -> Path:
+    (tmp_path / "m.json").write_text(json.dumps(data))
+    return tmp_path
+
+
+def test_load_saved_profile():
     (p,) = build_demo.load_profiles(PROFILES)
+    metrics, split = build_demo.shown_metrics(p)
     assert p.model == "qwen1.5b"
     assert p.model_id == "Qwen/Qwen2.5-1.5B-Instruct"
-    assert p.method == "perplexity"
-    assert p.family == "baseline"
-    assert p.metrics_split == "calibration"
-    assert p.metrics.auroc == pytest.approx(0.7683)
-    assert p.calibration == "isotonic"
-    assert p.ece_before is None
-    assert p.ece_after == pytest.approx(0.0808)
-    assert p.best_candidate[0] == "p_true_zeroshot"
+    assert p.method.name == "perplexity"
+    assert p.method.family == "baseline"
+    assert split == "calibration"
+    assert metrics.auroc == pytest.approx(0.7683)
+    assert p.calibration.type == "isotonic"
+    assert p.calibration.ece_before is None
+    assert p.calibration.ece_after == pytest.approx(0.0808)
+    best = build_demo.best_candidate(p)
+    assert best is not None
+    assert best[0] == "p_true_zeroshot"
 
 
 def test_held_out_metrics_win_over_calibration_metrics(tmp_path):
     data = _profile_data()
-    data["held_out_metrics"] = {"auroc": 0.75, "auroc_low": 0.7, "auroc_high": 0.8, "prr": 0.5}
-    (tmp_path / "m.json").write_text(json.dumps(data))
-    (p,) = build_demo.load_profiles(tmp_path)
-    assert p.metrics.auroc == 0.75
-    assert p.metrics_split == "held-out"
+    data["held_out_metrics"] = {
+        "auroc": 0.75,
+        "auroc_low": 0.7,
+        "auroc_high": 0.8,
+        "prr": 0.5,
+        "prr_low": 0.4,
+        "prr_high": 0.6,
+    }
+    (p,) = build_demo.load_profiles(_write(tmp_path, data))
+    metrics, split = build_demo.shown_metrics(p)
+    assert metrics.auroc == 0.75
+    assert split == "held-out"
 
 
 def test_wrong_schema_version_raises(tmp_path):
     data = _profile_data()
     data["schema_version"] = 2
-    (tmp_path / "m.json").write_text(json.dumps(data))
     with pytest.raises(ValueError, match="schema_version"):
-        build_demo.load_profiles(tmp_path)
+        build_demo.load_profiles(_write(tmp_path, data))
 
 
 def test_missing_method_raises(tmp_path):
     data = _profile_data()
     del data["method"]
-    (tmp_path / "m.json").write_text(json.dumps(data))
     with pytest.raises(ValueError, match="not a valid profile"):
-        build_demo.load_profiles(tmp_path)
+        build_demo.load_profiles(_write(tmp_path, data))
+
+
+def test_selector_validation_applies_to_the_demo(tmp_path):
+    data = _profile_data()
+    data["method"]["family"] = "unknown"
+    with pytest.raises(ValueError, match=r"method\.family"):
+        build_demo.load_profiles(_write(tmp_path, data))
 
 
 def test_empty_profile_dir_raises(tmp_path):
@@ -74,8 +84,7 @@ def test_uncalibrated_profile_renders_dashes(tmp_path):
     data = _profile_data()
     data["calibration"] = {"type": "none", "parameters": {}, "ece_before": None, "ece_after": None}
     data["candidates"] = {}
-    (tmp_path / "m.json").write_text(json.dumps(data))
-    profiles = build_demo.load_profiles(tmp_path)
+    profiles = build_demo.load_profiles(_write(tmp_path, data))
     assert "| none | - |" in build_demo.render_summary_table(profiles)
     assert 'width="0.0"' in build_demo.render_svg(profiles, dark=True)
 
@@ -115,7 +124,6 @@ def test_svg_escapes_names(tmp_path):
     data = _profile_data()
     data["model_id"] = "org/a<b"
     data["method"]["name"] = "x&y"
-    (tmp_path / "m.json").write_text(json.dumps(data))
-    svg = build_demo.render_svg(build_demo.load_profiles(tmp_path), dark=False)
+    svg = build_demo.render_svg(build_demo.load_profiles(_write(tmp_path, data)), dark=False)
     assert "a&lt;b" in svg
     assert "x&amp;y" in svg
