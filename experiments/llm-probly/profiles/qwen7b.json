@@ -1,0 +1,134 @@
+{
+  "model": "qwen7b",
+  "model_id": "Qwen/Qwen2.5-7B-Instruct",
+  "dataset": "triviaqa",
+  "n_questions": 200,
+  "split_seed": 0,
+  "calibration_size": 100,
+  "method": {
+    "name": "mean_token_entropy",
+    "family": "baseline",
+    "access": "white_box",
+    "cost": 1.0,
+    "parameters": {},
+    "probability": false
+  },
+  "reason": "mean_token_entropy (AUROC 0.808) is not significantly worse than the best, p_true_zeroshot (difference -0.051, 95 % interval [-0.144, +0.043]), and costs 2x less.",
+  "calibration_metrics": {
+    "auroc": 0.8082,
+    "auroc_low": 0.7133,
+    "auroc_high": 0.8868,
+    "prr": 0.6713,
+    "prr_low": 0.4879,
+    "prr_high": 0.827
+  },
+  "held_out_metrics": {
+    "auroc": 0.8549,
+    "auroc_low": 0.7804,
+    "auroc_high": 0.9205,
+    "prr": 0.7792,
+    "prr_low": 0.6527,
+    "prr_high": 0.8857
+  },
+  "calibration": {
+    "type": "platt",
+    "parameters": {
+      "a": 2.2749180738327572,
+      "b": -1.5541449424890832
+    },
+    "ece_before": null,
+    "ece_after": 0.1264
+  },
+  "candidates": {
+    "p_true_zeroshot": {
+      "auroc": 0.8592,
+      "auroc_low": 0.7773,
+      "auroc_high": 0.9315,
+      "prr": 0.7502,
+      "prr_low": 0.5398,
+      "prr_high": 0.9104
+    },
+    "p_true_brainstorm": {
+      "auroc": 0.8218,
+      "auroc_low": 0.7321,
+      "auroc_high": 0.9028,
+      "prr": 0.5994,
+      "prr_low": 0.3364,
+      "prr_high": 0.8398
+    },
+    "mean_token_entropy": {
+      "auroc": 0.8082,
+      "auroc_low": 0.7133,
+      "auroc_high": 0.8868,
+      "prr": 0.6713,
+      "prr_low": 0.4879,
+      "prr_high": 0.827
+    },
+    "likelihood_mean": {
+      "auroc": 0.7921,
+      "auroc_low": 0.6997,
+      "auroc_high": 0.8773,
+      "prr": 0.6556,
+      "prr_low": 0.4686,
+      "prr_high": 0.8161
+    },
+    "msp": {
+      "auroc": 0.7867,
+      "auroc_low": 0.6918,
+      "auroc_high": 0.8736,
+      "prr": 0.6476,
+      "prr_low": 0.4618,
+      "prr_high": 0.8089
+    },
+    "discrete_semantic_entropy": {
+      "auroc": 0.7499,
+      "auroc_low": 0.6596,
+      "auroc_high": 0.8347,
+      "prr": 0.449,
+      "prr_low": 0.2588,
+      "prr_high": 0.6567
+    },
+    "semantic_entropy": {
+      "auroc": 0.7495,
+      "auroc_low": 0.6601,
+      "auroc_high": 0.8346,
+      "prr": 0.4485,
+      "prr_low": 0.2581,
+      "prr_high": 0.6589
+    },
+    "largest_cluster_share": {
+      "auroc": 0.7489,
+      "auroc_low": 0.6602,
+      "auroc_high": 0.8325,
+      "prr": 0.4481,
+      "prr_low": 0.2595,
+      "prr_high": 0.6588
+    },
+    "greedy_cluster_share": {
+      "auroc": 0.7435,
+      "auroc_low": 0.6558,
+      "auroc_high": 0.8293,
+      "prr": 0.4433,
+      "prr_low": 0.2548,
+      "prr_high": 0.6511
+    },
+    "lexical_similarity": {
+      "auroc": 0.7414,
+      "auroc_low": 0.6466,
+      "auroc_high": 0.8364,
+      "prr": 0.4375,
+      "prr_low": 0.2221,
+      "prr_high": 0.6654
+    },
+    "verbalized_2s": {
+      "auroc": 0.704,
+      "auroc_low": 0.613,
+      "auroc_high": 0.7861,
+      "prr": 0.3582,
+      "prr_low": 0.1341,
+      "prr_high": 0.5687
+    }
+  },
+  "schema_version": 1,
+  "created_at": "2026-11-24T11:40:50+00:00"
+}

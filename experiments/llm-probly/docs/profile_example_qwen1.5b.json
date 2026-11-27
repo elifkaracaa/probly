@@ -1,0 +1,116 @@
+{
+  "model": "qwen1.5b",
+  "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+  "dataset": "triviaqa",
+  "n_questions": 200,
+  "split_seed": 0,
+  "calibration_size": 100,
+  "method": {
+    "name": "p_true_zeroshot",
+    "family": "self_eval",
+    "access": "logprobs",
+    "cost": 2.0,
+    "parameters": {},
+    "probability": true
+  },
+  "reason": "EXAMPLE ONLY (selection rule, step 4, not done yet): highest AUROC on the calibration part.",
+  "calibration_metrics": {
+    "auroc": 0.808,
+    "auroc_low": 0.716,
+    "auroc_high": 0.894,
+    "prr": 0.648,
+    "prr_low": 0.44,
+    "prr_high": 0.809
+  },
+  "held_out_metrics": null,
+  "calibration": {
+    "type": "none",
+    "parameters": {},
+    "ece_before": null,
+    "ece_after": null
+  },
+  "candidates": {
+    "p_true_zeroshot": {
+      "auroc": 0.808,
+      "auroc_low": 0.716,
+      "auroc_high": 0.894,
+      "prr": 0.648,
+      "prr_low": 0.44,
+      "prr_high": 0.809
+    },
+    "perplexity": {
+      "auroc": 0.768,
+      "auroc_low": 0.672,
+      "auroc_high": 0.859,
+      "prr": 0.589,
+      "prr_low": 0.371,
+      "prr_high": 0.759
+    },
+    "mean_token_entropy": {
+      "auroc": 0.767,
+      "auroc_low": 0.669,
+      "auroc_high": 0.857,
+      "prr": 0.597,
+      "prr_low": 0.39,
+      "prr_high": 0.762
+    },
+    "p_true_brainstorm": {
+      "auroc": 0.762,
+      "auroc_low": 0.663,
+      "auroc_high": 0.851,
+      "prr": 0.515,
+      "prr_low": 0.283,
+      "prr_high": 0.717
+    },
+    "discrete_semantic_entropy": {
+      "auroc": 0.755,
+      "auroc_low": 0.655,
+      "auroc_high": 0.845,
+      "prr": 0.497,
+      "prr_low": 0.251,
+      "prr_high": 0.694
+    },
+    "semantic_entropy": {
+      "auroc": 0.754,
+      "auroc_low": 0.653,
+      "auroc_high": 0.846,
+      "prr": 0.499,
+      "prr_low": 0.25,
+      "prr_high": 0.691
+    },
+    "p_true_empirical": {
+      "auroc": 0.742,
+      "auroc_low": 0.653,
+      "auroc_high": 0.828,
+      "prr": 0.43,
+      "prr_low": 0.246,
+      "prr_high": 0.608
+    },
+    "msp": {
+      "auroc": 0.724,
+      "auroc_low": 0.601,
+      "auroc_high": 0.823,
+      "prr": 0.519,
+      "prr_low": 0.282,
+      "prr_high": 0.698
+    },
+    "lexical_similarity": {
+      "auroc": 0.694,
+      "auroc_low": 0.577,
+      "auroc_high": 0.795,
+      "prr": 0.423,
+      "prr_low": 0.154,
+      "prr_high": 0.628
+    },
+    "verbalized_2s": {
+      "auroc": 0.554,
+      "auroc_low": 0.485,
+      "auroc_high": 0.62,
+      "prr": 0.089,
+      "prr_low": -0.124,
+      "prr_high": 0.283
+    }
+  },
+  "schema_version": 1,
+  "created_at": "2026-11-20T20:00:00+00:00"
+}

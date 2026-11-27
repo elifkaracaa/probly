@@ -1,0 +1,174 @@
+{
+  "model": "qwen1.5b",
+  "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+  "dataset": "triviaqa",
+  "n_questions": 200,
+  "split_seed": 0,
+  "calibration_size": 100,
+  "method": {
+    "name": "likelihood_mean",
+    "family": "baseline",
+    "access": "logprobs",
+    "cost": 1.0,
+    "parameters": {},
+    "probability": false
+  },
+  "reason": "likelihood_mean (AUROC 0.768) is not significantly worse than the best, p_true_zeroshot (difference -0.039, 95 % interval [-0.154, +0.079]), and costs 2x less.",
+  "calibration_metrics": {
+    "auroc": 0.7683,
+    "auroc_low": 0.6717,
+    "auroc_high": 0.8588,
+    "prr": 0.5885,
+    "prr_low": 0.3713,
+    "prr_high": 0.7587
+  },
+  "held_out_metrics": {
+    "auroc": 0.8134,
+    "auroc_low": 0.7301,
+    "auroc_high": 0.891,
+    "prr": 0.6395,
+    "prr_low": 0.4553,
+    "prr_high": 0.7959
+  },
+  "calibration": {
+    "type": "platt",
+    "parameters": {
+      "a": 3.2251410090421535,
+      "b": -0.8012131666371368
+    },
+    "ece_before": null,
+    "ece_after": 0.0949
+  },
+  "candidates": {
+    "p_true_zeroshot": {
+      "auroc": 0.8077,
+      "auroc_low": 0.7156,
+      "auroc_high": 0.8937,
+      "prr": 0.6481,
+      "prr_low": 0.4401,
+      "prr_high": 0.8088
+    },
+    "likelihood_mean": {
+      "auroc": 0.7683,
+      "auroc_low": 0.6717,
+      "auroc_high": 0.8588,
+      "prr": 0.5885,
+      "prr_low": 0.3713,
+      "prr_high": 0.7587
+    },
+    "mean_token_entropy": {
+      "auroc": 0.767,
+      "auroc_low": 0.6692,
+      "auroc_high": 0.8571,
+      "prr": 0.5971,
+      "prr_low": 0.3905,
+      "prr_high": 0.7617
+    },
+    "p_true_brainstorm": {
+      "auroc": 0.7623,
+      "auroc_low": 0.6627,
+      "auroc_high": 0.8507,
+      "prr": 0.5145,
+      "prr_low": 0.2832,
+      "prr_high": 0.7169
+    },
+    "discrete_semantic_entropy": {
+      "auroc": 0.7525,
+      "auroc_low": 0.6472,
+      "auroc_high": 0.8429,
+      "prr": 0.4922,
+      "prr_low": 0.2398,
+      "prr_high": 0.6817
+    },
+    "largest_cluster_share": {
+      "auroc": 0.7508,
+      "auroc_low": 0.6525,
+      "auroc_high": 0.8418,
+      "prr": 0.493,
+      "prr_low": 0.245,
+      "prr_high": 0.6802
+    },
+    "semantic_entropy": {
+      "auroc": 0.7506,
+      "auroc_low": 0.6452,
+      "auroc_high": 0.839,
+      "prr": 0.4923,
+      "prr_low": 0.2366,
+      "prr_high": 0.6778
+    },
+    "eig_val_laplacian": {
+      "auroc": 0.7451,
+      "auroc_low": 0.6323,
+      "auroc_high": 0.8405,
+      "prr": 0.4679,
+      "prr_low": 0.2073,
+      "prr_high": 0.6762
+    },
+    "p_true_empirical": {
+      "auroc": 0.7424,
+      "auroc_low": 0.6525,
+      "auroc_high": 0.8281,
+      "prr": 0.4296,
+      "prr_low": 0.2457,
+      "prr_high": 0.6075
+    },
+    "num_semantic_sets": {
+      "auroc": 0.7413,
+      "auroc_low": 0.6292,
+      "auroc_high": 0.8324,
+      "prr": 0.4754,
+      "prr_low": 0.2198,
+      "prr_high": 0.6639
+    },
+    "deg_mat": {
+      "auroc": 0.7345,
+      "auroc_low": 0.6221,
+      "auroc_high": 0.8288,
+      "prr": 0.4583,
+      "prr_low": 0.199,
+      "prr_high": 0.6631
+    },
+    "greedy_cluster_share": {
+      "auroc": 0.7277,
+      "auroc_low": 0.6179,
+      "auroc_high": 0.8204,
+      "prr": 0.4657,
+      "prr_low": 0.2039,
+      "prr_high": 0.6455
+    },
+    "msp": {
+      "auroc": 0.7241,
+      "auroc_low": 0.6015,
+      "auroc_high": 0.8235,
+      "prr": 0.5187,
+      "prr_low": 0.2816,
+      "prr_high": 0.6982
+    },
+    "eccentricity": {
+      "auroc": 0.6974,
+      "auroc_low": 0.58,
+      "auroc_high": 0.8031,
+      "prr": 0.4006,
+      "prr_low": 0.1317,
+      "prr_high": 0.613
+    },
+    "lexical_similarity": {
+      "auroc": 0.6944,
+      "auroc_low": 0.5772,
+      "auroc_high": 0.795,
+      "prr": 0.4228,
+      "prr_low": 0.1541,
+      "prr_high": 0.628
+    },
+    "verbalized_2s": {
+      "auroc": 0.5539,
+      "auroc_low": 0.485,
+      "auroc_high": 0.6199,
+      "prr": 0.0894,
+      "prr_low": -0.1235,
+      "prr_high": 0.2833
+    }
+  },
+  "schema_version": 1,
+  "created_at": "2026-11-24T11:40:16+00:00"
+}

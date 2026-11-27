@@ -27,6 +27,8 @@ newline, seed 42; saves after every question and resumes):
     uv run python -m scripts.label    --model qwen1.5b --n 200
 
 Details, accuracy per model and the label error rate: [docs/data_and_labelling.md](docs/data_and_labelling.md).
+All cached runs (TriviaQA 200 / 1000, MMLU 200, five models incl. SmolLM2) with accuracy and settings:
+[docs/benchmark_caches.md](docs/benchmark_caches.md).
 
 ## Running the benchmark (PIPE)
 One command runs the whole chain (generate → label → methods → evaluate → table) for one
@@ -40,6 +42,8 @@ Compare model sizes and make the plots after running each model:
     uv run python -m cli plot --dataset triviaqa --n 200
 
 See all methods with their family, model access and cost: `uv run python -m cli methods`.
+The full report over every run (Markdown + HTML, with cost and the cheapest method tied with the best):
+`uv run python -m cli report`.
 A new uncertainty method is one file in `methods/` plus one entry in `common/registry.py` (see `CONTRACT.md`). Configs, metrics
 (AUROC, AURC, PRR, ECE) and plots: [docs/pipeline.md](docs/pipeline.md).
 Overview of all methods (family, logits, cost per question): docs/methods.md
@@ -60,31 +64,188 @@ AUROC (higher is better, 0.5 = random; best per model in bold):
 
 | method | family | 0.5B | 1.5B | 3B | 7B |
 |---|---|---|---|---|---|
-| p_true_zeroshot | self-eval | 0.669 | **0.825** | **0.877** | – |
-| p_true_brainstorm | self-eval | 0.685 | 0.806 | 0.820 | – |
-| p_true_empirical | self-eval | 0.518 | 0.770 | 0.830 | – |
-| verbalized_2s | self-eval | 0.584 | 0.538 | 0.713 | – |
-| semantic_entropy | agreement | 0.740 | 0.781 | – | – |
-| discrete_semantic_entropy | agreement | 0.744 | 0.783 | – | – |
+| p_true_zeroshot | self-eval | 0.669 | **0.825** | **0.877** | **0.870** |
+| p_true_brainstorm | self-eval | 0.685 | 0.806 | 0.820 | 0.845 |
+| p_true_empirical | self-eval | 0.518 | 0.770 | 0.830 | 0.824 |
+| verbalized_2s | self-eval | 0.584 | 0.538 | 0.713 | 0.734 |
+| semantic_entropy | agreement | 0.744 | 0.776 | 0.761 | 0.729 |
+| discrete_semantic_entropy | agreement | 0.751 | 0.779 | 0.765 | 0.729 |
 | lexical_similarity | agreement | 0.757 | 0.752 | 0.757 | 0.735 |
 | likelihood_mean | baseline | **0.791** | 0.790 | 0.786 | 0.817 |
-| mean_token_entropy | baseline | 0.773 | 0.805 | 0.817 | **0.833** |
+| mean_token_entropy | baseline | 0.773 | 0.805 | 0.817 | 0.833 |
 | msp | baseline | 0.680 | 0.748 | 0.753 | 0.824 |
+
+SE and discrete SE use `microsoft/deberta-large-mnli` (A4) since week 3; with week 2's deberta-base they were
+0.740 / 0.781 (SE) and 0.746 / 0.783 (DSE) on 0.5B / 1.5B, so the change is within noise (intervals about ±0.06).
 
 ![AUROC vs model size](results/plots/triviaqa_200_auroc_vs_size.png)
 
 **Takeaways**
-1. Self-evaluation needs model size. Zero-shot p(True) goes 0.67 → 0.83 → 0.88 (0.5B → 1.5B → 3B) and is the best method from 1.5B on; at 0.5B every p(True) variant is worse than the cheap baselines.
-2. Verbalized confidence stays weak (0.58, 0.54, 0.71); the 1.5B model answers "95" for most questions.
-3. Semantic entropy and its discrete version are almost identical (0.74 / 0.78) and below zero-shot p(True) at 1.5B, although they need 10 samples and an NLI model per question.
+1. Self-evaluation needs model size. Zero-shot p(True) goes 0.67 → 0.83 → 0.88 → 0.87 (0.5B → 7B) and is the best method from 1.5B on; at 0.5B every p(True) variant is worse than the cheap baselines.
+2. Verbalized confidence stays weak (0.58, 0.54, 0.71, 0.73); the 1.5B model answers "95" for most questions.
+3. Semantic entropy and its discrete version are almost identical (0.73–0.78) and do not grow with size (0.76 at 3B, 0.73 at 7B): a likely reason is that bigger models repeat their answers more often, so the samples also agree when the answer is wrong. They stay below zero-shot p(True) from 1.5B on, although they need 10 samples and an NLI model per question.
 4. The cheap baselines need no extra model calls and get better with size; at 7B mean token entropy and MSP reach 0.82–0.83.
 
 **Notes**
 - Perplexity is not listed separately: it is exp(−likelihood_mean), so it ranks the answers exactly like `likelihood_mean` (same AUROC, AURC, PRR).
 - 7B ran in float16 (memory), the others in float32.
-- Not run yet (–): p(True) and verbalized on 7B, SE on 3B and 7B.
-- SE files were saved by hand and moved into `triviaqa_200/`; next week they will go through the runner.
+- All methods have run on all four sizes through the runner; SE / DSE read the persistent NLI cache (A5).
 - Rejection curves for 1.5B: [`results/plots/triviaqa_200_qwen1.5b_rejection.png`](results/plots/triviaqa_200_qwen1.5b_rejection.png).
+
+## Semantic methods (A1–A5, B1–B5)
+
+Agreement methods that compare the meaning of 10 sampled answers. All of them read one shared
+pairwise NLI matrix per question (A1), so asking for all of them costs one NLI pass. NLI model:
+`microsoft/deberta-large-mnli` (A4); matrices are cached in `data/<model>/<dataset>_<n>.nli.<tag>.npz` (A5).
+User guide with a runnable example: [`docs/semantic_methods.md`](docs/semantic_methods.md).
+
+### Shared NLI matrix, NLI setup and cache (A1–A5)
+
+Every ordered pair of [greedy answer, 10 samples] is scored once per question (A1), identical answers
+only once (A2), and 16 questions share the model batches on the GPU (A3).
+
+**NLI setup (A4).** Default `deberta-large`, answers only: it agrees best with 80 hand-labelled answer
+pairs (0.971 vs 0.937 for deberta-base; a second labeller agreed on 20/20). Change it per run in the config:
+
+    nli_model: deberta-base      # or deberta-large (default), or any Hugging Face NLI model
+    nli_use_question: true       # put the question in front of each answer (default false)
+
+**NLI cache (A5).** The matrices are saved next to the data, `data/<model>/<dataset>_<n>.nli.<setup>.npz`,
+and reused automatically: a second run does no NLI work. Changed answers or another NLI setup are
+detected (fingerprints) and only those questions are computed again.
+
+    caffeinate -i uv run python -m cli run --config configs/qwen1.5b_triviaqa_200.yaml \
+        --methods semantic_entropy,discrete_semantic_entropy --force
+    # NLI for the semantic methods: deberta-large, cache data/qwen1.5b/triviaqa_200.nli.deberta-large.npz (200/200 questions cached)
+
+In your own code:
+
+    from common.data import cache_path, load_data
+    from common.nli_matrix import load_nli_cache, nli_cache_path, nli_settings
+
+    rows = load_data("qwen1.5b", 200)
+    cache = load_nli_cache(nli_cache_path(cache_path("qwen1.5b", 200), nli_settings()))
+    cache["matrices"][0].shape   # (11, 11, 3): contradiction / neutral / entailment per ordered pair
+
+**Effect over week 3** (TriviaQA-200): NLI pairs per question 204 → 59 (0.5B), 174 → 28 (1.5B),
+164 → 14 (3B), 159 → 6 (7B), and 0 on a cached rerun; AUROC unchanged (at most 0.006).
+Details, the hand labels and the decisions (e.g. no answer normalization before dedup):
+[docs/methods.md](docs/methods.md).
+
+Two more agreement scores read the same matrix (for the selector, D2): `largest_cluster_share` and
+`greedy_cluster_share` (1 − share of the samples in the largest cluster / in the greedy answer's cluster).
+They carry about the same information as discrete SE and are never chosen by the selector.
+
+### Results and graph measures (B1–B5)
+
+AUROC (higher is better, 0.5 = random). NumSemSets, EigVal, DegMat and Eccentricity are the
+LM-Polygraph graph measures (B1); "embedding" is the cheap backend (B3, `--semantic-backend embedding`).
+
+| model | data | backend | SE | discrete SE | NumSemSets | EigVal | DegMat | Eccentricity |
+|---|---|---|---|---|---|---|---|---|
+| 0.5B | TriviaQA-200 | NLI | 0.744 | 0.751 | 0.759 | 0.758 | 0.751 | 0.750 |
+| 0.5B | TriviaQA-200 | embedding | 0.745 | 0.755 | 0.763 | 0.774 | 0.762 | 0.751 |
+| 0.5B | TriviaQA-1000 | NLI | 0.730 | 0.732 | 0.735 | **0.752** | 0.743 | 0.710 |
+| 0.5B | TriviaQA-1000 | embedding | 0.724 | 0.728 | 0.727 | 0.724 | 0.720 | 0.710 |
+| 0.5B | MMLU-200 | NLI | 0.504 | 0.517 | 0.533 | 0.522 | 0.503 | 0.518 |
+| 1.5B | TriviaQA-200 | NLI | 0.776 | 0.779 | 0.775 | 0.784 | 0.779 | 0.748 |
+| 1.5B | TriviaQA-200 | embedding | 0.744 | 0.749 | 0.748 | 0.752 | 0.751 | 0.733 |
+| 1.5B | TriviaQA-1000 | NLI | 0.772 | 0.775 | 0.772 | **0.777** | 0.775 | 0.753 |
+| 1.5B | TriviaQA-1000 | embedding | 0.759 | 0.764 | 0.763 | 0.764 | 0.759 | 0.743 |
+| 1.5B | MMLU-200 | NLI | 0.520 | 0.520 | 0.526 | 0.524 | 0.524 | 0.550 |
+
+Embedding rows for MMLU and all result files: `results/<model>/<dataset>_<n>[_embedding]/`.
+
+**Takeaways**
+1. The graph measures (B1) are as good as semantic entropy and need no likelihoods; EigVal is the best
+   semantic score on TriviaQA-1000 for both models. With 200 questions the 95% interval is about ±0.05,
+   so the differences between the semantic scores are not significant.
+2. The embedding backend (B3) is 26–33x cheaper than deberta-large. It matches NLI on the model its
+   threshold was chosen on (0.5B, TriviaQA-200) and is 0.006–0.03 lower elsewhere. NLI stays the default.
+3. Five samples instead of ten cost 0.006 (0.5B) to 0.022 (1.5B) AUROC for SE; stopping when the first 2–3
+   samples agree saves 18–48% of the generations but costs 0.03–0.10 (B2,
+   `results/*/triviaqa_200/analysis/sample_count.md`).
+4. Splitting the uncertainty by input clarification (B4, opt-in) shows *why* an answer is uncertain but does
+   not detect wrong answers better: on the same first 50 questions of 0.5B, the total reaches 0.71 AUROC and
+   plain SE 0.86 (`results/qwen0.5b/triviaqa_200/analysis/decomposed_se.md`).
+5. On MMLU every method is near chance, the baselines included: the models are barely above guessing
+   (accuracy 20% and 36% with four options), and with single-letter answers there is little meaning to compare.
+
+One call for all seven scores of a list of answers (B5):
+
+```python
+from common.semantic_scores import semantic_scores
+
+scores = semantic_scores(["Paris", "It is Paris.", "Lyon"], sample_log_likelihoods=[-0.1, -0.3, -1.2])
+```
+
+## Method selector (D)
+
+Which uncertainty method should I use for my model, at my budget? The selector answers this per model
+and turns the chosen method's score into a calibrated confidence in [0, 1]. The result is one profile
+per model (`profiles/<model>.json`, format in [`CONTRACT.md`](CONTRACT.md#profile-d4-week-3)) that the API and the demo read.
+
+How it decides, per model (`selector/`):
+1. Split the questions into a calibration half (100) and a held-out half (100), stratified by correctness.
+2. On the calibration half, rank every method by AUROC and PRR with 95 % bootstrap intervals.
+3. Keep only the methods the user can run (access level and cost from `common/registry.py`).
+4. Compare every method with the best one in a paired bootstrap; among the methods that are not
+   significantly worse, choose the cheapest.
+5. Calibrate the chosen score with probly's Platt or isotonic calibration (chosen by 5-fold CV).
+
+Run it:
+
+    uv run python -m selector.select --save        # choose, calibrate, write profiles/<model>.json
+    uv run python -m selector.evaluate --splits 10 --out results/selector_held_out.md   # selector vs fixed methods, held-out, 10 splits
+    uv run python -m selector.combine              # stacking all methods vs the best single method
+
+**Choice per model** (TriviaQA-200):
+
+| model | chosen | why | calibration | held-out ECE |
+|---|---|---|---|---|
+| qwen0.5b | likelihood_mean | tied with the best (eccentricity), 12x cheaper | Platt | 0.091 |
+| qwen1.5b | likelihood_mean | tied with the best (p_true_zeroshot), 2x cheaper | Platt | 0.095 |
+| qwen3b | p_true_zeroshot | best; every cheaper method is significantly worse | isotonic | 0.219 → 0.103 |
+| qwen7b | mean_token_entropy | tied with the best (p_true_zeroshot), 2x cheaper | Platt | 0.126 |
+
+**Held-out check** (100 questions per model that the selector never saw). The per-model table above is one
+random split (seed 0); which questions land in the calibration half changes the choice, so the evaluation
+was repeated over 10 random splits ([`results/selector_held_out.md`](results/selector_held_out.md)):
+
+| model | chosen method (number of splits out of 10) |
+|---|---|
+| qwen0.5b | likelihood_mean (9), mean_token_entropy (1) |
+| qwen1.5b | mean_token_entropy (9), likelihood_mean (1) |
+| qwen3b | mean_token_entropy (8), p_true_zeroshot (2) |
+| qwen7b | mean_token_entropy (8), msp (2) |
+
+| strategy | mean AUROC over models (sd over splits) | selector minus strategy, mean [min, max] | cost |
+|---|---|---|---|
+| **selector (per model)** | **0.813** (0.013) | | mostly 1 |
+| always p_true_zeroshot | 0.821 (0.020) | −0.008 [−0.035, +0.025] | 2 |
+| always mean_token_entropy | 0.811 (0.015) | +0.002 [−0.005, +0.011] | 1 |
+| always likelihood_mean | 0.803 (0.011) | +0.010 [+0.001, +0.021] | 1 |
+| always semantic_entropy | 0.759 (0.017) | +0.054 [+0.032, +0.082] | 12 |
+| always greedy_cluster_share | 0.757 (0.016) | +0.056 [+0.044, +0.076] | 12 |
+| always largest_cluster_share | 0.755 (0.017) | +0.058 [+0.037, +0.086] | 12 |
+
+**Takeaways**
+1. Over 10 splits the selector is on par with the best fixed methods: within ±0.01 AUROC of always using
+   p_true_zeroshot or mean_token_entropy, with no consistent winner (the min/max ranges include 0).
+2. It is clearly better than every expensive method: semantic entropy and the two cluster shares (D2) cost
+   12x more and are about 0.05 worse. All methods: [`results/selector_held_out.md`](results/selector_held_out.md).
+3. With 100 calibration questions most methods are statistically tied, so the selector mostly picks the
+   cheapest good one (mean_token_entropy). The per-model choice depends on the split; the single split in the
+   first table (seed 0, mean 0.839) was a favourable one. More calibration questions (TriviaQA-1000) would let
+   the selector separate the methods.
+4. Failed questions (placeholder scores) are not trusted: methods that failed on more than 5 % of all
+   questions in the run are excluded (only p_true_empirical on 7B, 7 %).
+5. Calibration makes the score usable as a confidence: zero-shot p(True) on 3B is overconfident
+   (ECE 0.219) and calibration halves that (0.103).
+6. Combining all methods (`selector.combine`) helps on small models: +0.069 AUROC on 0.5B and +0.067 on 1.5B
+   held-out (both significant); on 3B nothing, on 7B +0.041 but not significant.
+7. Results use deberta-large for the semantic methods (A4/A5); B1's graph measures are candidates where they
+   exist (0.5B, 1.5B). On 0.5B eccentricity is the best single method, but likelihood_mean is tied and 12x cheaper.
 
 ## Models & cost (BIG)
 
@@ -97,16 +258,22 @@ All runs: TriviaQA, 200 questions, on one MacBook Air (Apple M-series, 24 GB uni
 | Qwen2.5-3B | float32 | MPS | ~16 GB | 5.1 | 0.485 |
 | Qwen2.5-7B | **float16** | MPS | ~17–21 GB | 9.2 | 0.590 |
 
-Extra cost of each method, seconds per question on top of generation (`seconds_per_question` in the result files; 0.5B and 1.5B on CPU, 3B on MPS, so compare within a column):
+Extra cost of each method, seconds per question on top of generation (`seconds_per_question` in the result files;
+the LLM calls ran on CPU for 0.5B and 1.5B and on MPS for 3B and 7B, so compare within a column):
 
-| method | 0.5B | 1.5B | 3B |
-|---|---|---|---|
-| cache-only (msp, likelihood_mean, mean_token_entropy, lexical_similarity) | ~0 | ~0 | ~0 |
-| p_true_zeroshot | 0.11 | 0.31 | 0.24 |
-| p_true_brainstorm | 0.29 | 0.51 | 0.47 |
-| verbalized_2s | 0.19 | 0.56 | 0.77 |
-| p_true_empirical (10 generations) | 0.85 | 2.25 | 3.16 |
-| semantic_entropy (+ NLI) | 1.61 | 0.73 | – |
+| method | 0.5B | 1.5B | 3B | 7B |
+|---|---|---|---|---|
+| cache-only (msp, likelihood_mean, mean_token_entropy, lexical_similarity) | ~0 | ~0 | ~0 | ~0 * |
+| p_true_zeroshot | 0.11 | 0.31 | 0.24 | 0.34 |
+| p_true_brainstorm | 0.29 | 0.50 | 0.47 | 0.68 |
+| verbalized_2s | 0.19 | 0.56 | 0.77 | 0.91 |
+| p_true_empirical (10 generations) | 0.85 | 2.25 | 3.16 | 5.93 |
+| semantic_entropy + discrete SE (NLI, deberta-large on MPS, one shared matrix) | 0.67 | 0.25 | 0.13 | 0.06 |
+
+The NLI time (`nli_seconds_per_question`) is paid once for SE, DSE and the graph measures together, and a
+second run reads the NLI cache and pays 0 (A5). It falls with model size because bigger models give more
+identical answers, which are scored only once (A2). \* The 7B `lexical_similarity.json` records 7.75 s from its
+first run; ROUGE-L on 10 short answers takes well under a second, so this is not the method's cost.
 
 **Mac limits**
 - 3B in float32 fits: memory pressure stays green while generating, with a short yellow peak while the weights load.
@@ -124,6 +291,8 @@ Extra cost of each method, seconds per question on top of generation (`seconds_p
 - scripts/    generate.py, label.py, manual_check.py (DATA); run_benchmark.py, compare_models.py, plot_results.py, check_prefix.py (PIPE); method scripts
 - archive/week1/  superseded week-1 scripts, kept for reproducibility (not linted)
 - methods/    one plugin per uncertainty method (see CONTRACT.md)
+- selector/   method selector, calibration, stacking, held-out evaluation (D)
+- profiles/   one selector profile per model, read by the API and the demo (D)
 - configs/    one YAML file per benchmark run
 - data/<model>/      <dataset>_<n>.jsonl, .meta.json, .manual_check_part<p>.json
 - results/<model>/<dataset>_<n>/   <method>.json + summary.md (benchmark runs)
