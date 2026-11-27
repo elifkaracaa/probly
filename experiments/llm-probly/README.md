@@ -290,6 +290,10 @@ AUROC 0.518 / 0.770 (now 0.512 / 0.765, a sampling difference). 3B and 7B still 
 - Start long runs with `caffeinate -i` so the Mac does not sleep; `scripts.generate` saves after every question and resumes.
 - Load test before a long run: `uv run python -m scripts.generate --model qwen3b --n 5 --device mps`, with Activity Monitor › Memory open.
 
+## Comparison with LM-Polygraph
+
+See [POSITIONING.md](POSITIONING.md).
+
 ## Tests
     uv run python -m pytest tests
 
