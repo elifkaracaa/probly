@@ -61,6 +61,57 @@ class TestTorch(CredalSuite):
     """PyTorch implementation of the shared credal suite."""
 
 
+@pytest.mark.parametrize("epsilon", [0.0, 0.0005, 0.005])
+def test_envelope_coverage_dominates_hull_coverage_at_same_epsilon(epsilon: float) -> None:
+    """The per-class envelope contains the convex hull, so at equal tolerance its coverage is never lower."""
+    pytest.importorskip("scipy")
+    from probly.metrics import convex_hull_coverage  # noqa: PLC0415
+
+    gen = torch.Generator().manual_seed(0)
+    vertices = torch.softmax(3.0 * torch.randn(200, 5, 4, generator=gen, dtype=torch.float64), dim=-1)
+    targets = torch.softmax(3.0 * torch.randn(200, 4, generator=gen, dtype=torch.float64), dim=-1)
+    # Half of the targets are mixtures of the vertices, so a share of them lies in or near the hull.
+    weights = torch.softmax(torch.randn(100, 5, generator=gen, dtype=torch.float64), dim=-1)
+    targets[:100] = torch.einsum("nv,nvc->nc", weights, vertices[:100])
+    targets[:100] = targets[:100] + 1e-4 * torch.randn(100, 4, generator=gen, dtype=torch.float64)
+    targets = targets.clamp_min(0.0) / targets.clamp_min(0.0).sum(-1, keepdim=True)
+
+    cs = TorchConvexCredalSet(tensor=TorchProbabilityCategoricalDistribution(vertices))
+    hull = convex_hull_coverage(cs, TorchProbabilityCategoricalDistribution(targets), epsilon=epsilon)
+    envelope = coverage(cs, targets, epsilon=epsilon)
+    assert envelope >= float(hull)
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+@pytest.mark.parametrize("delta", [0.0003, 0.0007, 0.0011, 0.002])
+def test_probability_vector_coverage_boundary_is_precision_independent(dtype: torch.dtype, delta: float) -> None:
+    """A target at L1 distance exactly ``epsilon`` is covered for single- and double-precision bounds alike."""
+    cs = TorchProbabilityIntervalsCredalSet(
+        lower_bounds=torch.tensor([[delta, 0.0, 0.0]], dtype=dtype),
+        upper_bounds=torch.tensor([[0.5, 0.6, 0.6]], dtype=dtype),
+    )
+    target = torch.tensor([[0.0, 0.5, 0.5]], dtype=dtype)
+    assert coverage(cs, target, epsilon=2 * delta) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("metric", [efficiency, average_interval_width])
+def test_envelope_metrics_are_differentiable(metric) -> None:
+    """Efficiency and interval width stay on the autograd graph of the credal set's probabilities."""
+    logits = torch.randn(8, 5, 3, generator=torch.Generator().manual_seed(0), requires_grad=True)
+    cs = TorchConvexCredalSet(tensor=TorchProbabilityCategoricalDistribution(torch.softmax(logits, dim=-1)))
+    (grad,) = torch.autograd.grad(metric(cs), logits)
+    assert grad.abs().sum() > 0
+
+
+def test_set_metrics_return_tensors() -> None:
+    """Set metrics return zero-dimensional tensors in the precision of the credal set."""
+    lower = torch.tensor([[0.1, 0.4, 0.05]], dtype=torch.float64)
+    cs = TorchProbabilityIntervalsCredalSet(lower_bounds=lower, upper_bounds=lower + 0.2)
+    results = [coverage(cs, torch.tensor([1])), efficiency(cs), average_interval_width(cs)]
+    assert all(isinstance(result, torch.Tensor) and result.ndim == 0 for result in results)
+    assert efficiency(cs).dtype == torch.float64
+
+
 @pytest.mark.parametrize(
     "probs",
     [
