@@ -1,4 +1,4 @@
-"""Label answer pairs by hand (A4): do two answers to a question mean the same thing?
+"""Label answer pairs by hand: do two answers to a question mean the same thing.
 
 The pairs come from the qwen0.5b and qwen1.5b TriviaQA-200 caches; see
 ``common/nli_labels.py`` for how they are picked and for the file format. The

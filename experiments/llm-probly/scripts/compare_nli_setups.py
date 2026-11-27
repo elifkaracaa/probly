@@ -1,4 +1,4 @@
-"""Compare NLI setups for the semantic methods (A4): NLI model x question in front of the answers.
+"""Compare NLI setups for the semantic methods: NLI model x question in front of the answers.
 
 For each setup ({deberta-base, deberta-large} x {answers only, question + answer}) and each model
 (qwen0.5b, qwen1.5b, TriviaQA-200) the script
@@ -13,7 +13,7 @@ For each setup ({deberta-base, deberta-large} x {answers only, question + answer
 
 The table goes to ``results/nli_setups.md``. Run from ``experiments/llm-probly``::
 
-    caffeinate -i uv run python -m scripts.compare_nli_setups            # all 200 questions
+    uv run python -m scripts.compare_nli_setups                         # all 200 questions (keep the machine awake)
     uv run python -m scripts.compare_nli_setups --limit 20              # quick check
     uv run python -m scripts.compare_nli_setups --reuse                 # new labels, no NLI run
 
@@ -179,7 +179,7 @@ def write_table(results: dict[str, SetupResult], data: dict[str, list[dict]]) ->
         lines.append("| " + " | ".join(cells) + " |")
     n = {model: len(rows) for model, rows in data.items()}
     header = (
-        f"# NLI setups (A4)\n\nTriviaQA questions per model: {n}. Agreement is weighted to the real mix of "
+        f"# NLI setups\n\nTriviaQA questions per model: {n}. Agreement is weighted to the real mix of "
         'answer pairs (see `common/nli_labels.weighted_agreement`). "SE vs reference" is the paired bootstrap '
         "difference of SE AUROC against deberta-base without the question (positive = better; verdict A means "
         "this setup is better, B the reference, tie = interval contains 0).\n\n"

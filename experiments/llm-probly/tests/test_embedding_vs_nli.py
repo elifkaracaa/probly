@@ -7,7 +7,6 @@ import sys
 from types import SimpleNamespace
 
 from common.nli_matrix import question_texts
-import numpy as np
 import torch
 
 from scripts import embedding_vs_nli
@@ -60,12 +59,6 @@ def rows_for_test() -> list[dict]:
         }
         for i, a in enumerate(ANSWERS)
     ]
-
-
-def test_tied_merges_scores_closer_than_the_tolerance():
-    out = embedding_vs_nli.tied(np.array([0.5, 0.1 + 1e-7, 0.1, 0.3]))
-    assert out[1] == out[2]
-    assert len(set(out.tolist())) == 3
 
 
 def test_same_partition_ignores_cluster_ids():

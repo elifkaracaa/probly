@@ -1,4 +1,4 @@
-"""Hand-labelled answer pairs for choosing the NLI setup (A4).
+"""Hand-labelled answer pairs for choosing the NLI setup.
 
 A labelled pair says whether two answers to the same question mean the same
 thing. The pairs are picked from the TriviaQA-200 caches so that they are

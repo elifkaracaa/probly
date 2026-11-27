@@ -1,4 +1,4 @@
-"""SELF second task: test SAMPLE's NLI cache against probly's clusterer.
+"""Check a saved NLI cache against probly's clusterer.
 
 For every question, cluster the samples twice:
 1. with probly's HFGreedySemanticClusterer (runs the NLI model), and
@@ -32,7 +32,7 @@ ENTAIL, NEUTRAL, CONTRADICT = 0, 1, 2  # order in the cache (labels = entail, ne
 
 
 def same_meaning(mat: np.ndarray, a: int, b: int, rule: str) -> bool:
-    """Are texts a and b equivalent, using the cached NLI labels in both directions?"""
+    """Return whether texts a and b are equivalent, using the cached NLI labels in both directions."""
     ab, ba = mat[a, b].argmax(), mat[b, a].argmax()
     if rule == "probly":
         return CONTRADICT not in (ab, ba) and not (ab == NEUTRAL and ba == NEUTRAL)
@@ -62,6 +62,7 @@ def as_partition(clusters: Iterable[Iterable[int]]) -> set[frozenset[int]]:
 
 
 def main() -> None:
+    """Cluster every question with probly and from the cache, and print how often they agree."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="qwen0.5b")
     ap.add_argument("--n", type=int, default=5, help="which cache file: triviaqa_<n>")

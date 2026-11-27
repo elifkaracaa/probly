@@ -9,7 +9,7 @@ Usage (default NLI model: deberta-large, see common/nli_matrix.DEFAULT_NLI_MODEL
   uv run python -m scripts.build_nli_cache --cache data/qwen0.5b/triviaqa_200.jsonl
   # -> data/qwen0.5b/triviaqa_200.nli.deberta-large.npz
   uv run python -m scripts.build_nli_cache --cache data/qwen0.5b/triviaqa_200.jsonl --nli-model deberta-base
-  # -> data/qwen0.5b/triviaqa_200.nli.npz (the week-2 name)
+  # -> data/qwen0.5b/triviaqa_200.nli.npz (legacy name)
 """
 
 from __future__ import annotations
@@ -50,7 +50,22 @@ def build(
     dtype: str = "float32",
     questions_per_batch: int = QUESTIONS_PER_BATCH,
 ) -> None:
-    """Compute and save the NLI matrices of one data cache."""
+    """Compute and save the NLI matrices of one data cache.
+
+    Args:
+        cache: Data cache (JSONL) with ``greedy_answer`` and ``samples`` per row.
+        nli_model: Hugging Face name of the NLI model.
+        out: Output ``.nli*.npz`` file.
+        use_question: Put the question in front of every answer.
+        deduplicate: Send identical texts of a question to the NLI model only once.
+        batch_size: Pairs per model call.
+        limit: Only the first ``limit`` rows (0 = all).
+        dtype: ``"float32"`` or ``"float16"`` (GPU only).
+        questions_per_batch: Questions whose pairs share model batches.
+
+    Raises:
+        KeyError: If the rows have no ``greedy_answer`` or ``samples``.
+    """
     with Path(cache).open() as f:
         rows = [json.loads(line) for line in f if line.strip()]
     if limit:
@@ -94,7 +109,7 @@ if __name__ == "__main__":
     ap.add_argument("--nli-model", default=DEFAULT_NLI_MODEL, help=f"short name {sorted(NLI_MODELS)} or HF name")
     ap.add_argument("--out", default=None, help="default: <cache>.nli.npz for deberta-base, else <cache>.nli.<tag>.npz")
     ap.add_argument("--use-question", action="store_true")
-    ap.add_argument("--no-dedup", action="store_true", help="also send identical texts to the NLI model (A2 off)")
+    ap.add_argument("--no-dedup", action="store_true", help="also send identical texts to the NLI model")
     ap.add_argument("--dtype", choices=["float32", "float16"], default="float32", help="float16 only on a GPU")
     ap.add_argument(
         "--questions-per-batch", type=int, default=QUESTIONS_PER_BATCH, help="1 = no batching across questions"
