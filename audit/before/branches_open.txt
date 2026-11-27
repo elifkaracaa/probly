@@ -1,0 +1,12 @@
+  origin/c1/self-eval-representer
+  origin/c2/empirical-batched
+  origin/c3/coverage-column
+  origin/c4/verbalized-prompt
+  origin/e1/cleanup
+  origin/e2/registry
+  origin/f1-api-skeleton
+  origin/f2-text-only-backend
+  origin/f3-demo
+  origin/f3-readme-section
+  origin/f4-example-docs
+  origin/f5-positioning
