@@ -35,7 +35,7 @@ to use for your model, what that method costs, and what the confidence means.
 | Number of methods | Many white-box and black-box methods ([list](https://pypi.org/project/lm-polygraph/)) | Smaller set ([registry](https://github.com/elifkaracaa/probly/pull/47)) |
 | Claim-level uncertainty | Yes | Out of scope |
 | Density / training-based methods | Yes (e.g. Mahalanobis, RDE) | Out of scope |
-| Normalized [0, 1] confidence | Yes, several normalization methods | Calibration step in progress |
+| Normalized [0, 1] confidence | Yes, several normalization methods | One calibration per model (Platt or isotonic), saved in the profile |
 | API-hosted models | Any OpenAI-compatible service | Text-only methods, in progress ([#41](https://github.com/elifkaracaa/probly/pull/41) *(open)*) |
 | Published benchmark | [TACL 2025](https://aclanthology.org/2025.tacl-1.11.pdf) | TriviaQA-1000 + MMLU, 0.5B to 7B + SmolLM2 ([#43](https://github.com/elifkaracaa/probly/pull/43)) |
 
