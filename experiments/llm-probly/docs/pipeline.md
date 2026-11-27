@@ -47,7 +47,17 @@ n: 200                # number of questions
 precision: float32    # float32 | float16 | bfloat16
 device: cpu           # cpu | mps | cuda, only used when a method loads the model
 methods: all          # "all" or a list of method names
+nli_model: deberta-large   # optional; NLI model of the semantic methods (deberta-base, deberta-large or a HF name)
+nli_use_question: false    # optional; put the question in front of each answer before NLI
 ```
+
+The two `nli_*` keys are optional; the defaults come from `common/nli_matrix.py` and are explained in
+`docs/methods.md` ("NLI setup"). SE and discrete SE write the setup they used into their record (`"nli"`).
+
+**NLI cache.** SE and discrete SE read and update `data/<model>/<dataset>_<n>.nli.<tag>.npz`. The runner
+prints how many questions are already cached (`cache data/... (200/200 questions cached)`); with all of them
+cached a `--force` rerun of SE / DSE sends nothing to the NLI model. Changed answers or another NLI setup are
+detected and recomputed (see `docs/methods.md`, "Persistent NLI cache").
 
 **Precision must match the cache.** The runner reads the precision from the cache's
 `.meta.json` and stops if the config asks for another one. Precision changes the answers
@@ -92,6 +102,54 @@ lm-polygraph's implementations in `tests/test_evaluate.py`.
 
 Why PRR next to AURC: a bigger model is right more often, which alone improves AURC.
 PRR divides that out, so it shows whether the *ranking* got better.
+
+## The report (E4)
+
+    uv run python -m cli report            # writes results/report.md and results/report.html
+
+One command, no model needed: it reads every `results/<model>/<dataset>_<n>/` that has a data cache
+(runs under 100 questions are skipped) and writes
+
+1. **Runs**: model, dataset, questions, accuracy, precision and device, and two picks per run:
+   - **pick**: the cheapest method that is best or *tied* with the best (paired bootstrap below);
+   - **pick via API**: the same among methods that need only text or log-probabilities.
+   The random reference is never a pick. If it is itself tied with the best method, the run says
+   "none (no method beats random)", as for 0.5B and 1.5B on MMLU.
+2. **Methods x models** on TriviaQA 200: AUROC per model next to family, access and cost.
+3. **One table per run**: AUROC with its interval, best / tied / worse with the paired difference,
+   AURC, PRR, ECE, method seconds per question and the registry cost.
+
+The HTML page is self-contained (one file, no scripts) and marks the best row, the tied rows and
+the pick. `--n-boot 200` gives a quick draft; the default 1000 takes about two minutes.
+
+## Is method X better than method Y? (paired bootstrap, E4)
+
+Two separate 95 % AUROC intervals often overlap even when one method is better on
+almost every resample, because both methods find the same questions hard. The
+paired bootstrap resamples the questions once per round, scores *both* methods on
+that resample and keeps the difference. Its interval is much narrower.
+
+Example, qwen0.5b on TriviaQA 1000: likelihood_mean 0.712 [0.672, 0.747] and
+mean_token_entropy 0.696 [0.656, 0.735] overlap almost completely, yet the paired
+difference is +0.016 [+0.003, +0.028]: likelihood_mean is better, by a little.
+
+    uv run python -m cli diff --run qwen0.5b/triviaqa_1000 likelihood_mean mean_token_entropy
+    # On qwen0.5b/triviaqa_1000, likelihood_mean is better than mean_token_entropy: AUROC 0.712 vs 0.696, ...
+
+`--metric prr` or `--metric aurc` compare another metric. In code:
+`common.evaluate.paired_bootstrap(u_a, u_b, correct)` returns the difference, its
+interval and `.verdict` (`"A"`, `"B"` or `"tie"`).
+
+Every `summary.md` compares each method with the best one of the run:
+
+| column | meaning |
+|---|---|
+| `vs_best` | `best`; `tied` = the interval of the difference contains 0, the data cannot tell it apart from the best; `worse` |
+| `d_auroc` | AUROC minus the best AUROC |
+| `d_ci_low`, `d_ci_high` | paired 95 % interval of `d_auroc` |
+
+"Tied" is the same test the selector (D1) uses before it picks the cheapest of the
+tied methods.
 
 ## Comparing models and plots
 

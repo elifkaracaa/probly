@@ -20,7 +20,7 @@ from __future__ import annotations
 from copy import copy
 from dataclasses import dataclass
 import re
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import torch
@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from transformers import PreTrainedModel, PreTrainedTokenizerBase
+    from transformers._typing import GenerativePreTrainedModel
 
 type SelfEvaluationMode = Literal["plain_ab", "chat_groups"]
 
@@ -293,7 +294,7 @@ class HFSelfEvaluator:
             for question, answer, idea in zip(questions, answers, ideas, strict=True)
         ]
         sampler = HFTextGenerationSampler(
-            self.model,
+            cast("GenerativePreTrainedModel", self.model),
             self.tokenizer,
             num_samples=num_samples,
             temperature=temperature,

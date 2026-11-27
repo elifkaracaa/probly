@@ -258,7 +258,8 @@ class RecordingSampler:
 
     def __call__(self, prompts: list[str]) -> SimpleNamespace:
         self.calls.append(list(prompts))
-        num_samples = int(self.kwargs["num_samples"])  # type: ignore[call-overload]
+        num_samples = self.kwargs["num_samples"]
+        assert isinstance(num_samples, int)
         # The replies carry the length of their prompt, so a test can check that they are assigned correctly.
         text = np.array([[f"{len(prompt)}-{i}" for i in range(num_samples)] for prompt in prompts], dtype=object)
         return SimpleNamespace(tensor=SimpleNamespace(text=text))

@@ -23,7 +23,12 @@ from probly.representation.text_generation.torch import (
     TorchTextGenerationSample,
     TorchTextGenerationSampleSample,
 )
-from probly.representer.semantic_clustering.huggingface import DEFAULT_NLI_MODEL, HFGreedySemanticClusterer
+from probly.representer.semantic_clustering.huggingface import (
+    DEFAULT_NLI_MODEL,
+    HFGreedySemanticClusterer,
+    expand_unique_nli,
+    unique_statements,
+)
 
 
 class FakeTokenizer:
@@ -273,3 +278,200 @@ def test_from_model_name_loads_hf_sequence_classifier(monkeypatch: pytest.Monkey
             "dtype": "auto",
         }
     ]
+
+
+class ReorderedLabelNLIModel(FakeNLIModel):
+    """Fake model whose output order is entailment, neutral, contradiction."""
+
+    config = SimpleNamespace(id2label={0: "ENTAILMENT", 1: "NEUTRAL", 2: "CONTRADICTION"})
+
+
+def test_pairwise_nli_scores_every_ordered_pair_once() -> None:
+    tokenizer = FakeTokenizer()
+    labels = _labels_for(tokenizer, {("a", "b"): 2, ("b", "a"): 1, ("a", "c"): 0})
+    model = FakeNLIModel(labels)
+    clusterer = HFGreedySemanticClusterer(model, tokenizer, batch_size=4)
+
+    matrix = clusterer.pairwise_nli(["a", "b", "c"])
+
+    assert matrix.shape == (3, 3, 3)
+    assert matrix.dtype == torch.float32
+    assert torch.isnan(matrix[torch.arange(3), torch.arange(3)]).all()
+    scored = [pair for call in tokenizer.pair_calls for pair in call]
+    assert sorted(scored) == sorted((p, h) for p in "abc" for h in "abc" if p != h)
+    assert all(len(call) <= 4 for call in tokenizer.pair_calls)
+    off_diagonal = matrix[~torch.eye(3, dtype=torch.bool)]
+    torch.testing.assert_close(off_diagonal.sum(dim=-1), torch.ones(6))
+    assert matrix[0, 1].argmax().item() == 2
+    assert matrix[1, 0].argmax().item() == 1
+    assert matrix[0, 2].argmax().item() == 0
+
+
+def test_pairwise_nli_returns_canonical_label_order_for_reordered_model() -> None:
+    tokenizer = FakeTokenizer()
+    # Raw label 0 is entailment for this model.
+    model = ReorderedLabelNLIModel(_labels_for(tokenizer, {("a", "b"): 0, ("b", "a"): 2}))
+    clusterer = HFGreedySemanticClusterer(model, tokenizer)
+
+    matrix = clusterer.pairwise_nli(["a", "b"])
+
+    assert matrix[0, 1].argmax().item() == 2  # entailment
+    assert matrix[1, 0].argmax().item() == 0  # contradiction
+
+
+def test_pairwise_nli_prepends_context_to_both_sides() -> None:
+    tokenizer = FakeTokenizer()
+    clusterer = HFGreedySemanticClusterer(FakeNLIModel(), tokenizer)
+
+    clusterer.pairwise_nli(["Paris", "Lyon"], context="Capital of France?")
+
+    assert tokenizer.pair_calls == [
+        [
+            ("Capital of France? Paris", "Capital of France? Lyon"),
+            ("Capital of France? Lyon", "Capital of France? Paris"),
+        ]
+    ]
+
+
+def test_pairwise_nli_single_statement_needs_no_model_call() -> None:
+    model = FakeNLIModel()
+    clusterer = HFGreedySemanticClusterer(model, FakeTokenizer())
+
+    matrix = clusterer.pairwise_nli(["only"])
+
+    assert matrix.shape == (1, 1, 3)
+    assert model.calls == []
+
+
+def test_cluster_nli_matrix_matches_direct_clustering() -> None:
+    pairs = {
+        ("a", "b"): 2,
+        ("b", "a"): 1,
+        ("a", "c"): 1,
+        ("c", "a"): 1,
+        ("a", "d"): 2,
+        ("d", "a"): 2,
+        ("c", "e"): 2,
+        ("e", "c"): 2,
+        ("b", "e"): 0,
+    }
+    texts = ["a", "b", "c", "d", "e"]
+
+    direct_tokenizer = FakeTokenizer()
+    direct = HFGreedySemanticClusterer(FakeNLIModel(_labels_for(direct_tokenizer, pairs)), direct_tokenizer)
+    expected = direct(
+        TorchTextGeneration(text=np.asarray(texts, dtype=object), log_likelihood=torch.zeros(5)),
+        axis=0,
+    ).group_ids
+
+    matrix_tokenizer = FakeTokenizer()
+    matrix_clusterer = HFGreedySemanticClusterer(FakeNLIModel(_labels_for(matrix_tokenizer, pairs)), matrix_tokenizer)
+    matrix = matrix_clusterer.pairwise_nli(texts)
+
+    assert torch.equal(HFGreedySemanticClusterer.cluster_nli_matrix(matrix), expected)
+    assert torch.equal(expected, torch.tensor([0, 0, 1, 0, 1]))
+
+
+def test_cluster_nli_matrix_on_hand_made_matrix() -> None:
+    contradiction, neutral, entailment = torch.eye(3)
+    matrix = torch.full((3, 3, 3), float("nan"))
+    matrix[0, 1], matrix[1, 0] = entailment, entailment
+    matrix[0, 2], matrix[2, 0] = neutral, neutral
+    matrix[1, 2], matrix[2, 1] = contradiction, entailment
+
+    assert torch.equal(HFGreedySemanticClusterer.cluster_nli_matrix(matrix), torch.tensor([0, 0, 1]))
+
+
+def test_cluster_nli_matrix_rejects_wrong_shape() -> None:
+    with pytest.raises(ValueError, match="shape"):
+        HFGreedySemanticClusterer.cluster_nli_matrix(torch.zeros((2, 3, 3)))
+
+
+def test_pairwise_nli_deduplicate_scores_each_distinct_pair_once() -> None:
+    texts = ["a", "b", "a", "c", "b"]
+    pairs = {("a", "b"): 2, ("b", "a"): 1, ("a", "c"): 0, ("c", "a"): 1, ("b", "c"): 2, ("c", "b"): 2}
+
+    tokenizer = FakeTokenizer()
+    clusterer = HFGreedySemanticClusterer(FakeNLIModel(_labels_for(tokenizer, pairs)), tokenizer)
+    matrix = clusterer.pairwise_nli(texts)
+
+    scored = [pair for call in tokenizer.pair_calls for pair in call]
+    assert sorted(scored) == sorted((p, h) for p in "abc" for h in "abc" if p != h)  # 3 * 2, not 5 * 4
+    entailment = torch.tensor([0.0, 0.0, 1.0])
+    torch.testing.assert_close(matrix[0, 2], entailment)
+    torch.testing.assert_close(matrix[4, 1], entailment)
+    assert torch.isnan(matrix[torch.arange(5), torch.arange(5)]).all()
+
+    full_tokenizer = FakeTokenizer()
+    full_clusterer = HFGreedySemanticClusterer(FakeNLIModel(_labels_for(full_tokenizer, pairs)), full_tokenizer)
+    full = full_clusterer.pairwise_nli(texts, deduplicate=False)
+    assert len([pair for call in full_tokenizer.pair_calls for pair in call]) == 5 * 4
+    distinct = torch.tensor([[a != b for b in texts] for a in texts])
+    torch.testing.assert_close(matrix[distinct], full[distinct])
+
+
+def test_pairwise_nli_deduplicate_all_identical_needs_no_model_call() -> None:
+    model = FakeNLIModel()
+    clusterer = HFGreedySemanticClusterer(model, FakeTokenizer())
+
+    matrix = clusterer.pairwise_nli(["Paris", "Paris", "Paris"])
+
+    assert model.calls == []
+    assert torch.equal(HFGreedySemanticClusterer.cluster_nli_matrix(matrix), torch.tensor([0, 0, 0]))
+
+
+def test_unique_statements_and_expand_unique_nli() -> None:
+    unique, inverse = unique_statements(["x", "y", "x"])
+    assert unique == ["x", "y"]
+    assert inverse.tolist() == [0, 1, 0]
+
+    unique_matrix = torch.full((2, 2, 3), float("nan"))
+    unique_matrix[0, 1] = torch.tensor([0.7, 0.2, 0.1])
+    unique_matrix[1, 0] = torch.tensor([0.1, 0.8, 0.1])
+    matrix = expand_unique_nli(unique_matrix, inverse)
+
+    assert matrix.shape == (3, 3, 3)
+    torch.testing.assert_close(matrix[2, 1], unique_matrix[0, 1])
+    torch.testing.assert_close(matrix[1, 2], unique_matrix[1, 0])
+    torch.testing.assert_close(matrix[0, 2], torch.tensor([0.0, 0.0, 1.0]))
+
+
+def test_pairwise_nli_many_matches_one_call_per_group() -> None:
+    # The first group has the longest texts, so sorting by length reorders the pairs across groups.
+    groups = [["a long answer", "z", "a long answer"], ["bb", "c"], ["d"]]
+    contexts = ["Q?", None, None]
+    texts = ["Q? a long answer", "Q? z", "bb", "c"]
+    pairs = {(p, h): (len(p) + 2 * len(h)) % 3 for p in texts for h in texts if p != h}
+    tokenizer = FakeTokenizer()
+    clusterer = HFGreedySemanticClusterer(FakeNLIModel(_labels_for(tokenizer, pairs)), tokenizer, batch_size=3)
+
+    many = clusterer.pairwise_nli_many(groups, contexts=contexts)
+    single = [clusterer.pairwise_nli(g, context=c) for g, c in zip(groups, contexts, strict=True)]
+
+    assert [m.shape for m in many] == [(3, 3, 3), (2, 2, 3), (1, 1, 3)]
+    for got, expected in zip(many, single, strict=True):
+        torch.testing.assert_close(got, expected, equal_nan=True)
+    # Every cell holds the label of its own pair, although the pairs were sorted by length for batching.
+    for matrix, group, context in zip(many, groups, contexts, strict=True):
+        prefixed = [t if context is None else f"{context} {t}" for t in group]
+        for a, premise in enumerate(prefixed):
+            for b, hypothesis in enumerate(prefixed):
+                if premise != hypothesis:
+                    assert matrix[a, b].argmax().item() == pairs[(premise, hypothesis)]
+
+
+def test_pairwise_nli_many_shares_model_calls_across_groups() -> None:
+    model = FakeNLIModel()
+    clusterer = HFGreedySemanticClusterer(model, FakeTokenizer(), batch_size=32)
+
+    clusterer.pairwise_nli_many([["a", "b"], ["c", "d"], ["e", "f"]])
+
+    assert len(model.calls) == 1  # 6 pairs of 3 groups in one batch
+
+
+def test_pairwise_nli_many_edge_cases() -> None:
+    clusterer = HFGreedySemanticClusterer(FakeNLIModel(), FakeTokenizer())
+
+    assert clusterer.pairwise_nli_many([]) == []
+    with pytest.raises(ValueError, match="contexts"):
+        clusterer.pairwise_nli_many([["a"], ["b"]], contexts=["q"])
