@@ -1,0 +1,11 @@
+206:    "experiments/llm-probly/archive",
+207:    "experiments/llm-probly/notebooks",
+209:    # C1 (common/reflexive.py), C2 (scripts/r3_methods.py).
+210:    "experiments/llm-probly/common/reflexive.py",
+211:    "experiments/llm-probly/scripts/r3_methods.py",
+266:    "PERF401", # it's fine to have non-optimized code in notebooks
+327:    "notebooks",
+340:    "experiments/llm-probly/archive",
+341:    "experiments/llm-probly/notebooks",
+343:    "experiments/llm-probly/common/reflexive.py",
+344:    "experiments/llm-probly/scripts/r3_methods.py",
