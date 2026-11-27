@@ -63,7 +63,7 @@ class PairCounter:
     def __init__(self, clusterer: HFGreedySemanticClusterer) -> None:
         """Patch ``_predict_pair_labels`` / ``_predict_pair_probabilities`` of ``clusterer`` to count pairs."""
         self.pairs = 0
-        labels, probabilities = clusterer._predict_pair_labels, clusterer._predict_pair_probabilities  # noqa: SLF001
+        labels, probabilities = clusterer._predict_pair_labels, clusterer._predict_pair_probabilities  # noqa: SLF001 - wrap to count pairs
 
         def count_labels(statements: np.ndarray, pairs: torch.Tensor) -> torch.Tensor:
             self.pairs += int(pairs.shape[0])
@@ -73,8 +73,8 @@ class PairCounter:
             self.pairs += int(pairs.shape[0])
             return probabilities(statements, pairs)
 
-        clusterer._predict_pair_labels = count_labels  # noqa: SLF001
-        clusterer._predict_pair_probabilities = count_probabilities  # noqa: SLF001
+        clusterer._predict_pair_labels = count_labels  # noqa: SLF001 - count pairs, probly has no hook
+        clusterer._predict_pair_probabilities = count_probabilities  # noqa: SLF001 - count pairs, probly has no hook
 
     def take(self) -> int:
         """Return the pairs counted since the last call and reset the counter."""
@@ -97,7 +97,7 @@ def run_paths(clusterer: HFGreedySemanticClusterer, rows: Sequence[dict]) -> dic
     out: dict[str, dict] = {}
 
     start = time.perf_counter()
-    clusters = [clusterer._cluster_row(np.asarray(r["samples"], dtype=object)) for r in rows]  # noqa: SLF001
+    clusters = [clusterer._cluster_row(np.asarray(r["samples"], dtype=object)) for r in rows]  # noqa: SLF001 - the old lazy path
     out["old"] = {"clusters": clusters, "seconds": time.perf_counter() - start, "pairs": counter.take()}
 
     def matrix_path(name: str, matrices: list[torch.Tensor], seconds: float) -> None:

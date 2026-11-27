@@ -42,6 +42,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -61,6 +62,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     from probly.representer.semantic_clustering.huggingface import HFSemanticClusterer
+
+log = logging.getLogger(__name__)
 
 FORMAT_VERSION = 2
 GREEDY_INDEX = 0
@@ -163,7 +166,7 @@ def set_nli_settings(
     Raises:
         ValueError: For an unknown backend.
     """
-    global _settings  # noqa: PLW0603
+    global _settings  # noqa: PLW0603 - one setting per process, set once by the runner
     _settings = NliSettings(
         model=_settings.model if model is None else model,
         use_question=_settings.use_question if use_question is None else use_question,
@@ -188,7 +191,7 @@ def set_nli_cache_file(path: str | Path | None) -> None:
     Args:
         path: The ``.nli*.npz`` file, or None to keep matrices in memory only.
     """
-    global _cache_file  # noqa: PLW0603
+    global _cache_file  # noqa: PLW0603 - one cache file per process, set by the runner
     _cache_file = None if path is None else Path(path)
 
 
@@ -580,10 +583,10 @@ def read_cached_matrices(path: str | Path, settings: NliSettings) -> dict[int, t
         and cache["use_question"] == settings.use_question
     )
     if not same_setup:
-        print(f"   NLI cache {path.name}: made with another NLI setup, computing again")
+        log.warning("NLI cache %s: made with another NLI setup, computing again", path.name)
         return {}
     if cache["fingerprints"] is None:
-        print(f"   NLI cache {path.name}: no fingerprints (old format), computing again")
+        log.warning("NLI cache %s: no fingerprints (old format), computing again", path.name)
         return {}
     return {
         int(qid): (fp, matrix)
