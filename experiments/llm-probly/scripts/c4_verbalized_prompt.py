@@ -12,6 +12,9 @@ read by the summary table, so nothing in the main results changes.
 
 Example:
     uv run python -m scripts.c4_verbalized_prompt --run qwen1.5b
+    uv run python -m scripts.c4_verbalized_prompt --run qwen3b --device mps --dtype float16 --prompts plain100 anchored
+
+The second line is for a 16 GB machine; add ``plain10`` too to run all three prompts in the same setup.
 """
 
 from __future__ import annotations
@@ -36,8 +39,10 @@ MODELS = {
     "qwen7b": "Qwen/Qwen2.5-7B-Instruct",
 }
 SCALE = 10
-PROMPTS = {"plain10": ASK[SCALE], "anchored": ASK_ANCHORED}
-"""The 0-10 prompts compared with the week 1 0-100 prompt."""
+PROMPTS = {"plain100": ASK[100], "plain10": ASK[SCALE], "anchored": ASK_ANCHORED}
+"""``plain100`` is the week 1 prompt; rerun it when the model runs with another precision or device than
+the saved ``verbalized_2s`` result, so that all prompts are compared under the same setup."""
+SCALES = {"plain100": 100, "plain10": SCALE, "anchored": SCALE}
 
 
 def summarize(label: str, replies: list[str], uncertainty: list[float], correct: list[bool]) -> None:
@@ -55,7 +60,8 @@ def main() -> None:
     parser.add_argument("--run", default="qwen1.5b", choices=sorted(MODELS))
     parser.add_argument("--n", type=int, default=200)
     parser.add_argument("--dtype", default="float32", choices=["float32", "float16", "bfloat16"])
-    parser.add_argument("--prompts", nargs="+", default=list(PROMPTS), choices=list(PROMPTS))
+    parser.add_argument("--device", default="cpu", choices=["cpu", "mps", "cuda"])
+    parser.add_argument("--prompts", nargs="+", default=["plain10", "anchored"], choices=list(PROMPTS))
     args = parser.parse_args()
 
     rows = load_data(args.run, args.n)
@@ -67,19 +73,22 @@ def main() -> None:
     summarize("before (0-100)", old["replies"], old["uncertainty"], correct)
 
     model, tok = load_model(MODELS[args.run], model_kwargs={"dtype": getattr(torch, args.dtype)})
+    model = model.to(args.device)
+    model.eval()
+    print(f"model on {args.device}, {args.dtype}")
     for name in args.prompts:
         ask = PROMPTS[name]
         uncertainty, failed, replies = [], [], []
         start = time.perf_counter()
         for row in rows:
             confidence, no_number, reply = verbalized_2s(
-                model, tok, row["question"], row["greedy_answer"], scale=SCALE, ask=ask
+                model, tok, row["question"], row["greedy_answer"], scale=SCALES[name], ask=ask
             )
             uncertainty.append(1.0 if no_number else 1.0 - confidence)
             failed.append(no_number)
             replies.append(reply)
         seconds = (time.perf_counter() - start) / len(rows)
-        summarize(f"after ({name} 0-10)", replies, uncertainty, correct)
+        summarize(f"after ({name}, {args.device} {args.dtype})", replies, uncertainty, correct)
         print(f"  unreadable replies: {sum(failed)}, {seconds:.2f} s per question")
 
         out = folder / "c4" / f"verbalized_2s_{name}.json"
@@ -89,8 +98,10 @@ def main() -> None:
             "model": MODELS[args.run],
             "answer": "greedy",
             "probability": True,
-            "scale": SCALE,
+            "scale": SCALES[name],
             "prompt": ask,
+            "device": args.device,
+            "dtype": args.dtype,
             "replies": replies,
             "ids": ids,
             "uncertainty": uncertainty,
