@@ -148,7 +148,9 @@ sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
     "doc_module": ("probly",),
     "filename_pattern": r"plot_.*\.py",
-    "ignore_pattern": r"(__init__|.*/llm/.*)\.py",
+    # examples/llm/ needs a GPU or saved results; llm_uncertainty_pipeline.py is shown
+    # in the gallery but not executed (its name does not match filename_pattern).
+    "ignore_pattern": r"(__init__|.*/llm/(?!llm_uncertainty_pipeline\.py$).*)\.py",
     "plot_gallery": True,
     "download_all_examples": False,
     "notebook_extensions": set(),
