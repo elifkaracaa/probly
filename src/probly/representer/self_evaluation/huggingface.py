@@ -19,15 +19,19 @@ from __future__ import annotations
 
 from copy import copy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+import re
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import torch
+
+from probly.representer.sampler.huggingface import HFTextGenerationSampler
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from transformers import PreTrainedModel, PreTrainedTokenizerBase
+    from transformers._typing import GenerativePreTrainedModel
 
 type SelfEvaluationMode = Literal["plain_ab", "chat_groups"]
 
@@ -76,6 +80,29 @@ def build_self_evaluation_text(question: str, answer: str, brainstorm: Sequence[
         " (B) False\n"
         "The possible answer is:"
     )
+
+
+def parse_judgment(text: str) -> bool | None:
+    """Read a sampled reply to the multiple-choice prompt as a judgment.
+
+    Leading markdown, quotes and brackets are ignored. A reply counts as ``True`` if it starts with
+    ``true`` or with the option ``A`` and as ``False`` if it starts with ``false`` or the option ``B``.
+
+    Args:
+        text: The decoded reply of the model.
+
+    Returns:
+        ``True``, ``False``, or ``None`` if the reply can be read as neither.
+    """
+    cleaned = re.sub(r"^[^0-9a-z]+", "", text.strip().lower())
+    if cleaned.startswith("true"):
+        return True
+    if cleaned.startswith("false"):
+        return False
+    option = re.match(r"^([ab])(?![0-9a-z_])", cleaned)
+    if option is None:
+        return None
+    return option.group(1) == "a"
 
 
 def _single_token_ids(tokenizer: PreTrainedTokenizerBase, strings: Sequence[str]) -> list[int]:
@@ -218,3 +245,68 @@ class HFSelfEvaluator:
             coverage[indices] = (log_true.exp() + log_false.exp()).cpu().numpy()
 
         return SelfEvaluation(p_true=p_true, coverage=coverage, mode=self.mode)
+
+    def sample_judgments(
+        self,
+        questions: Sequence[str],
+        answers: Sequence[str],
+        brainstorm: Sequence[Sequence[str] | None] | None = None,
+        num_samples: int = 10,
+        temperature: float = 1.0,
+        max_new_tokens: int = 3,
+        question_batch_size: int | None = None,
+    ) -> list[list[str]]:
+        """Sample several short judgments per question and decode them.
+
+        The replies of a batch of questions come from one ``generate`` call (``num_return_sequences``), so the
+        cost does not grow with one call per question. Read the replies with :func:`parse_judgment`; the share
+        of ``True`` replies is the empirical p(True).
+
+        Args:
+            questions: The questions.
+            answers: One possible answer per question.
+            brainstorm: Optional other answers per question (``None`` entries mean no brainstorm line).
+            num_samples: Number of replies per question.
+            temperature: Sampling temperature.
+            max_new_tokens: Maximum number of generated tokens per reply.
+            question_batch_size: Number of questions per ``generate`` call. ``None`` uses ``batch_size``.
+
+        Returns:
+            For every question, the list of ``num_samples`` decoded replies.
+
+        Raises:
+            ValueError: If the inputs do not have the same length or ``question_batch_size`` is below one.
+        """
+        if len(questions) != len(answers):
+            msg = f"Got {len(questions)} questions but {len(answers)} answers."
+            raise ValueError(msg)
+        if brainstorm is not None and len(brainstorm) != len(questions):
+            msg = f"Got {len(questions)} questions but {len(brainstorm)} brainstorm lists."
+            raise ValueError(msg)
+        size = self.batch_size if question_batch_size is None else question_batch_size
+        if size < 1:
+            msg = f"question_batch_size must be at least 1, got {size}."
+            raise ValueError(msg)
+        ideas = brainstorm if brainstorm is not None else [None] * len(questions)
+
+        prompts = [
+            build_self_evaluation_text(question, answer, idea)
+            for question, answer, idea in zip(questions, answers, ideas, strict=True)
+        ]
+        sampler = HFTextGenerationSampler(
+            cast("GenerativePreTrainedModel", self.model),
+            self.tokenizer,
+            num_samples=num_samples,
+            temperature=temperature,
+            max_new_tokens=max_new_tokens,
+            with_log_likelihood=False,
+        )
+        # Prompts of similar length share a batch, so that little compute is spent on padding.
+        order = sorted(range(len(prompts)), key=lambda i: len(prompts[i]))
+        replies: list[list[str]] = [[] for _ in prompts]
+        for start in range(0, len(order), size):
+            indices = order[start : start + size]
+            sample = sampler([prompts[i] for i in indices])
+            for index, row in zip(indices, sample.tensor.text, strict=True):
+                replies[index] = [str(text) for text in row]
+        return replies

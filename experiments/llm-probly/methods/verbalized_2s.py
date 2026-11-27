@@ -3,7 +3,7 @@
 After the model's own answer, ask "How confident are you that your answer is correct? Reply with
 only a number between 0 and 100." and read the first number in the reply.
 
-Wraps scripts/r3_methods.verbalized_2s() with scale=100 (week 1, R3).
+Wraps common/verbalized.verbalized_2s() with scale=100 (week 1, R3; moved out of scripts/ in week 3, C2).
 Greedy decoding (do_sample=False), so no seed is needed. 1 short model call per question.
 Uncertainty = 1 - confidence; if no number can be read: uncertainty 1.0, failed (contract rule 3).
 Also stores the raw reply per question, to check parsing and how many distinct numbers the model uses.
@@ -14,7 +14,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
-from scripts.r3_methods import verbalized_2s
+from common.verbalized import verbalized_2s
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizerBase
