@@ -5,17 +5,20 @@ Compares the new plugins (probly ``HFSelfEvaluator``, batched with left padding)
 the local Hugging Face cache; otherwise the test is skipped. Set ALLOW_MODEL_DOWNLOAD=1 to download it once.
 """
 
+from __future__ import annotations
+
 import os
 
 import pytest
 
-pytest.importorskip("torch")
+torch = pytest.importorskip("torch")
 pytest.importorskip("transformers")
-import torch
 
-from common import reflexive
-from common.data import load_data
-from methods import p_true_brainstorm, p_true_zeroshot
+from common import reflexive  # noqa: E402
+from common.data import load_data  # noqa: E402
+from methods import p_true_brainstorm, p_true_zeroshot  # noqa: E402
+
+from probly.representer.sampler.huggingface import load_model  # noqa: E402
 
 MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
 ATOL = 1e-4  # float32 on CPU: batching changes the sums by about 1e-6
@@ -23,8 +26,6 @@ ATOL = 1e-4  # float32 on CPU: batching changes the sums by about 1e-6
 
 @pytest.fixture(scope="module")
 def model_and_tok():
-    from probly.representer.sampler.huggingface import load_model
-
     local_only = not os.environ.get("ALLOW_MODEL_DOWNLOAD")
     try:
         return load_model(

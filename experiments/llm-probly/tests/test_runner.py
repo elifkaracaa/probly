@@ -105,3 +105,18 @@ def test_cli_methods_table_lists_every_method(capsys):
     cli.main(["methods"])
     out = capsys.readouterr().out
     assert all(name in out for name in REGISTRY)
+
+
+def test_config_nli_keys_default_and_check(tmp_path):
+    path = tmp_path / "c.yaml"
+    path.write_text("model: qwen0.5b\ndataset: triviaqa\nn: 5\n")
+    config = run_benchmark.load_config(str(path))
+    assert (config["nli_model"], config["nli_use_question"]) == ("deberta-large", False)
+
+    path.write_text("model: qwen0.5b\ndataset: triviaqa\nn: 5\nnli_model: deberta-base\nnli_use_question: true\n")
+    config = run_benchmark.load_config(str(path))
+    assert (config["nli_model"], config["nli_use_question"]) == ("deberta-base", True)
+
+    path.write_text("model: qwen0.5b\ndataset: triviaqa\nn: 5\nnli_use_question: maybe\n")
+    with pytest.raises(TypeError, match="nli_use_question"):
+        run_benchmark.load_config(str(path))
