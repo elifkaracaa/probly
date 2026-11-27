@@ -64,7 +64,7 @@ AUROC (higher is better, 0.5 = random; best per model in bold):
 
 | method | family | 0.5B | 1.5B | 3B | 7B |
 |---|---|---|---|---|---|
-| p_true_zeroshot | self-eval | 0.669 | **0.825** | **0.877** | **0.870** |
+| p_true_zeroshot | self-eval | 0.669 | 0.825 | **0.877** | **0.870** |
 | p_true_brainstorm | self-eval | 0.685 | 0.806 | 0.820 | 0.845 |
 | p_true_empirical | self-eval | 0.518 | 0.770 | 0.830 | 0.824 |
 | verbalized_2s | self-eval | 0.584 | 0.538 | 0.713 | 0.734 |
@@ -74,6 +74,11 @@ AUROC (higher is better, 0.5 = random; best per model in bold):
 | likelihood_mean | baseline | **0.791** | 0.790 | 0.786 | 0.817 |
 | mean_token_entropy | baseline | 0.773 | 0.805 | 0.817 | 0.833 |
 | msp | baseline | 0.680 | 0.748 | 0.753 | 0.824 |
+| cocoa_p_true | hybrid | 0.734 | **0.833** | 0.786 | 0.752 |
+| cocoa_msp | hybrid | 0.715 | 0.759 | 0.737 | 0.733 |
+
+The hybrid rows (C5, CoCoA: confidence x inconsistency of the samples) are explained in
+[`docs/methods.md`](docs/methods.md#hybrid-scores-c5-cocoa): they win only on 1.5B and lose to p(True) from 3B on.
 
 SE and discrete SE use `microsoft/deberta-large-mnli` (A4) since week 3; with week 2's deberta-base they were
 0.740 / 0.781 (SE) and 0.746 / 0.783 (DSE) on 0.5B / 1.5B, so the change is within noise (intervals about ±0.06).

@@ -144,6 +144,40 @@ when it is put in front of the answers) and the exact answer texts. Other code t
 (e.g. graph measures, hybrid scores) should find the file with `nli_cache_path(data_file, nli_settings())`
 and read it with `load_nli_cache`, instead of writing the file name by hand.
 
+## Hybrid scores (C5, CoCoA)
+
+CoCoA (Vashurin et al. 2025, https://arxiv.org/abs/2502.04964) multiplies a confidence signal of the
+greedy answer with how much the samples disagree with it:
+`uncertainty = u(greedy) * (1 - mean similarity(greedy, sample_i))`. Code: `common/hybrid.py`.
+
+- `cocoa_msp`: `u = -log P(greedy)` (the `msp` score); cache only, no model call.
+- `cocoa_p_true`: `u = 1 - p(True)` (the `p_true_zeroshot` score); the plugin runs p(True),
+  `scripts/hybrid_from_results.py` builds the same record from a saved `p_true_zeroshot.json`.
+- Similarity = mean entailment probability greedy -> sample and sample -> greedy, read from the shared
+  NLI matrix (deberta-large, A5 cache), so neither method adds an NLI pass. The paper uses a
+  cross-encoder similarity instead.
+
+AUROC on TriviaQA-200 (`results/<model>/triviaqa_200/`), compared with the two ingredients
+("inconsistency" = `1 - mean similarity` alone, computed with `common.hybrid.inconsistency`):
+
+| method | 0.5B | 1.5B | 3B | 7B |
+|---|---|---|---|---|
+| msp | 0.680 | 0.748 | 0.753 | 0.824 |
+| p_true_zeroshot | 0.669 | 0.825 | **0.877** | **0.870** |
+| inconsistency alone | 0.736 | 0.766 | 0.738 | 0.724 |
+| cocoa_msp | 0.715 | 0.759 | 0.737 | 0.733 |
+| cocoa_p_true | 0.734 | **0.833** | 0.786 | 0.752 |
+
+- The hybrid beats both ingredients only on 1.5B (`cocoa_p_true` 0.833 vs 0.825, inside the
+  intervals of about ±0.06). On 0.5B it helps the weak p(True) (+0.065) but does not beat consistency.
+- From 3B on it is clearly worse than p(True) alone (-0.09 on 3B, -0.12 on 7B; the paired
+  intervals in `summary.md` exclude 0). Reason: when all samples repeat the greedy answer the
+  product is about 0, whatever the confidence says. That holds for 54 / 46 / 57 / 79 % of the
+  questions (0.5B / 1.5B / 3B / 7B; score < 0.01), so on 7B the p(True) ranking is lost on 4 of 5
+  questions. Bigger models repeat their answers also when they are wrong (README finding 3).
+- Decision: both stay in the table as the `hybrid` family; the selector should not prefer them
+  over p(True) from 3B on. A weighted sum or the logistic stack (D2) avoids the zero product.
+
 ## Known limitations
 
 - The hand labels come from one person (60 pairs); a second person labels a subset to measure how much
