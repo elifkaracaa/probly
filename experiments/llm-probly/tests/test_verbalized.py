@@ -1,8 +1,9 @@
 """Tests for the reply parsing of verbalized confidence (common/verbalized.py)."""
 
-import pytest
+from __future__ import annotations
 
 from common.verbalized import parse_confidence
+import pytest
 
 
 @pytest.mark.parametrize(
