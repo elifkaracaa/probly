@@ -1,71 +1,77 @@
-"""R3'un logit gerektirmeyen refleksif yontemleri (sanity testi ve 50 soru ortak kullanir).
+"""Week-1 reference code of the text-only reflexive methods (R3), kept for comparisons.
 
-- empirical p(True): modele 10 kez "(A) True / (B) False" sordurup True oranini sayar
-- verbalized 2S: cevabi verdikten sonra "ne kadar eminsin?" diye sorar, sayiyi okur
+The plugins use the library now: empirical p(True) runs on
+``probly.representer.self_evaluation.huggingface.HFSelfEvaluator`` (C2, batched, more robust reply
+parsing) and verbalized confidence lives in ``common/verbalized.py``. This module keeps the week-1
+empirical p(True) (one question at a time, the original reply rule) because
+``scripts/bench_self_eval.py`` measures the library against it and ``notebooks/R3_text_only.ipynb``
+documents how the method was built. The verbalized names are re-exported from ``common.verbalized``,
+so there is only one verbalized implementation.
 """
 
-import re
+from __future__ import annotations
 
+import re
+from typing import TYPE_CHECKING, cast
+
+from common.verbalized import ASK, parse_confidence, verbalized_2s
 import numpy as np
+
 from probly.representer.sampler.huggingface import HFTextGenerationSampler
 
-# ---------------- Empirical p(True) ----------------
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizerBase
+    from transformers._typing import GenerativePreTrainedModel
+
+__all__ = ["ASK", "PT_PROMPT", "empirical_p_true", "is_false", "is_true", "parse_confidence", "verbalized_2s"]
+
 PT_PROMPT = (
-    "Question: {q}\nPossible answer: {a}\nIs the possible answer:\n"
-    " (A) True\n (B) False\nThe possible answer is:"
+    "Question: {q}\nPossible answer: {a}\nIs the possible answer:\n (A) True\n (B) False\nThe possible answer is:"
 )
+"""Week-1 prompt of empirical p(True); the model continues it with its judgment."""
 
 
-def is_true(t):
-    t = t.strip().lower()
-    return t.startswith("true") or re.match(r"^\(?a\)?(\W|$)", t) is not None
+def is_true(text: str) -> bool:
+    """Whether a sampled reply says True (week-1 rule: starts with "true" or the letter A)."""
+    text = text.strip().lower()
+    return text.startswith("true") or re.match(r"^\(?a\)?(\W|$)", text) is not None
 
 
-def is_false(t):
-    t = t.strip().lower()
-    return t.startswith("false") or re.match(r"^\(?b\)?(\W|$)", t) is not None
+def is_false(text: str) -> bool:
+    """Whether a sampled reply says False (week-1 rule: starts with "false" or the letter B)."""
+    text = text.strip().lower()
+    return text.startswith("false") or re.match(r"^\(?b\)?(\W|$)", text) is not None
 
 
-def empirical_p_true(model, tok, q, a, n=10):
-    """Return (p_true, ham cevaplar, ne True ne False olan cevap sayisi)."""
-    s = HFTextGenerationSampler(
-        model, tok, num_samples=n, temperature=1.0, max_new_tokens=3, with_log_likelihood=False
+def empirical_p_true(
+    model: PreTrainedModel,
+    tok: PreTrainedTokenizerBase,
+    q: str,
+    a: str,
+    n: int = 10,
+) -> tuple[float, list[str], int]:
+    """Week-1 empirical p(True) of one answer: the share of ``n`` sampled judgments that say True.
+
+    Args:
+        model: Causal language model.
+        tok: Its tokenizer.
+        q: Question.
+        a: Answer to judge.
+        n: Number of sampled judgments.
+
+    Returns:
+        ``(p_true, replies, unparsed)``: the share of True replies, the raw replies, and how many
+        replies were neither True nor False.
+    """
+    sampler = HFTextGenerationSampler(
+        cast("GenerativePreTrainedModel", model),
+        tok,
+        num_samples=n,
+        temperature=1.0,
+        max_new_tokens=3,
+        with_log_likelihood=False,
     )
-    texts = [str(t) for t in s([PT_PROMPT.format(q=q, a=a)]).tensor.text[0]]
+    texts = [str(t) for t in sampler([PT_PROMPT.format(q=q, a=a)]).tensor.text[0]]
     p = float(np.mean([is_true(t) for t in texts]))
     unparsed = sum(not is_true(t) and not is_false(t) for t in texts)
     return p, texts, unparsed
-
-
-# ---------------- Verbalized 2S ----------------
-ASK = {
-    100: "How confident are you that your answer is correct? Reply with only a number between 0 and 100.",
-    10: "How confident are you that your answer is correct? Reply with only a number between 0 and 10.",
-}
-
-
-def parse_confidence(reply, scale):
-    """Cevaptaki ilk sayiyi 0..1 araligina cevirir. Sayi yoksa None.
-    "0.99" gibi ondalikli ve <= 1 olan sayilar zaten oran kabul edilir."""
-    m = re.search(r"(\d+(?:\.\d+)?)", reply)
-    if m is None:
-        return None
-    x = float(m.group(1))
-    if "." in m.group(1) and x <= 1.0:
-        return x
-    return min(max(x, 0.0), scale) / scale
-
-
-def verbalized_2s(model, tok, q, a, scale=100):
-    """Return (guven 0..1, failed, ham cevap). Parse edilemezse guven 0 (contract: uncertainty 1.0)."""
-    chat = [
-        {"role": "user", "content": q},
-        {"role": "assistant", "content": a},
-        {"role": "user", "content": ASK[scale]},
-    ]
-    sv = HFTextGenerationSampler(
-        model, tok, num_samples=1, do_sample=False, max_new_tokens=8, with_log_likelihood=False
-    )
-    reply = str(sv([chat]).tensor.text[0, 0])
-    c = parse_confidence(reply, scale)
-    return (0.0, True, reply) if c is None else (c, False, reply)
