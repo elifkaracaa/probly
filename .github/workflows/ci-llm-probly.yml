@@ -29,6 +29,6 @@ jobs:
                     python-version: "3.13"
                     enable-cache: true
             -   name: Install dependencies
-                run: uv sync --locked --dev
+                run: uv sync --locked --dev --group api
             -   name: Run experiment tests
                 run: uv run --no-sync pytest experiments/llm-probly/tests -q

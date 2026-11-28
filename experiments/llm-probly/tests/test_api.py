@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 from pathlib import Path
 import shutil
 from typing import Any
@@ -26,6 +27,7 @@ from api.scoring import (
 )
 from common.data import cache_path, load_jsonl
 from fastapi.testclient import TestClient
+from huggingface_hub import try_to_load_from_cache
 from methods import (
     likelihood_mean as plugin_likelihood_mean,
     mean_token_entropy as plugin_mean_token_entropy,
@@ -34,6 +36,7 @@ from methods import (
 from selector.profile import Calibration, MethodChoice, Metrics, Profile, save_profile
 
 MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct"
+QWEN_ID = "Qwen/Qwen2.5-0.5B-Instruct"
 METRICS = Metrics(auroc=0.8, auroc_low=0.7, auroc_high=0.9, prr=0.6, prr_low=0.4, prr_high=0.8)
 D4_EXAMPLE = Path(__file__).resolve().parent.parent / "docs" / "profile_example_qwen1.5b.json"
 client = TestClient(app)
@@ -65,6 +68,20 @@ def profiles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+def require_local_model(model_id: str) -> None:
+    """Skip the test unless the model is in the local Hugging Face cache.
+
+    The tests that load a real model must not download it (CI has no model cache, and offline runs
+    would fail instead of skip). Set ALLOW_MODEL_DOWNLOAD=1 to download it once, as in
+    tests/test_self_eval_equivalence.py.
+    """
+    if os.environ.get("ALLOW_MODEL_DOWNLOAD"):
+        return
+    for filename in ("config.json", "model.safetensors"):
+        if not isinstance(try_to_load_from_cache(model_id, filename), str):
+            pytest.skip(f"{model_id} is not in the local Hugging Face cache (set ALLOW_MODEL_DOWNLOAD=1)")
+
+
 def fake_generation(logprob: float) -> Generation:
     """Two tokens with the given log-probability each."""
     return Generation(answer="Paris", token_logprobs=[logprob, logprob], token_entropies=[0.5, 0.5])
@@ -72,6 +89,7 @@ def fake_generation(logprob: float) -> Generation:
 
 @pytest.mark.usefixtures("profiles")
 def test_end_to_end_with_smollm() -> None:
+    require_local_model(MODEL_ID)
     r = client.post("/uncertainty", json={"question": "What is the capital of France?", "model": "tiny"})
     assert r.status_code == 200
     body = r.json()
@@ -259,8 +277,9 @@ def test_generation_matches_the_benchmark_cache() -> None:
     path = cache_path("qwen0.5b", 5, "triviaqa")
     if not path.exists():
         pytest.skip(f"{path} not found")
+    require_local_model(QWEN_ID)
     row = load_jsonl(path)[0]
-    gen = generate("Qwen/Qwen2.5-0.5B-Instruct", row["question"])
+    gen = generate(QWEN_ID, row["question"])
     assert gen.answer == row["greedy_answer"]
     assert likelihood_mean(gen) == pytest.approx(-row["greedy_ll_mean"], abs=1e-3)
     assert likelihood_sum(gen) == pytest.approx(-row["greedy_ll_sum"], abs=1e-2)
