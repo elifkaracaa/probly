@@ -2,7 +2,7 @@
 
 The prompt adds "Here are some ideas that were brainstormed: ..." with the cached samples.
 
-Thin wrapper around probly's ``HFSelfEvaluator`` in plain_ab mode (week 1, R2; moved into the library in week 3, C1).
+Thin wrapper around probly's ``HFSelfEvaluator`` in plain_ab mode (written in week 1, in the library since week 3).
 The samples come from the cache (row["samples"]), so no new generation.
 Uncertainty = 1 - p_true (score contract rule 1).
 Also stores coverage = P(A) + P(B) per question.

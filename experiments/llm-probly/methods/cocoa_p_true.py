@@ -1,4 +1,4 @@
-"""Plugin: CoCoA with zero-shot p(True), (1 - p(True)) times the inconsistency of the samples (C5).
+"""Plugin: CoCoA with zero-shot p(True), (1 - p(True)) times the inconsistency of the samples.
 
 Runs zero-shot p(True) (one scoring pass) and reads the shared NLI matrix, so it adds no NLI
 pass. For runs where ``p_true_zeroshot.json`` already exists, ``scripts/hybrid_from_results.py``

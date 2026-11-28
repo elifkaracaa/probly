@@ -2,7 +2,7 @@
 
 The model judges its own answer 10 times at temperature 1.0.
 
-Uses probly's ``HFSelfEvaluator.sample_judgments`` (week 1, R3; moved into the library in week 3, C2). The 10
+Uses probly's ``HFSelfEvaluator.sample_judgments`` (written in week 1, in the library since week 3). The 10
 replies of a question come from one ``generate`` call (``num_return_sequences``). Putting several questions into
 one call is possible (BATCH_SIZE), but on CPU it was 3 to 5 times slower, so the default is 1 question per call.
 No logits needed, but 10 sampled replies per question (the most expensive method).
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 NAME = "p_true_empirical"
 IMPLEMENTATION = "HFSelfEvaluator.sample_judgments"
-"""Where the judgments come from (C2, library code), stored in every record."""
+"""Where the judgments come from (library code), stored in every record."""
 N_SAMPLES = 10
 BATCH_SIZE = 1  # questions per generate call; more was slower on CPU (check on GPU before raising)
 SEED = 42  # same seed as the week 1 run, but sampling in batches draws different random numbers

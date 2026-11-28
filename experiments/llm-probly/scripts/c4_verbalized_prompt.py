@@ -1,4 +1,4 @@
-"""C4: does an anchored prompt fix verbalized confidence? Runs it on the cached greedy answers.
+"""Does an anchored prompt fix verbalized confidence? Runs it on the cached greedy answers.
 
 The week 1 prompt ("a number between 0 and 100") makes the small models answer almost always "95"
 or "100". This script asks the same question with two 0-10 prompts and compares them with the
