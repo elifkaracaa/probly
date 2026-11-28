@@ -1,6 +1,8 @@
-"""Tests for the cache-only baselines (BIG): msp, mean_token_entropy, lexical_similarity."""
+"""Tests for the cache-only baselines: msp, mean_token_entropy, lexical_similarity."""
 
 from __future__ import annotations
+
+from typing import Any
 
 from common.io import validate_scores
 from common.registry import get
@@ -54,6 +56,7 @@ def test_empty_answer_is_failed(plugin):
 def test_rouge_l():
     assert lexical_similarity.rouge_l("Paris", "paris.") == 1.0
     assert lexical_similarity.rouge_l("Paris", "Berlin") == 0.0
+    assert lexical_similarity.rouge_l("", "Paris") == 0.0  # an empty answer shares no words
     # LCS of "the city of paris" and "paris city" is 1 word -> P=1/2, R=1/4
     assert lexical_similarity.rouge_l("the city of paris", "paris city") == pytest.approx(2 * 0.5 * 0.25 / 0.75)
 
@@ -62,3 +65,12 @@ def test_identical_samples_are_least_uncertain():
     u = lexical_similarity.score(ROWS)["uncertainty"]
     assert u[0] == pytest.approx(-1.0)
     assert u[1] > u[0]
+
+
+def test_msp_is_the_summed_log_likelihood():
+    # The scripts/baseline_likelihood.py "likelihood_sum" was dropped as a duplicate of msp (#98); keep it so.
+    rows: list[dict[str, Any]] = [
+        {"id": 0, "model": "m", "greedy_token_logprobs": [-0.5, -1.0, -0.25], "greedy_ll_sum": -1.75},
+        {"id": 1, "model": "m", "greedy_token_logprobs": [-2.0], "greedy_ll_sum": -2.0},
+    ]
+    assert msp.score(rows)["uncertainty"] == pytest.approx([-r["greedy_ll_sum"] for r in rows])

@@ -9,7 +9,7 @@ import pandas as pd
 ROWS = [{"id": i, "correct": i < 12} for i in range(50)]
 
 
-def write(folder, name, ids, uncertainty, failed=None):
+def write(folder, name, ids, uncertainty, failed=None, **extra):
     record = {
         "method": name,
         "model": "m",
@@ -18,6 +18,7 @@ def write(folder, name, ids, uncertainty, failed=None):
         "uncertainty": uncertainty,
         "failed": failed or [False] * len(ids),
         "seconds_per_question": 0.5,
+        **extra,
     }
     (folder / f"{name}.json").write_text(json.dumps(record))
 
@@ -49,6 +50,20 @@ def test_unknown_method_file_is_included(tmp_path):
     write(folder, "my_new_method", ids, list(np.linspace(0, 1, 50)))
     table = summary_table(ROWS, run="run", results_root=tmp_path, n_boot=50)
     assert "my_new_method" in set(table["method"])
+
+
+def test_coverage_column_uses_coverage_or_parsed_fraction(tmp_path):
+    folder = tmp_path / "run"
+    folder.mkdir()
+    ids = [r["id"] for r in ROWS]
+    scores = list(np.linspace(0, 1, 50))
+    write(folder, "p_true_zeroshot_norm", ids, scores, coverage=[0.5] * 50)
+    write(folder, "p_true_empirical", ids, scores, parsed_fraction=[0.8] * 50)
+    write(folder, "discrete_se", ids, scores)
+    table = summary_table(ROWS, run="run", results_root=tmp_path, n_boot=50).set_index("method")
+    assert table.loc["p_true_zeroshot_norm", "coverage"] == 0.5
+    assert abs(table.loc["p_true_empirical", "coverage"] - 0.8) < 1e-9
+    assert pd.isna(table.loc["discrete_se", "coverage"])
 
 
 # ----- comparison across model sizes ------------------------------------------
@@ -98,3 +113,15 @@ def test_paired_comparison_marks_best_tied_and_worse(tmp_path):
     assert table.loc["almost", "vs_best"] == "tied"
     assert table.loc["constant", "vs_best"] == "worse"
     assert table.loc["constant", "d_ci_high"] < 0
+
+
+def test_rows_are_sorted_whatever_ran_last(tmp_path):
+    """Rows come in alphabetical order, not with the methods of the last run first (Eylül's review of #81)."""
+    folder = tmp_path / "run"
+    folder.mkdir()
+    ids = [r["id"] for r in ROWS]
+    perfect = [0.0 if r["correct"] else 1.0 for r in ROWS]
+    for name in ("msp", "deg_mat", "verbalized_2s"):
+        write(folder, name, ids, perfect)
+    table = summary_table(ROWS, run="run", methods=("verbalized_2s",), results_root=tmp_path, n_boot=50)
+    assert list(table["method"]) == ["deg_mat", "msp", "verbalized_2s"]

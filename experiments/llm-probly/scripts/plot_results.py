@@ -1,4 +1,4 @@
-"""Plots for the benchmark (PIPE): metric vs model size, and rejection curves.
+"""Plots for the benchmark: metric vs model size, and rejection curves.
 
 Run from ``experiments/llm-probly`` after ``run_benchmark`` (for each model)::
 
@@ -52,7 +52,6 @@ STYLE = {
     "verbalized_2s": ("#e87ba4", "v"),
     "semantic_entropy": ("#008300", "P"),
     "discrete_semantic_entropy": ("#6250d6", "X"),
-    "likelihood_sum": ("#e34948", "h"),
 }
 OTHER = ("#8a8984", ".")  # any further method: gray, listed in the legend by name
 HIDDEN = {"dummy_random"}  # test plugin, not a real method

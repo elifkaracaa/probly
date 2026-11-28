@@ -51,7 +51,7 @@ def aurc(
         perm = rng.permutation(len(u))
         value, _bin_losses = selective_prediction(u[perm], losses[perm], n_bins=n_bins)
         values.append(value)
-    return float(np.mean(values))
+    return float(np.mean(np.asarray(values, dtype=float)))
 
 
 def _rejection_area(u: np.ndarray, quality: np.ndarray) -> float:
@@ -243,7 +243,7 @@ def paired_bootstrap(
     alpha: float = 0.05,
     seed: int = 0,
 ) -> PairedDifference:
-    """Is method A better than method B on these questions (E4)?
+    """Is method A better than method B on these questions?
 
     Both methods are scored on the *same* resampled questions in every bootstrap
     round, and the interval is taken over the per-round difference. Questions

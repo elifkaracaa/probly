@@ -1,4 +1,4 @@
-"""Generate the shared answer cache (cache v2) for any model and dataset (DATA).
+"""Generate the shared answer cache (cache v2) for any model and dataset.
 
 For every question we store one greedy answer (the answer that all methods
 judge) and 10 sampled answers, with their log likelihoods. Cache v2 also
@@ -10,7 +10,10 @@ Run from ``experiments/llm-probly``::
 
     uv run python -m scripts.generate --model qwen0.5b --n 5
     uv run python -m scripts.generate --model qwen0.5b --n 200
-    caffeinate -i uv run python -m scripts.generate --model qwen3b --n 200 --device mps
+    uv run python -m scripts.generate --model qwen3b --n 200 --device mps
+
+For long runs, keep the computer awake (macOS: put ``caffeinate -i`` in front of the
+command; Linux: ``systemd-inhibit``; Windows: the power settings).
 
 Rows are appended to ``data/<model>/<dataset>_<n>.partial.jsonl`` after every
 question, so an interrupted run continues where it stopped (run the same
@@ -32,7 +35,7 @@ import platform
 import time
 from typing import TYPE_CHECKING
 
-from common.data import DATASETS, DEFAULT_SEED, MMLU_INSTRUCTION, cache_path, load_jsonl, load_questions
+from common.data import DATASETS, DEFAULT_SEED, INSTRUCTION, MMLU_INSTRUCTION, cache_path, load_jsonl, load_questions
 from common.generation import generate_answers, stop_at_newline_config
 import torch
 import transformers
@@ -49,12 +52,11 @@ MODELS = {
     "qwen1.5b": "Qwen/Qwen2.5-1.5B-Instruct",
     "qwen3b": "Qwen/Qwen2.5-3B-Instruct",
     "qwen7b": "Qwen/Qwen2.5-7B-Instruct",
-    # second model family (E3): open weights, no Hugging Face login needed
+    # second model family: open weights, no Hugging Face login needed
     "smollm2-1.7b": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
 }
 PRECISIONS = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}
 
-INSTRUCTION = "Answer the following question with as few words as possible."
 NUM_SAMPLES = 10
 TEMPERATURE = 0.7
 MAX_NEW_TOKENS = 32

@@ -1,0 +1,253 @@
+"""Tests for the shared NLI matrix (A1): equivalence with the old SE path, file format, sharing."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from common import nli_matrix
+from common.io import validate_scores
+from common.nli_matrix import (
+    NliSettings,
+    load_nli_cache,
+    nli_cache_path,
+    nli_pair_count,
+    nli_settings,
+    question_texts,
+    resolve_dtype,
+    save_nli_cache,
+    se_and_dse,
+    set_nli_settings,
+)
+from methods import _se_common, discrete_semantic_entropy, semantic_entropy
+import numpy as np
+import pytest
+import torch
+
+from probly.representer.semantic_clustering.huggingface import expand_unique_nli, unique_statements
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def stored_results_and_their_cache(model: str) -> tuple[list[dict], dict, dict, dict]:
+    """Rows, NLI cache and stored SE / DSE records of TriviaQA-200, the cache matching the records' NLI setup.
+
+    Records without an ``nli`` field are from week 2 (deberta-base, answers only, file ``.nli.npz``).
+    """
+    data_file = ROOT / f"data/{model}/triviaqa_200.jsonl"
+    rows = [json.loads(line) for line in data_file.open()]
+    results = ROOT / f"results/{model}/triviaqa_200"
+    se = json.loads((results / "semantic_entropy.json").read_text())
+    dse = json.loads((results / "discrete_semantic_entropy.json").read_text())
+    tag = se.get("nli", "deberta-base")
+    settings = NliSettings(tag.removesuffix("+question"), use_question=tag.endswith("+question"))
+    return rows, load_nli_cache(nli_cache_path(data_file, settings)), se, dse
+
+
+@pytest.mark.parametrize("model", ["qwen0.5b", "qwen1.5b"])
+def test_se_from_cached_matrix_equals_old_results(model):
+    """Equivalence: SE / DSE from the NLI cache = the stored results made with it (all 200 questions)."""
+    rows, cache, old_se, old_dse = stored_results_and_their_cache(model)
+
+    assert cache["ids"] == [r["id"] for r in rows] == old_se["ids"]
+    new = np.array([se_and_dse(m, r["samples_ll_mean"]) for m, r in zip(cache["matrices"], rows, strict=True)])
+
+    np.testing.assert_allclose(new[:, 0], old_se["uncertainty"], atol=1e-5)
+    np.testing.assert_allclose(new[:, 1], old_dse["uncertainty"], atol=1e-5)
+
+
+@pytest.mark.parametrize("model", ["qwen0.5b", "qwen1.5b"])
+def test_deduplicated_matrix_gives_the_same_se(model: str) -> None:
+    """A2: scoring each distinct text once (identical pairs = entailment) keeps SE / DSE unchanged."""
+    rows, cache, se_record, dse_record = stored_results_and_their_cache(model)
+    old_se, old_dse = se_record["uncertainty"], dse_record["uncertainty"]
+
+    new = []
+    for matrix, row in zip(cache["matrices"], rows, strict=True):
+        texts = question_texts(row)
+        unique, inverse = unique_statements(texts)
+        first = torch.tensor([texts.index(text) for text in unique])
+        deduplicated = expand_unique_nli(matrix[first[:, None], first[None, :]], inverse)
+        new.append(se_and_dse(deduplicated, row["samples_ll_mean"]))
+
+    np.testing.assert_allclose(np.array(new)[:, 0], old_se, atol=1e-5)
+    np.testing.assert_allclose(np.array(new)[:, 1], old_dse, atol=1e-5)
+
+
+def test_nli_pair_count() -> None:
+    row = {"greedy_answer": "Paris", "samples": ["Paris", "paris", "Lyon"]}
+    assert nli_pair_count(row) == 3 * 2
+    assert nli_pair_count(row, deduplicate=False) == 4 * 3
+
+
+def test_load_converts_file_order_to_probly_order(tmp_path):
+    entail, _, contradict = np.eye(3, dtype=np.float32)
+    file_matrix = np.full((1, 2, 2, 3), np.nan, dtype=np.float32)
+    file_matrix[0, 0, 1] = entail
+    file_matrix[0, 1, 0] = contradict
+    path = tmp_path / "old.nli.npz"
+    np.savez(
+        path,
+        nli=file_matrix,
+        n_texts=np.array([2], dtype=np.int16),
+        ids=np.array([7]),
+        labels=np.array(["entail", "neutral", "contradict"]),
+        nli_model=np.array("m"),
+        use_question=np.array(False),
+        seconds_per_question=np.array(1.0),
+    )
+
+    loaded = load_nli_cache(path)
+
+    matrix = loaded["matrices"][0]
+    assert matrix[0, 1].argmax().item() == 2  # probly: entailment is last
+    assert matrix[1, 0].argmax().item() == 0  # probly: contradiction is first
+    assert loaded["ids"] == [7]
+
+
+def test_save_then_load_round_trip(tmp_path):
+    rng = np.random.default_rng(0)
+    matrices = []
+    for n in (3, 2):
+        m = torch.from_numpy(rng.dirichlet(np.ones(3), size=(n, n)).astype(np.float32))
+        m[torch.arange(n), torch.arange(n)] = float("nan")
+        matrices.append(m)
+    path = tmp_path / "x.nli.npz"
+
+    save_nli_cache(path, matrices, [1, 2], nli_model="m", use_question=True, seconds_per_question=0.5)
+    loaded = load_nli_cache(path)
+
+    for before, after in zip(matrices, loaded["matrices"], strict=True):
+        torch.testing.assert_close(after, before, equal_nan=True)
+    assert loaded["use_question"] is True
+    with np.load(path) as z:
+        assert z["labels"].tolist() == ["entail", "neutral", "contradict"]
+        assert int(z["format_version"]) == nli_matrix.FORMAT_VERSION
+
+
+class CountingClusterer:
+    """Stands in for the NLI clusterer: everything entails everything, calls are counted."""
+
+    def __init__(self) -> None:
+        """Start with zero calls."""
+        self.calls = 0
+        self.contexts: list = []
+
+    def pairwise_nli_many(
+        self, groups: list[list[str]], contexts: list[str | None] | None = None, deduplicate: bool = True
+    ) -> list[torch.Tensor]:
+        """Return one all-entailment matrix per group and count the (batched) call."""
+        self.calls += 1
+        self.contexts.append(list(contexts) if contexts is not None else None)
+        matrices = []
+        for group in groups:
+            matrix = torch.zeros((len(group), len(group), 3))
+            matrix[..., 2] = 1.0
+            matrices.append(matrix)
+        return matrices
+
+
+def test_se_and_dse_plugins_share_one_nli_pass(monkeypatch):
+    fake = CountingClusterer()
+    monkeypatch.setattr(_se_common, "_clusterers", {nli_settings().hf_name: fake})
+    monkeypatch.setattr(_se_common, "_matrices", {})
+    monkeypatch.setattr(_se_common, "_nli_seconds", {})
+    rows = [
+        {"id": i, "model": "m", "greedy_answer": "Paris", "samples": ["Paris"] * 3, "samples_ll_mean": [-0.1] * 3}
+        for i in range(2)
+    ]
+    rows[1]["samples"] = ["Paris", "paris", "PARIS"]
+
+    se = semantic_entropy.score(rows)
+    dse = discrete_semantic_entropy.score(rows)
+
+    assert fake.calls == 1  # both questions in one batched NLI call, shared by SE and DSE
+    # question 0: 1 distinct text -> 0 pairs; question 1: 3 distinct texts -> 6 pairs; mean 3
+    assert se["nli_pairs_per_question"] == 3
+    assert dse["nli_pairs_per_question"] == 0
+    assert se["uncertainty"] == pytest.approx([0.0, 0.0])
+    assert dse["uncertainty"] == pytest.approx([0.0, 0.0])
+    assert se["failed"] == dse["failed"] == [False, False]
+    assert validate_scores(se, expected_ids=[0, 1]) == []
+    assert validate_scores(dse, expected_ids=[0, 1]) == []
+
+
+def test_questions_are_batched_in_chunks(monkeypatch):
+    fake = CountingClusterer()
+    monkeypatch.setattr(_se_common, "_clusterers", {nli_settings().hf_name: fake})
+    monkeypatch.setattr(_se_common, "_matrices", {})
+    monkeypatch.setattr(_se_common, "_nli_seconds", {})
+    monkeypatch.setattr(_se_common, "QUESTIONS_PER_BATCH", 2)
+    rows = [{"greedy_answer": f"g{i}", "samples": [f"s{i}"]} for i in range(5)]
+
+    _se_common.prepare_matrices(rows)
+    _se_common.prepare_matrices(rows)  # already cached: no new call
+
+    assert fake.calls == 3  # 2 + 2 + 1 questions
+
+
+def test_resolve_dtype():
+    assert resolve_dtype("float32", "cpu") == torch.float32
+    assert resolve_dtype("float16", "mps") == torch.float16
+    with pytest.raises(ValueError, match="GPU"):
+        resolve_dtype("float16", "cpu")
+    with pytest.raises(ValueError, match="dtype"):
+        resolve_dtype("bfloat16", "cuda")
+
+
+def test_nli_settings_default_tag_and_change(monkeypatch):
+    monkeypatch.setattr(nli_matrix, "_settings", NliSettings())
+    assert nli_settings().hf_name == "microsoft/deberta-large-mnli"
+    assert nli_settings().tag == "deberta-large"
+
+    set_nli_settings("deberta-base", use_question=True)
+    assert nli_settings().tag == "deberta-base+question"
+    set_nli_settings("org/other-nli")
+    assert (nli_settings().hf_name, nli_settings().tag) == ("org/other-nli", "other-nli+question")
+
+
+def test_se_plugins_use_the_nli_settings(monkeypatch):
+    fake = CountingClusterer()
+    monkeypatch.setattr(_se_common, "_clusterers", {"microsoft/deberta-base-mnli": fake})
+    monkeypatch.setattr(_se_common, "_matrices", {})
+    monkeypatch.setattr(_se_common, "_nli_seconds", {})
+    monkeypatch.setattr(nli_matrix, "_settings", NliSettings("deberta-base", use_question=True))
+    rows = [
+        {
+            "id": 0,
+            "model": "m",
+            "question": "Q?",
+            "greedy_answer": "Paris",
+            "samples": ["Lyon"],
+            "samples_ll_mean": [-0.1],
+        }
+    ]
+
+    record = semantic_entropy.score(rows)
+
+    assert record["nli"] == "deberta-base+question"
+    assert fake.contexts == [["Q?"]]
+
+
+def test_equal_partitions_give_exactly_equal_dse():
+    """The same cluster sizes in another order must give the same DSE (ties stay ties for AUROC)."""
+    contradiction, entailment = torch.tensor([1.0, 0.0, 0.0]), torch.tensor([0.0, 0.0, 1.0])
+
+    def matrix_for(groups: list[int]) -> torch.Tensor:
+        n = len(groups) + 1  # index 0 = greedy answer
+        matrix = contradiction.repeat(n, n, 1)
+        for a in range(1, n):
+            for b in range(1, n):
+                if groups[a - 1] == groups[b - 1]:
+                    matrix[a, b] = entailment
+        return matrix
+
+    # Found in qwen0.5b TriviaQA-200: one pair and eight singletons; without rounding the float32
+    # entropies differ in the last digit (2.16395545 vs 2.16395569) and break AUROC ties.
+    pair_early = [0, 1, 2, 3, 4, 5, 6, 0, 7, 8]
+    pair_late = [0, 1, 2, 3, 4, 4, 5, 6, 7, 8]
+    ll = [-0.5] * 10
+    values = {se_and_dse(matrix_for(groups), ll)[1] for groups in (pair_early, pair_late)}
+
+    assert len(values) == 1
+    assert values.pop() == pytest.approx(-(0.2 * np.log(0.2) + 8 * 0.1 * np.log(0.1)), abs=1e-6)

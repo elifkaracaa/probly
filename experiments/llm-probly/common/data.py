@@ -73,6 +73,8 @@ MMLU_CONFIG = "continuation"  # 5-shot prompt per subject, at most 100 test ques
 MMLU_SPLIT = "test"
 # Chat models otherwise start explaining ("Let's analyze each option...") and never reach a letter.
 MMLU_INSTRUCTION = "Reply with only the letter (A, B, C or D) of the correct answer."
+# Free-text questions (TriviaQA): sent before "Question: ...", by generate.py and decomposed SE.
+INSTRUCTION = "Answer the following question with as few words as possible."
 
 
 def load_mmlu_questions(num_questions: int, seed: int = DEFAULT_SEED) -> list[dict]:

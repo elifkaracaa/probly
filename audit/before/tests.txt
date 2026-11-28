@@ -1,0 +1,107 @@
+........................................................................ [ 23%]
+........................................................s............... [ 47%]
+........................................................................ [ 70%]
+........................................................................ [ 94%]
+.................<repo>/.venv/lib/python3.13/site-packages/coverage/report_core.py:113: CoverageWarning: Couldn't parse '<repo>/experiments/llm-probly/_remote_module_non_scriptable': No source for code: '<repo>/experiments/llm-probly/_remote_module_non_scriptable'. (couldnt-parse); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-couldnt-parse
+  coverage._warn(msg, slug="couldnt-parse")
+                                                        [100%]
+================================ tests coverage ================================
+______________ coverage: platform darwin, python 3.13.17-final-0 _______________
+
+Name                                     Stmts   Miss  Cover
+------------------------------------------------------------
+cli.py                                      46      5    89%
+common/__init__.py                           0      0   100%
+common/correctness.py                       25      0   100%
+common/data.py                              56     18    68%
+common/decomposed_se.py                     49     19    61%
+common/evaluate.py                         147      4    97%
+common/generation.py                        49      1    98%
+common/graph_measures.py                    33      0   100%
+common/io.py                                38      4    89%
+common/nli_labels.py                        88      0   100%
+common/nli_matrix.py                       176     10    94%
+common/reflexive.py                         39      5    87%
+common/registry.py                          81      6    93%
+common/sample_count.py                      69      0   100%
+common/sanity.py                            25     25     0%
+common/semantic_scores.py                  102      8    92%
+common/summary.py                           94      0   100%
+methods/__init__.py                          0      0   100%
+methods/_cache_baselines.py                  6      0   100%
+methods/_graph_common.py                    24      3    88%
+methods/_se_common.py                       87      6    93%
+methods/decomposed_semantic_entropy.py      39      3    92%
+methods/deg_mat.py                           6      0   100%
+methods/discrete_semantic_entropy.py         5      0   100%
+methods/dummy_random.py                      7      0   100%
+methods/eccentricity.py                      6      0   100%
+methods/eig_val_laplacian.py                 6      0   100%
+methods/greedy_cluster_share.py              6      0   100%
+methods/largest_cluster_share.py             6      0   100%
+methods/lexical_similarity.py               34      1    97%
+methods/likelihood_mean.py                   5      0   100%
+methods/mean_token_entropy.py               10      0   100%
+methods/msp.py                               7      0   100%
+methods/num_semantic_sets.py                 6      1    83%
+methods/p_true_brainstorm.py                28     20    29%
+methods/p_true_empirical.py                 23     14    39%
+methods/p_true_zeroshot.py                  22     14    36%
+methods/semantic_entropy.py                  5      0   100%
+methods/verbalized_2s.py                    19     12    37%
+scripts/check_nli_equivalence.py           120     34    72%
+scripts/check_prefix.py                     53     18    66%
+scripts/diff_methods.py                     42     18    57%
+scripts/generate.py                         87     57    34%
+scripts/label_nli_pairs.py                  72     28    61%
+scripts/manual_check.py                     86     55    36%
+scripts/r3_methods.py                       31     21    32%
+scripts/report.py                          169     30    82%
+scripts/run_benchmark.py                   163     34    79%
+scripts/sample_count_curve.py              103     72    30%
+selector/__init__.py                         0      0   100%
+selector/calibrate.py                       59      4    93%
+selector/combine.py                         87     23    74%
+selector/evaluate.py                        87     21    76%
+selector/profile.py                        128     16    88%
+selector/rank.py                            60     17    72%
+selector/select.py                         141     43    70%
+selector/split.py                           47     15    68%
+selector/table.py                           65     14    78%
+tests/test_baselines.py                     34      0   100%
+tests/test_check_prefix.py                  37      0   100%
+tests/test_cluster_shares.py                57      0   100%
+tests/test_correctness.py                   16      0   100%
+tests/test_decomposed_se.py                 84      0   100%
+tests/test_embedding_backend.py             85      0   100%
+tests/test_evaluate.py                     125      1    99%
+tests/test_generation.py                    55      0   100%
+tests/test_graph_measures.py               112      1    99%
+tests/test_io.py                            24      0   100%
+tests/test_manual_check.py                  21      0   100%
+tests/test_mmlu.py                          26      0   100%
+tests/test_nli_cache.py                    145      2    99%
+tests/test_nli_equivalence.py              118     13    89%
+tests/test_nli_labels.py                    93      0   100%
+tests/test_nli_matrix.py                   154      0   100%
+tests/test_paired_bootstrap.py              71      0   100%
+tests/test_reflexive.py                     33      0   100%
+tests/test_registry.py                      64      0   100%
+tests/test_rejection_curve.py               13      0   100%
+tests/test_report.py                        53      0   100%
+tests/test_runner.py                        72      0   100%
+tests/test_sample_count.py                 111      0   100%
+tests/test_sanity_table.py                  23      0   100%
+tests/test_selector_calibrate.py            60      0   100%
+tests/test_selector_combine.py              52      0   100%
+tests/test_selector_evaluate.py             51      0   100%
+tests/test_selector_profile.py              47      0   100%
+tests/test_selector_rank.py                 42      0   100%
+tests/test_selector_select.py               65      0   100%
+tests/test_selector_split.py                37      0   100%
+tests/test_selector_table.py                39      0   100%
+tests/test_semantic_scores.py              110      0   100%
+tests/test_summary.py                       70      0   100%
+------------------------------------------------------------
+TOTAL                                     5273    716    86%
+304 passed, 1 skipped in 50.67s

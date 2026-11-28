@@ -1,4 +1,4 @@
-# E3: MMLU 200 on cpu. On mps (Apple GPU) the long MMLU prompts x 10 samples ran out of memory
+# MMLU 200 on cpu. On mps (Apple GPU) the long MMLU prompts x 10 samples ran out of memory
 # (day 3); cpu uses normal RAM. About 50 min.
 model: smollm2-1.7b
 dataset: mmlu

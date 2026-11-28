@@ -1,4 +1,4 @@
-# E3: first 200 = triviaqa_200 (same cpu/float32). About 66 min (4.0 s/question).
+# First 200 = triviaqa_200 (same cpu/float32). About 66 min (4.0 s/question).
 model: qwen1.5b
 dataset: triviaqa
 n: 1000

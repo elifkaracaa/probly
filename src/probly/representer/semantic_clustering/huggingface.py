@@ -1,9 +1,9 @@
-"""Semantic clustering representers backed by Hugging Face NLI models."""
+"""Semantic clustering representers backed by Hugging Face NLI or sentence-embedding models."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Self, override
 
 import numpy as np
@@ -14,18 +14,22 @@ from probly.representation.distribution.torch_sparse_log_categorical import (
     TorchSparseLogCategoricalDistribution,
     TorchSparseLogCategoricalDistributionSample,
 )
+from probly.representation.embedding.torch import TorchEmbedding
 from probly.representation.text_generation.torch import (
     TorchTextGeneration,
     TorchTextGenerationSample,
     TorchTextGenerationSampleSample,
 )
 from probly.representer._representer import Representer
+from probly.representer.embedder.huggingface import DEFAULT_EMBEDDING_MODEL, HFTextEmbedder
 
 if TYPE_CHECKING:
     from os import PathLike
 
 
 DEFAULT_NLI_MODEL = "microsoft/deberta-base-mnli"
+DEFAULT_EMBEDDING_THRESHOLD = 0.9
+"""Cosine similarity above which :class:`HFEmbeddingSemanticClusterer` treats two texts as equivalent."""
 
 type SemanticClusterInput = TorchTextGeneration | TorchTextGenerationSample | TorchTextGenerationSampleSample
 type SemanticClusterOutput = TorchSparseLogCategoricalDistribution | TorchSparseLogCategoricalDistributionSample
@@ -33,6 +37,42 @@ type SemanticClusterOutput = TorchSparseLogCategoricalDistribution | TorchSparse
 _CONTRADICTION = 0
 _NEUTRAL = 1
 _ENTAILMENT = 2
+
+NLI_LABELS = ("contradiction", "neutral", "entailment")
+"""Order of the last axis of :meth:`HFSemanticClusterer.pairwise_nli` matrices."""
+
+
+def unique_statements(statements: Sequence[str]) -> tuple[list[str], torch.Tensor]:
+    """Return the distinct statements in order of first appearance and where each statement went.
+
+    Args:
+        statements: Texts that may contain exact duplicates.
+
+    Returns:
+        ``(unique, inverse)`` with ``unique[inverse[i]] == statements[i]`` for every ``i``.
+    """
+    position: dict[str, int] = {}
+    inverse = [position.setdefault(text, len(position)) for text in statements]
+    return list(position), torch.tensor(inverse, dtype=torch.long)
+
+
+def expand_unique_nli(unique_matrix: torch.Tensor, inverse: torch.Tensor) -> torch.Tensor:
+    """Expand an NLI matrix over distinct statements back to all statements.
+
+    Args:
+        unique_matrix: ``(u, u, 3)`` matrix over the distinct statements (see :func:`unique_statements`).
+        inverse: ``(n,)`` index of the distinct statement of every statement.
+
+    Returns:
+        ``(n, n, 3)`` matrix. Pairs of identical statements are entailment with probability 1,
+        the diagonal is NaN and every other entry is copied from ``unique_matrix``.
+    """
+    matrix = unique_matrix[inverse[:, None], inverse[None, :]].clone()
+    same = inverse[:, None] == inverse[None, :]
+    matrix[same] = torch.tensor([0.0, 0.0, 1.0], dtype=matrix.dtype)
+    n = inverse.shape[0]
+    matrix[torch.arange(n), torch.arange(n)] = float("nan")
+    return matrix
 
 
 def _canonical_label_name(label: object) -> int | None:
@@ -225,18 +265,12 @@ class HFSemanticClusterer(Representer[Any, Any, torch.Tensor, SemanticClusterOut
             labels.append(canonical)
         return torch.tensor(labels, dtype=torch.long)
 
-    def _predict_pair_labels(
+    def _iter_pair_logits(
         self,
         statements: np.ndarray,
         pairs: torch.Tensor,
-    ) -> torch.Tensor:
-        if pairs.ndim != 2 or pairs.shape[1] != 2:
-            msg = "pairs must have shape (num_pairs, 2)."
-            raise ValueError(msg)
-        if pairs.numel() == 0:
-            return torch.empty(0, dtype=torch.long)
-
-        labels: list[torch.Tensor] = []
+    ) -> Iterator[torch.Tensor]:
+        """Yield NLI logits for ``pairs`` in chunks of ``batch_size``."""
         for start in range(0, pairs.shape[0], self.batch_size):
             batch_pairs = pairs[start : start + self.batch_size]
             inputs = self._tokenize_pairs(statements, batch_pairs)
@@ -254,10 +288,155 @@ class HFSemanticClusterer(Representer[Any, Any, torch.Tensor, SemanticClusterOut
             if logits.ndim != 2:
                 msg = "NLI model logits must have shape (batch_size, num_labels)."
                 raise ValueError(msg)
+            yield logits
 
-            labels.append(self._canonicalize_label_ids(torch.argmax(logits, dim=-1), logits.shape[-1]))
+    @staticmethod
+    def _check_pairs(pairs: torch.Tensor) -> None:
+        if pairs.ndim != 2 or pairs.shape[1] != 2:
+            msg = "pairs must have shape (num_pairs, 2)."
+            raise ValueError(msg)
 
+    def _predict_pair_labels(
+        self,
+        statements: np.ndarray,
+        pairs: torch.Tensor,
+    ) -> torch.Tensor:
+        self._check_pairs(pairs)
+        if pairs.numel() == 0:
+            return torch.empty(0, dtype=torch.long)
+
+        labels = [
+            self._canonicalize_label_ids(torch.argmax(logits, dim=-1), logits.shape[-1])
+            for logits in self._iter_pair_logits(statements, pairs)
+        ]
         return torch.cat(labels, dim=0)
+
+    def _canonical_label_columns(self, num_labels: int) -> list[int]:
+        """Return the model label id for contradiction, neutral and entailment, in that order."""
+        columns: dict[int, int] = {}
+        for label_id, canonical in self._label_id_to_canonical.items():
+            if 0 <= label_id < num_labels:
+                columns.setdefault(canonical, label_id)
+        if set(columns) != {_CONTRADICTION, _NEUTRAL, _ENTAILMENT}:
+            msg = f"Cannot map NLI labels of a model with {num_labels} outputs to contradiction/neutral/entailment."
+            raise ValueError(msg)
+        return [columns[_CONTRADICTION], columns[_NEUTRAL], columns[_ENTAILMENT]]
+
+    def _predict_pair_probabilities(
+        self,
+        statements: np.ndarray,
+        pairs: torch.Tensor,
+    ) -> torch.Tensor:
+        self._check_pairs(pairs)
+        if pairs.numel() == 0:
+            return torch.empty((0, 3), dtype=torch.float32)
+
+        probabilities: list[torch.Tensor] = []
+        for logits in self._iter_pair_logits(statements, pairs):
+            columns = self._canonical_label_columns(logits.shape[-1])
+            batch = torch.softmax(logits.float(), dim=-1)[:, columns]
+            probabilities.append(batch.detach().cpu())
+        return torch.cat(probabilities, dim=0)
+
+    def pairwise_nli(
+        self,
+        statements: Sequence[str] | np.ndarray,
+        *,
+        context: str | None = None,
+        deduplicate: bool = True,
+    ) -> torch.Tensor:
+        """Score every ordered pair of statements with the NLI model.
+
+        Every ordered pair is scored once, so the matrix can be shared by every method that needs
+        semantic agreement (for example semantic entropy, discrete semantic entropy and
+        graph-based measures) instead of each method calling the NLI model again.
+
+        With ``deduplicate=True`` identical statements are sent to the model only once: for ``u``
+        distinct statements the model scores ``u * (u - 1)`` pairs instead of ``n * (n - 1)``, and
+        a pair of identical statements is set to entailment (probability 1) without a model call.
+
+        Args:
+            statements: The ``n`` texts to compare, for example a greedy answer followed by samples.
+            context: Optional text placed in front of every premise and hypothesis, separated by a
+                space (for example the question the statements answer).
+            deduplicate: Score identical statements only once (see above). Set to False to send
+                every pair to the model, including pairs of identical statements.
+
+        Returns:
+            A float32 CPU tensor of shape ``(n, n, 3)``. Entry ``[a, b]`` holds the probabilities of
+            contradiction, neutral and entailment (see ``NLI_LABELS``) with statement ``a`` as the
+            premise and statement ``b`` as the hypothesis. NLI is directional, so ``[a, b]`` and
+            ``[b, a]`` can differ. The diagonal is NaN.
+
+        Example:
+            Score three answers once and cluster them (downloads the NLI model on first use)::
+
+                clusterer = HFGreedySemanticClusterer.from_model_name()
+                matrix = clusterer.pairwise_nli(["Paris", "paris", "Lyon"])
+                HFGreedySemanticClusterer.cluster_nli_matrix(matrix)  # tensor([0, 0, 1])
+        """
+        texts = np.asarray(statements, dtype=object)
+        if texts.ndim != 1:
+            msg = "statements must be one-dimensional."
+            raise ValueError(msg)
+        return self.pairwise_nli_many([texts.tolist()], contexts=[context], deduplicate=deduplicate)[0]
+
+    def pairwise_nli_many(
+        self,
+        groups: Sequence[Sequence[str]],
+        *,
+        contexts: Sequence[str | None] | None = None,
+        deduplicate: bool = True,
+    ) -> list[torch.Tensor]:
+        """Score the ordered pairs of several groups of statements in shared model batches.
+
+        Gives the same matrices as calling :meth:`pairwise_nli` once per group, but the pairs of
+        all groups are sent to the model together, so batches stay full even when one group has
+        only a few pairs. The pairs are ordered by text length before batching, so that pairs of
+        similar length share a batch and less padding is computed.
+
+        Args:
+            groups: One sequence of statements per group, for example the answers to one question.
+            contexts: Optional context per group (see ``context`` in :meth:`pairwise_nli`).
+            deduplicate: Score identical statements of a group only once (see :meth:`pairwise_nli`).
+
+        Returns:
+            One ``(n_g, n_g, 3)`` matrix per group, as returned by :meth:`pairwise_nli`.
+        """
+        if contexts is None:
+            contexts = [None] * len(groups)
+        if len(contexts) != len(groups):
+            msg = f"got {len(contexts)} contexts for {len(groups)} groups."
+            raise ValueError(msg)
+
+        all_texts: list[str] = []
+        layouts: list[tuple[int, torch.Tensor | None]] = []
+        all_pairs: list[torch.Tensor] = []
+        for group, context in zip(groups, contexts, strict=True):
+            texts = [str(text) if context is None else f"{context} {text}" for text in group]
+            inverse = None
+            if deduplicate:
+                texts, inverse = unique_statements(texts)
+            start, size = len(all_texts), len(texts)
+            all_texts.extend(texts)
+            all_pairs.append(torch.nonzero(~torch.eye(size, dtype=torch.bool), as_tuple=False) + start)
+            layouts.append((size, inverse))
+
+        pairs = torch.cat(all_pairs) if all_pairs else torch.empty((0, 2), dtype=torch.long)
+        lengths = torch.tensor([len(all_texts[a]) + len(all_texts[b]) for a, b in pairs.tolist()])
+        order = torch.argsort(lengths, stable=True)
+        probabilities = torch.empty((pairs.shape[0], 3), dtype=torch.float32)
+        probabilities[order] = self._predict_pair_probabilities(np.asarray(all_texts, dtype=object), pairs[order])
+
+        matrices: list[torch.Tensor] = []
+        cursor = 0
+        for size, inverse in layouts:
+            matrix = torch.full((size, size, 3), float("nan"), dtype=torch.float32)
+            local = torch.nonzero(~torch.eye(size, dtype=torch.bool), as_tuple=False)
+            matrix[local[:, 0], local[:, 1]] = probabilities[cursor : cursor + local.shape[0]]
+            cursor += local.shape[0]
+            matrices.append(matrix if inverse is None else expand_unique_nli(matrix, inverse))
+        return matrices
 
     @abstractmethod
     def _cluster_row(self, statements: np.ndarray) -> torch.Tensor:
@@ -378,6 +557,44 @@ class HFGreedySemanticClusterer(HFSemanticClusterer):
         is_not_neutral_neutral = ~torch.all(label_pairs == _NEUTRAL, dim=1)
         return has_no_contradiction & is_not_neutral_neutral
 
+    @classmethod
+    def cluster_nli_matrix(cls, matrix: torch.Tensor) -> torch.Tensor:
+        """Cluster statements from a precomputed pairwise NLI matrix.
+
+        Uses the same greedy rule as calling the clusterer on the texts. Statements are visited in
+        order; each statement without a cluster starts a new one, and every later statement without
+        a cluster joins it if neither direction is a contradiction and the two directions are not
+        both neutral. Labels are the argmax over the last axis. Reading a shared matrix gives the
+        same clusters without any further NLI call.
+
+        Args:
+            matrix: Tensor of shape ``(n, n, 3)`` as returned by :meth:`pairwise_nli`, with the last
+                axis ordered as ``NLI_LABELS``. The diagonal is ignored.
+
+        Returns:
+            A long tensor of shape ``(n,)`` with cluster ids ``0, 1, ...`` in order of first
+            appearance.
+        """
+        if matrix.ndim != 3 or matrix.shape[0] != matrix.shape[1] or matrix.shape[2] != 3:
+            msg = f"matrix must have shape (n, n, 3), got {tuple(matrix.shape)}."
+            raise ValueError(msg)
+
+        n = matrix.shape[0]
+        labels = torch.argmax(torch.nan_to_num(matrix, nan=0.0), dim=-1).cpu()
+        semantic_ids = torch.full((n,), -1, dtype=torch.long)
+        next_id = 0
+        for i in range(n):
+            if semantic_ids[i].item() != -1:
+                continue
+            semantic_ids[i] = next_id
+            candidates = torch.nonzero(semantic_ids[i + 1 :] == -1, as_tuple=False).flatten() + i + 1
+            if candidates.numel() > 0:
+                label_pairs = torch.stack((labels[i, candidates], labels[candidates, i]), dim=1)
+                equivalent = cls._semantic_equivalence_mask(label_pairs)
+                semantic_ids[candidates[equivalent]] = next_id
+            next_id += 1
+        return semantic_ids
+
     @override
     def _cluster_row(self, statements: np.ndarray) -> torch.Tensor:
         if statements.ndim != 1:
@@ -406,3 +623,169 @@ class HFGreedySemanticClusterer(HFSemanticClusterer):
             next_id += 1
 
         return semantic_ids
+
+
+def cosine_to_nli_probabilities(cosine: torch.Tensor, threshold: float) -> torch.Tensor:
+    """Express cosine similarities as contradiction / neutral / entailment probabilities.
+
+    For similarity ``s`` (clipped at 0) and threshold ``t``: entailment ``s / (s + t)``,
+    contradiction ``t / (s + t)``, neutral 0. Entailment is the most likely label exactly when
+    ``s > t`` (at ``s == t`` the two tie and the argmax picks contradiction), so the greedy rule of
+    :class:`HFGreedySemanticClusterer` groups two texts exactly when their embeddings are more than
+    ``t`` similar, and the entailment probability still grows with the similarity (0.5 at the
+    threshold) for methods that read it as a soft agreement.
+
+    Args:
+        cosine: Cosine similarities of any shape.
+        threshold: Similarity above which two texts count as equivalent, in ``(0, 1]``.
+
+    Returns:
+        Float32 tensor of shape ``(*cosine.shape, 3)`` ordered as ``NLI_LABELS``.
+
+    Raises:
+        ValueError: If ``threshold`` is not in ``(0, 1]``.
+    """
+    if not 0.0 < threshold <= 1.0:
+        msg = f"threshold must be in (0, 1], got {threshold}."
+        raise ValueError(msg)
+    similarity = cosine.float().clamp(min=0.0)
+    probabilities = torch.zeros((*similarity.shape, 3), dtype=torch.float32)
+    probabilities[..., _ENTAILMENT] = similarity / (similarity + threshold)
+    probabilities[..., _CONTRADICTION] = threshold / (similarity + threshold)
+    return probabilities
+
+
+class HFEmbeddingSemanticClusterer(HFGreedySemanticClusterer):
+    """Greedy semantic clustering with sentence embeddings instead of an NLI model.
+
+    A cheaper drop-in for :class:`HFGreedySemanticClusterer`: every text is embedded once and two
+    texts are compared by cosine similarity, instead of running a cross-encoder on every ordered
+    pair. :meth:`pairwise_nli`, :meth:`pairwise_nli_many`, :meth:`cluster_nli_matrix` and
+    :meth:`represent` behave as for the NLI clusterer, so code written for one works with the
+    other. The "NLI" matrices hold :func:`cosine_to_nli_probabilities` of the similarities.
+
+    Example:
+        Cluster three answers by embedding similarity (downloads the embedding model on first use)::
+
+            clusterer = HFEmbeddingSemanticClusterer.from_model_name()
+            matrix = clusterer.pairwise_nli(["Paris", "It is Paris.", "Lyon"])
+            HFEmbeddingSemanticClusterer.cluster_nli_matrix(matrix)  # tensor([0, 0, 1])
+    """
+
+    embedder: HFTextEmbedder
+    threshold: float
+
+    def __init__(
+        self,
+        embedder: HFTextEmbedder,
+        *,
+        threshold: float = DEFAULT_EMBEDDING_THRESHOLD,
+        batch_size: int = 32,
+        max_length: int | None = None,
+        truncation: bool = True,
+    ) -> None:
+        """Initialize the clusterer.
+
+        Args:
+            embedder: probly text embedder (sentence-transformers model).
+            threshold: Cosine similarity above which two texts count as equivalent, in ``(0, 1]``.
+            batch_size: Kept for the NLI clusterer's signature; the embedder has its own batch size.
+            max_length: Kept for the NLI clusterer's signature; not used.
+            truncation: Kept for the NLI clusterer's signature; not used.
+        """
+        cosine_to_nli_probabilities(torch.ones(1), threshold)  # validates the threshold
+        if batch_size <= 0:
+            msg = "batch_size must be positive."
+            raise ValueError(msg)
+        self.embedder = embedder
+        self.threshold = threshold
+        self.batch_size = batch_size
+        self.max_length = max_length
+        self.truncation = truncation
+        self._label_id_to_canonical = {}
+
+    @classmethod
+    @override
+    def from_model_name(
+        cls,
+        model_name: str | None = None,
+        *,
+        cache_dir: str | PathLike[str] | None = None,
+        force_download: bool = False,
+        model_kwargs: Mapping[str, object] | None = None,
+        tokenizer_kwargs: Mapping[str, object] | None = None,
+        batch_size: int = 32,
+        max_length: int | None = None,
+        truncation: bool = True,
+        threshold: float = DEFAULT_EMBEDDING_THRESHOLD,
+    ) -> Self:
+        """Load a sentence-transformers model by name and initialize the clusterer.
+
+        Args:
+            model_name: Hugging Face model name or local path. Defaults to ``DEFAULT_EMBEDDING_MODEL``.
+            cache_dir: Optional Hugging Face cache directory.
+            force_download: Not used (sentence-transformers manages downloads); kept for the signature.
+            model_kwargs: Additional keyword arguments forwarded to ``SentenceTransformer``.
+            tokenizer_kwargs: Not used; kept for the NLI clusterer's signature.
+            batch_size: Number of texts per embedding call.
+            max_length: Not used; kept for the NLI clusterer's signature.
+            truncation: Not used; kept for the NLI clusterer's signature.
+            threshold: Cosine similarity above which two texts count as equivalent.
+
+        Returns:
+            A clusterer backed by the loaded embedding model.
+        """
+        del force_download, tokenizer_kwargs
+        embedder = HFTextEmbedder.from_model_name(
+            DEFAULT_EMBEDDING_MODEL if model_name is None else model_name,
+            cache_dir=cache_dir,
+            model_kwargs=model_kwargs,
+            batch_size=batch_size,
+            normalize_embeddings=True,
+        )
+        return cls(embedder, threshold=threshold, batch_size=batch_size, max_length=max_length, truncation=truncation)
+
+    @property
+    @override
+    def predictor(self) -> PreTrainedModel:
+        """The underlying sentence-transformers model.
+
+        It is a ``SentenceTransformer``, not a ``PreTrainedModel``: the annotation is inherited from the NLI
+        clusterer, so callers must not use it as a transformers model (no ``.config``, no NLI forward pass).
+        Use :meth:`embed` to get embeddings.
+        """
+        return self.embedder.predictor  # ty: ignore[invalid-return-type]
+
+    def embed(self, statements: Sequence[str] | np.ndarray) -> torch.Tensor:
+        """Unit-length embedding of every statement, shape ``(n, dim)``, on the CPU."""
+        texts = np.asarray(statements, dtype=object).reshape(-1)
+        generation = TorchTextGeneration(log_likelihood=torch.zeros(texts.shape[0]), text=texts)
+        embedding = self.embedder.represent(generation)
+        if not isinstance(embedding, TorchEmbedding):
+            msg = f"expected one embedding per statement, got {type(embedding).__name__}."
+            raise TypeError(msg)
+        return torch.nn.functional.normalize(embedding.embeddings.float().cpu(), dim=-1)
+
+    @override
+    def _predict_pair_probabilities(self, statements: np.ndarray, pairs: torch.Tensor) -> torch.Tensor:
+        self._check_pairs(pairs)
+        if pairs.numel() == 0:
+            return torch.empty((0, 3), dtype=torch.float32)
+        used = torch.unique(pairs)
+        embedded = self.embed(statements[used.numpy()])
+        vectors = torch.zeros((len(statements), embedded.shape[-1]))
+        vectors[used] = embedded
+        cosine = (vectors[pairs[:, 0]] * vectors[pairs[:, 1]]).sum(dim=-1)
+        return cosine_to_nli_probabilities(cosine, self.threshold)
+
+    @override
+    def _predict_pair_labels(self, statements: np.ndarray, pairs: torch.Tensor) -> torch.Tensor:
+        return torch.argmax(self._predict_pair_probabilities(statements, pairs), dim=-1)
+
+    @override
+    def _cluster_row(self, statements: np.ndarray) -> torch.Tensor:
+        # Embed the row once and cluster the matrix (same greedy rule) instead of embedding per step.
+        if statements.ndim != 1:
+            msg = "statements must be a one-dimensional numpy array."
+            raise ValueError(msg)
+        return self.cluster_nli_matrix(self.pairwise_nli(statements))

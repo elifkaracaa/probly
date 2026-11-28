@@ -1,4 +1,4 @@
-"""Shared sanity test for reflexive uncertainty methods (R1, R2, R3).
+"""Shared sanity test for reflexive uncertainty methods (zero-shot p(True), brainstorm p(True), verbalized confidence).
 
 Each question is asked twice: once with the correct answer and once with a
 deliberately wrong one. A method that works should give clearly higher

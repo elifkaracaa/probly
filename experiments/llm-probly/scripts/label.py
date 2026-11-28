@@ -1,4 +1,4 @@
-"""Add correctness labels to a generated data file (B1, day 2).
+"""Add correctness labels to a generated data file.
 
 Run from ``experiments/llm-probly``::
 

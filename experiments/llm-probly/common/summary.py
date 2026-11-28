@@ -14,7 +14,6 @@ from common.registry import REGISTRY
 
 EXPECTED_METHODS = (
     "likelihood_mean",
-    "likelihood_sum",
     "p_true_zeroshot_norm",
     "p_true_brainstorm",
     "p_true_empirical",
@@ -37,6 +36,7 @@ COLUMNS = [
     "prr",
     "ece",
     "n_failed",
+    "coverage",  # mean P(A)+P(B) (p(True) methods) or parsed fraction (empirical); blank for other methods
     "seconds_per_question",
 ]
 
@@ -58,6 +58,20 @@ SANITY_ROOT = RESULTS_ROOT / "sanity"
 SANITY_COLUMNS = ["method", "model", "auroc", "gap", "n_distinct", "verdict"]
 
 
+def mean_coverage(record: dict) -> float:
+    """Mean answer coverage of a result record, or NaN if the method does not store one.
+
+    Coverage is ``P(A) + P(B)`` per question for the p(True) methods: how much probability mass
+    the model puts on the two allowed answers. For ``p_true_empirical`` the analogue is
+    ``parsed_fraction``, the share of sampled replies that could be read as True or False.
+    A low value means the score rests on a few tokens the model hardly wanted to produce.
+    """
+    values = record.get("coverage", record.get("parsed_fraction"))
+    if not values:
+        return float("nan")
+    return float(sum(values) / len(values))
+
+
 def summary_table(
     rows: list[dict],
     run: str = "qwen0.5b",
@@ -67,7 +81,7 @@ def summary_table(
 ) -> pd.DataFrame:
     """Evaluate every method file in ``results_root/run`` and return one row per method.
 
-    ``rows`` are the shared data rows (B1) with the keys ``id`` and ``correct``.
+    ``rows`` are the shared data rows with the keys ``id`` and ``correct``.
     Methods without a valid file get a row with ``status`` set to ``pending``.
     """
     ids = [row["id"] for row in rows]
@@ -75,7 +89,7 @@ def summary_table(
 
     folder = Path(results_root) / run
     found = sorted(path.stem for path in folder.glob("*.json")) if folder.exists() else []
-    all_methods = [*methods, *(name for name in found if name not in methods)]
+    all_methods = sorted({*methods, *found})  # fixed order, whatever ran last
 
     table = []
     uncertainties = {}  # method -> uncertainty, for the paired comparison with the best method
@@ -107,6 +121,7 @@ def summary_table(
                 "prr": scores["prr"],
                 "ece": calibration,
                 "n_failed": int(sum(record["failed"])),
+                "coverage": mean_coverage(record),
                 "seconds_per_question": record["seconds_per_question"],
             },
         )
@@ -120,12 +135,12 @@ def add_paired_comparison(
     correct: list[bool],
     n_boot: int = 1000,
 ) -> None:
-    """Compare every evaluated method with the best one (highest AUROC) by a paired bootstrap (E4).
+    """Compare every evaluated method with the best one (highest AUROC) by a paired bootstrap.
 
     Fills ``vs_best``, ``d_auroc``, ``d_ci_low`` and ``d_ci_high`` in place.
     ``tied`` means the data cannot tell the method apart from the best one: the
     95 % interval of its AUROC difference contains 0. This is the same test the
-    selector (D1) uses to pick the cheapest method among the tied ones.
+    selector uses to pick the cheapest method among the tied ones.
     """
     evaluated = [row for row in table if row["status"] == "ok"]
     if not evaluated:

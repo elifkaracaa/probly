@@ -1,0 +1,190 @@
+{
+  "model": "qwen0.5b",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "dataset": "triviaqa",
+  "n_questions": 200,
+  "split_seed": 0,
+  "calibration_size": 100,
+  "method": {
+    "name": "likelihood_mean",
+    "family": "baseline",
+    "access": "logprobs",
+    "cost": 1.0,
+    "parameters": {},
+    "probability": false
+  },
+  "reason": "likelihood_mean (AUROC 0.744) is not significantly worse than the best, eccentricity (difference -0.015, 95 % interval [-0.191, +0.155]), and costs 12x less.",
+  "calibration_metrics": {
+    "auroc": 0.744,
+    "auroc_low": 0.5904,
+    "auroc_high": 0.8704,
+    "prr": 0.4947,
+    "prr_low": 0.1997,
+    "prr_high": 0.7351
+  },
+  "held_out_metrics": {
+    "auroc": 0.8376,
+    "auroc_low": 0.7232,
+    "auroc_high": 0.9351,
+    "prr": 0.6529,
+    "prr_low": 0.4103,
+    "prr_high": 0.8363
+  },
+  "calibration": {
+    "type": "platt",
+    "parameters": {
+      "a": 2.7006768148124256,
+      "b": 0.08648083849444764
+    },
+    "ece_before": null,
+    "ece_after": 0.0907
+  },
+  "candidates": {
+    "eccentricity": {
+      "auroc": 0.7593,
+      "auroc_low": 0.6105,
+      "auroc_high": 0.8994,
+      "prr": 0.6119,
+      "prr_low": 0.3622,
+      "prr_high": 0.8148
+    },
+    "lexical_similarity": {
+      "auroc": 0.7573,
+      "auroc_low": 0.6146,
+      "auroc_high": 0.8735,
+      "prr": 0.5055,
+      "prr_low": 0.2286,
+      "prr_high": 0.726
+    },
+    "cocoa_p_true": {
+      "auroc": 0.7479,
+      "auroc_low": 0.619,
+      "auroc_high": 0.8666,
+      "prr": 0.5288,
+      "prr_low": 0.2534,
+      "prr_high": 0.7378
+    },
+    "likelihood_mean": {
+      "auroc": 0.744,
+      "auroc_low": 0.5904,
+      "auroc_high": 0.8704,
+      "prr": 0.4947,
+      "prr_low": 0.1997,
+      "prr_high": 0.7351
+    },
+    "cocoa_msp": {
+      "auroc": 0.7232,
+      "auroc_low": 0.5605,
+      "auroc_high": 0.8734,
+      "prr": 0.5738,
+      "prr_low": 0.3058,
+      "prr_high": 0.7918
+    },
+    "largest_cluster_share": {
+      "auroc": 0.7164,
+      "auroc_low": 0.5565,
+      "auroc_high": 0.8616,
+      "prr": 0.4861,
+      "prr_low": 0.2108,
+      "prr_high": 0.7488
+    },
+    "discrete_semantic_entropy": {
+      "auroc": 0.7144,
+      "auroc_low": 0.5512,
+      "auroc_high": 0.8676,
+      "prr": 0.4941,
+      "prr_low": 0.2238,
+      "prr_high": 0.7601
+    },
+    "num_semantic_sets": {
+      "auroc": 0.7128,
+      "auroc_low": 0.5483,
+      "auroc_high": 0.8629,
+      "prr": 0.4847,
+      "prr_low": 0.2106,
+      "prr_high": 0.7411
+    },
+    "mean_token_entropy": {
+      "auroc": 0.7122,
+      "auroc_low": 0.5635,
+      "auroc_high": 0.8434,
+      "prr": 0.3301,
+      "prr_low": 0.0713,
+      "prr_high": 0.609
+    },
+    "deg_mat": {
+      "auroc": 0.7096,
+      "auroc_low": 0.5407,
+      "auroc_high": 0.8683,
+      "prr": 0.5664,
+      "prr_low": 0.2973,
+      "prr_high": 0.7952
+    },
+    "semantic_entropy": {
+      "auroc": 0.707,
+      "auroc_low": 0.5365,
+      "auroc_high": 0.8608,
+      "prr": 0.4856,
+      "prr_low": 0.2131,
+      "prr_high": 0.7526
+    },
+    "eig_val_laplacian": {
+      "auroc": 0.7037,
+      "auroc_low": 0.5349,
+      "auroc_high": 0.8636,
+      "prr": 0.5473,
+      "prr_low": 0.2423,
+      "prr_high": 0.7772
+    },
+    "msp": {
+      "auroc": 0.7011,
+      "auroc_low": 0.5454,
+      "auroc_high": 0.8379,
+      "prr": 0.4749,
+      "prr_low": 0.1847,
+      "prr_high": 0.6828
+    },
+    "p_true_brainstorm": {
+      "auroc": 0.6985,
+      "auroc_low": 0.5406,
+      "auroc_high": 0.8307,
+      "prr": 0.4181,
+      "prr_low": 0.1373,
+      "prr_high": 0.6541
+    },
+    "greedy_cluster_share": {
+      "auroc": 0.6936,
+      "auroc_low": 0.5255,
+      "auroc_high": 0.8491,
+      "prr": 0.457,
+      "prr_low": 0.1922,
+      "prr_high": 0.7279
+    },
+    "p_true_zeroshot": {
+      "auroc": 0.6543,
+      "auroc_low": 0.535,
+      "auroc_high": 0.7839,
+      "prr": 0.1477,
+      "prr_low": -0.0502,
+      "prr_high": 0.3726
+    },
+    "verbalized_2s": {
+      "auroc": 0.603,
+      "auroc_low": 0.488,
+      "auroc_high": 0.71,
+      "prr": 0.1011,
+      "prr_low": -0.0532,
+      "prr_high": 0.3115
+    },
+    "p_true_empirical": {
+      "auroc": 0.5806,
+      "auroc_low": 0.4329,
+      "auroc_high": 0.7273,
+      "prr": 0.1414,
+      "prr_low": -0.0647,
+      "prr_high": 0.3561
+    }
+  },
+  "schema_version": 1,
+  "created_at": "2026-11-28T11:51:10+00:00"
+}
