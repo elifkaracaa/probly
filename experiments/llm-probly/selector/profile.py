@@ -2,7 +2,7 @@
 
 The selector (D1-D3) runs once per model and writes ``profiles/<model>.json``.
 The API (F1) and the demo (F3) only read this file; they never run the selector.
-The full field list is documented in CONTRACT.md, section "Profile (D4)".
+The full field list is documented in CONTRACT.md, section "Profile".
 
 Run from ``experiments/llm-probly`` to check a saved profile::
 

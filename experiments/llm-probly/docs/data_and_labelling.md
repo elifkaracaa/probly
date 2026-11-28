@@ -1,6 +1,6 @@
 # Data & labelling
 
-*Owner: DATA. Numbers as of Monday 16 Nov.*
+*Numbers as of Monday 16 Nov.*
 
 ## Questions
 

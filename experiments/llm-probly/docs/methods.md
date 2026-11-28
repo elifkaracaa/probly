@@ -10,8 +10,8 @@ The selector reads the same registry.
 |---|---|---|---|
 | semantic_entropy | agreement | yes (sample log-likelihoods, `samples_ll_mean`) | 0 LLM calls (reads the 10 cached samples) + one shared NLI matrix per question |
 | discrete_semantic_entropy | agreement | no (cluster sizes only) | 0 LLM calls + the same shared NLI matrix |
-| largest_cluster_share | agreement | no | 1 - share of the 10 samples in their largest meaning cluster; 0 LLM calls + the same shared NLI matrix (feature for the selector, D2) |
-| greedy_cluster_share | agreement | no | 1 - share of the 10 samples with the same meaning as the greedy answer; 0 LLM calls + the same shared NLI matrix (feature for the selector, D2) |
+| largest_cluster_share | agreement | no | 1 - share of the 10 samples in their largest meaning cluster; 0 LLM calls + the same shared NLI matrix (feature for the selector's stacked combination) |
+| greedy_cluster_share | agreement | no | 1 - share of the 10 samples with the same meaning as the greedy answer; 0 LLM calls + the same shared NLI matrix (feature for the selector's stacked combination) |
 | lexical_similarity | agreement | no (text only, Rouge-L between samples) | 0 |
 | p_true_zeroshot | self-eval | yes (probability of "True") | 1 extra LLM call |
 | p_true_brainstorm | self-eval | yes (probability of the answer option "A" vs "B") | 1 extra LLM call (the 10 cached samples are shown in the prompt) |
@@ -26,13 +26,13 @@ The selector reads the same registry.
 Generation happens once per model: 1 greedy answer and 10 samples per question are cached. Every method reads that cache, so the methods with 0 LLM calls only do arithmetic on saved data. The self-evaluation methods need the LLM again at scoring time, because they ask the model to judge its own answer.
 
 The agreement methods (SE and discrete SE) also run an NLI model on the answers to group them by meaning.
-This is a small classifier, not the LLM. Since week 3 (A1-A3) the NLI work is done once per question and
+This is a small classifier, not the LLM. Since week 3 the NLI work is done once per question and
 shared:
 
-- **A1, one matrix:** the NLI model scores every ordered pair of [greedy answer, 10 samples] once
+- **One matrix:** the NLI model scores every ordered pair of [greedy answer, 10 samples] once
   (`HFSemanticClusterer.pairwise_nli` in probly); SE, discrete SE and later graph methods all read this matrix.
-- **A2, dedup:** identical answers are sent to the NLI model only once (identical = entailment).
-- **A3, batching:** the pairs of 16 questions share model batches, sorted by length; the model runs on the GPU
+- **Dedup:** identical answers are sent to the NLI model only once (identical = entailment).
+- **Batching:** the pairs of 16 questions share model batches, sorted by length; the model runs on the GPU
   (MPS / CUDA) when there is one.
 
 Effect on qwen0.5b TriviaQA (50 questions, Mac, MPS): 110 -> 56 NLI pairs and 0.47 -> 0.20 s per question,
@@ -44,7 +44,7 @@ TriviaQA-200, pairs equal after normalization set to entailment):
 
 | | qwen0.5b | qwen1.5b |
 |---|---|---|
-| NLI pairs skipped, exact dedup (A2) | 46.1 % | 74.5 % |
+| NLI pairs skipped, exact dedup | 46.1 % | 74.5 % |
 | with normalization | 47.1 % | 77.9 % |
 | SE / DSE AUROC | unchanged (0.744 / 0.751) | unchanged (0.776 / 0.779) |
 | questions whose SE changes | 0 / 200 | 0 / 200 |
@@ -52,12 +52,12 @@ TriviaQA-200, pairs equal after normalization set to entailment):
 The NLI model already calls every such pair the same meaning, so normalization only saves 1-3 % more pairs and
 changes no score. It would add a library option, tests and a cache rule, and has risks of its own: removing
 punctuation joins numbers ("3.5" / "35"), removing articles joins different things ("The Maine" / "Maine").
-So we keep exact dedup (agreed with the reviewer of A2).
+So we keep exact dedup (agreed in review).
 
 ## Before / after over week 3 (all four models, TriviaQA-200)
 
 NLI pairs per question, time and AUROC of SE / DSE before week 3 (week-2 results, deberta-base) and after
-A1-A5 (deberta-large, Mac, MPS). Week 2 ran SE and DSE separately, each clustering lazily (comparing a new
+the week-3 NLI changes (deberta-large, Mac, MPS). Week 2 ran SE and DSE separately, each clustering lazily (comparing a new
 answer with one answer of each cluster found so far, both directions), and `build_nli_cache` built the full
 matrix again for the analyses and graph measures. Pair counts are recomputed from the saved matrices
 (the lazy counts of 3B / 7B from the deberta-large decisions, because they had no deberta-base matrix).
@@ -69,17 +69,17 @@ matrix again for the analyses and graph measures. Pair counts are recomputed fro
 | qwen3b | 54 + 110 = 164 | 14.0 | -91 % | 0.55 | 0.13 / 0 | 0.759 -> 0.761 | 0.765 -> 0.765 |
 | qwen7b | 49 + 110 = 159 | 6.2 | -96 % | 0.40 | 0.06 / 0 | 0.735 -> 0.729 | 0.734 -> 0.729 |
 
-- **NLI pairs at least halved on every model**, and a second run does no NLI work (A5). Bigger models repeat
+- **NLI pairs at least halved on every model**, and a second run does no NLI work (persistent NLI cache). Bigger models repeat
   their answers more often, so dedup removes more pairs (and the NLI time falls with model size).
 - Compared with SE + DSE alone (94 / 64 / 54 / 49 lazy pairs), the shared matrix is cheaper from 1.5B on, but
   not on 0.5B (59 vs 94): its 0.5B answers are mostly different. The matrix pays off because SE, DSE, the graph
   measures and the hybrid scores all read it, and it is computed once and cached.
 - The time comparison is not only the NLI changes: week 3 uses deberta-large (about 3x slower than deberta-base)
-  on the GPU (A3), week 2 ran deberta-base as it was then.
+  on the GPU (batching), week 2 ran deberta-base as it was then.
 - **AUROC changes are within noise** on all models (at most 0.006; the 95 % intervals are about ±0.06; the
   paired bootstrap for 0.5B and 1.5B is in the NLI setup table below; 0.5B DSE also gains from the tie fix).
 
-## NLI setup (A4)
+## NLI setup
 
 Which NLI model, and should the question go in front of each answer? Compared on qwen0.5b and qwen1.5b
 TriviaQA-200 with `scripts/compare_nli_setups.py` (full table: `results/nli_setups.md`), against 80 answer
@@ -108,7 +108,7 @@ agreement with the labels is weighted to the real mix of answer pairs (the label
   labelling guideline is clear, not that the labels are perfect.
 - Change the setup with `nli_model` / `nli_use_question` in a config (see `docs/pipeline.md`).
 
-## Persistent NLI cache (A5)
+## Persistent NLI cache
 
 The NLI matrices are kept on disk, one file per data cache and NLI setup:
 `data/<model>/<dataset>_<n>.nli.<tag>.npz` (e.g. `triviaqa_200.nli.deberta-large.npz`; deberta-base on
@@ -120,10 +120,10 @@ Measured on qwen0.5b TriviaQA-200 (deberta-large, Mac, MPS), two runs of
 
 | run | questions cached | NLI pairs per question | SE seconds per question |
 |---|---|---|---|
-| 1st (file from before A5, no fingerprints) | 0/200 | 59.3 | 0.67 |
+| 1st (old cache file without fingerprints) | 0/200 | 59.3 | 0.67 |
 | 2nd | 200/200 | 0 | 0.00 (0.1 s for all 200, NLI model not loaded) |
 
-Discrete SE shows 0 pairs in both runs because it reads the matrices SE has just made (A1).
+Discrete SE shows 0 pairs in both runs because it reads the matrices SE has just made.
 
 `seconds_per_question` in a record is the time of that run, so it is about 0 when the matrices come from
 the cache (as CONTRACT.md asks). The cost of the NLI step is kept in `nli_seconds_per_question`: what
@@ -137,14 +137,14 @@ A cached matrix is only reused when nothing it depends on has changed:
 | generator model or dataset (or n) | another data cache, so another file |
 | NLI model or question conditioning | another file name; a file whose stored setup does not match is not used |
 | the answers of a question (data regenerated) | that question's fingerprint changes, only it is computed again |
-| file from before A5 (no fingerprints) | everything is computed again and the file is rewritten |
+| old cache file without fingerprints | everything is computed again and the file is rewritten |
 
 The fingerprint (`common.nli_matrix.matrix_fingerprint`) is a hash of the NLI model name, the question (only
 when it is put in front of the answers) and the exact answer texts. Other code that needs the matrices
 (e.g. graph measures, hybrid scores) should find the file with `nli_cache_path(data_file, nli_settings())`
 and read it with `load_nli_cache`, instead of writing the file name by hand.
 
-## Verbalized confidence prompt (C4)
+## Verbalized confidence prompt
 
 The week-1 prompt ("a number between 0 and 100") makes the models give almost always the same
 number: 1.5B says "95" for 170 of 200 questions, 3B says "100" for 145. `scripts/c4_verbalized_prompt.py`
@@ -165,14 +165,14 @@ without a model, by `uv run python -m scripts.c4_verbalized_prompt --run qwen1.5
   comparison is fair.
 - Most of the gain comes from the smaller scale; the anchoring adds a little more, but that part is
   inside the noise on both models.
-- **Decision.** The C4 rule was: if AUROC stays below 0.65 on 1.5B *and* 3B, verbalized becomes a
+- **Decision.** Our rule was: if AUROC stays below 0.65 on 1.5B *and* 3B, verbalized becomes a
   baseline only. With the anchored prompt 1.5B is just below (0.644) and 3B is clearly above (0.804),
   so verbalized stays a method, and the anchored prompt is the better prompt on both models. It is
   still far below zero-shot p(True) (0.825 / 0.877), which needs the same one extra model call.
 - Not done yet: `verbalized_2s` in the main table still uses the week-1 prompt. Switching it to the
   anchored prompt needs a rerun on all four sizes (7B needs more than 16 GB), so it is a follow-up.
   0.5B is not part of the rule; its earlier anchored number (0.531) was made before the 0-10 parsing fix.
-## Hybrid scores (C5, CoCoA)
+## Hybrid scores (CoCoA)
 
 CoCoA (Vashurin et al. 2025, https://arxiv.org/abs/2502.04964) multiplies a confidence signal of the
 greedy answer with how much the samples disagree with it:
@@ -182,7 +182,7 @@ greedy answer with how much the samples disagree with it:
 - `cocoa_p_true`: `u = 1 - p(True)` (the `p_true_zeroshot` score); the plugin runs p(True),
   `scripts/hybrid_from_results.py` builds the same record from a saved `p_true_zeroshot.json`.
 - Similarity = mean entailment probability greedy -> sample and sample -> greedy, read from the shared
-  NLI matrix (deberta-large, A5 cache), so neither method adds an NLI pass. The paper uses a
+  NLI matrix (deberta-large, persistent NLI cache), so neither method adds an NLI pass. The paper uses a
   cross-encoder similarity instead.
 
 AUROC on TriviaQA-200 (`results/<model>/triviaqa_200/`), compared with the two ingredients
@@ -208,7 +208,7 @@ AUROC on TriviaQA-200 (`results/<model>/triviaqa_200/`), compared with the two i
   together: bigger models repeat their answers also when they are wrong (README finding 3) and
   are then also sure of them. (Thanks to Eylül's reviews of #82.)
 - Decision: both stay in the table as the `hybrid` family; the selector should not prefer them
-  over p(True) from 3B on. A weighted sum or the logistic stack (D2) avoids the zero product.
+  over p(True) from 3B on. A weighted sum or the logistic stack (`selector/combine.py`) avoids the zero product.
 
 ## Known limitations
 

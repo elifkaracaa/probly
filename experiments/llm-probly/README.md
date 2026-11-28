@@ -79,7 +79,7 @@ AUROC (higher is better, 0.5 = random; best per model in bold):
 | cocoa_msp | hybrid | 0.715 | 0.759 | 0.737 | 0.733 |
 
 The hybrid rows (C5, CoCoA: confidence x inconsistency of the samples) are explained in
-[`docs/methods.md`](docs/methods.md#hybrid-scores-c5-cocoa): they win only on 1.5B and lose to p(True) from 3B on.
+[`docs/methods.md`](docs/methods.md#hybrid-scores-cocoa): they win only on 1.5B and lose to p(True) from 3B on.
 
 SE and discrete SE use `microsoft/deberta-large-mnli` (A4) since week 3; with week 2's deberta-base they were
 0.740 / 0.781 (SE) and 0.746 / 0.783 (DSE) on 0.5B / 1.5B, so the change is within noise (intervals about ±0.06).
@@ -88,7 +88,7 @@ SE and discrete SE use `microsoft/deberta-large-mnli` (A4) since week 3; with we
 
 **Takeaways**
 1. Self-evaluation needs model size. Zero-shot p(True) goes 0.67 → 0.83 → 0.88 → 0.87 (0.5B → 7B) and is the best method from 1.5B on; at 0.5B every p(True) variant is worse than the cheap baselines.
-2. Verbalized confidence stays weak with the week-1 prompt (0.58, 0.54, 0.71, 0.73); the 1.5B model answers "95" for most questions. A 0-10 prompt with both ends explained (C4) raises it to 0.644 on 1.5B and 0.804 on 3B (paired gain +0.11 and +0.09, intervals above 0), so verbalized stays a method; the table still shows the old prompt until it is rerun on all sizes ([`docs/methods.md`](docs/methods.md#verbalized-confidence-prompt-c4)).
+2. Verbalized confidence stays weak with the week-1 prompt (0.58, 0.54, 0.71, 0.73); the 1.5B model answers "95" for most questions. A 0-10 prompt with both ends explained (C4) raises it to 0.644 on 1.5B and 0.804 on 3B (paired gain +0.11 and +0.09, intervals above 0), so verbalized stays a method; the table still shows the old prompt until it is rerun on all sizes ([`docs/methods.md`](docs/methods.md#verbalized-confidence-prompt)).
 3. Semantic entropy and its discrete version are almost identical (0.73–0.78) and do not grow with size (0.76 at 3B, 0.73 at 7B): a likely reason is that bigger models repeat their answers more often, so the samples also agree when the answer is wrong. They stay below zero-shot p(True) from 1.5B on, although they need 10 samples and an NLI model per question.
 4. The cheap baselines need no extra model calls and get better with size; at 7B mean token entropy and MSP reach 0.82–0.83.
 
@@ -189,7 +189,7 @@ scores = semantic_scores(["Paris", "It is Paris.", "Lyon"], sample_log_likelihoo
 
 Which uncertainty method should I use for my model, at my budget? The selector answers this per model
 and turns the chosen method's score into a calibrated confidence in [0, 1]. The result is one profile
-per model (`profiles/<model>.json`, format in [`CONTRACT.md`](CONTRACT.md#profile-d4-week-3)) that the API and the demo read.
+per model (`profiles/<model>.json`, format in [`CONTRACT.md`](CONTRACT.md#profile)) that the API and the demo read.
 
 How it decides, per model (`selector/`):
 1. Split the questions into a calibration half (100) and a held-out half (100), stratified by correctness.

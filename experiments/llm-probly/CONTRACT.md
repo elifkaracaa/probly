@@ -1,4 +1,4 @@
-# Score contract (B2)
+# Score contract
 
 Every method saves one file: `results/qwen0.5b/<method>.json`
 
@@ -15,10 +15,10 @@ Example:
      "failed": [false, false, true], "seconds_per_question": 0.8}
 
 
-## Pipeline (PIPE, week 2)
+## Pipeline
 
 ### Folders
-    data/<model>/<dataset>_<n>.jsonl         cache: one row per question (DATA)
+    data/<model>/<dataset>_<n>.jsonl         cache: one row per question
     data/<model>/<dataset>_<n>.meta.json     generation settings
     results/<model>/<dataset>_<n>/<method>.json  one score file per method
     configs/<model>_<dataset>.yaml           one config per run
@@ -37,7 +37,7 @@ def score(rows, model=None, tok=None) -> dict:
     """Return one score record (rules 1-5 above) for these rows."""
 ```
 
-and one entry in `common/registry.py` (week 3, E2) with what the selector needs to know:
+and one entry in `common/registry.py` with what the selector needs to know:
 
 ```python
 MethodSpec("likelihood_mean", "baseline", "logprobs", GREEDY, note="mean greedy token log-prob")
@@ -72,9 +72,9 @@ Rules:
     # --skip-model-methods     skip methods with needs_model=True in the registry
     # --force                  recompute even if the file exists
 
-## Profile (D4, week 3)
+## Profile
 
-The selector writes one file per model: `profiles/<model>.json`. The API (F1) and the demo (F3)
+The selector writes one file per model: `profiles/<model>.json`. The API and the demo
 only read this file, with `selector.profile.load_profile()`; they never run the selector.
 Example: `docs/profile_example_qwen1.5b.json` (real 1.5B numbers; the chosen method is only an example).
 
@@ -84,16 +84,16 @@ Example: `docs/profile_example_qwen1.5b.json` (real 1.5B numbers; the chosen met
 | `model`, `model_id` | str | Short name (`qwen1.5b`) and Hugging Face id (`Qwen/Qwen2.5-1.5B-Instruct`). |
 | `dataset`, `n_questions` | str, int | Run the selector was fitted on (`triviaqa`, 200). |
 | `split_seed`, `calibration_size` | int, int | Calibration / held-out split (`selector.split`), so the result can be rebuilt. |
-| `method.name` | str | Chosen method, same as its plugin and result file; `"stack"` if D2's combination wins. |
+| `method.name` | str | Chosen method, same as its plugin and result file; `"stack"` if the stacked combination (`selector/combine.py`) wins. |
 | `method.family` | str | `agreement` \| `self_eval` \| `baseline` \| `hybrid` (as in the plugins). |
-| `method.access` | str | `text_only` \| `logprobs` \| `white_box`, from `common/registry.py` (E2). |
-| `method.cost` | float | Generation passes per question from `common/registry.py` (E2): 1 = greedy answer only, +10 samples, +1 per extra call, +1 for an NLI pass. |
+| `method.access` | str | `text_only` \| `logprobs` \| `white_box`, from `common/registry.py`. |
+| `method.cost` | float | Generation passes per question from `common/registry.py`: 1 = greedy answer only, +10 samples, +1 per extra call, +1 for an NLI pass. |
 | `method.parameters` | object | Settings the API needs to run the method, e.g. `{"n_samples": 10}`. For `stack`: `methods`, `weights`, `intercept`, `means`, `stds`. |
 | `method.probability` | bool | True if `1 - uncertainty` is already a probability of being correct. |
 | `reason` | str | One sentence on why this method was chosen (shown in the demo). |
 | `calibration_metrics` | object | `auroc`, `auroc_low`, `auroc_high`, `prr`, `prr_low`, `prr_high` (95 % bootstrap) on the calibration part. |
 | `held_out_metrics` | object \| null | Same fields for the chosen method on the held-out part; filled by `selector.select --save` (`null` only in hand-made profiles). |
-| `calibration.type` | str | `none` (not calibrated yet) \| `platt` \| `isotonic` (D3). |
+| `calibration.type` | str | `none` (not calibrated yet) \| `platt` \| `isotonic` (`selector/calibrate.py`). |
 | `calibration.parameters` | object | `platt`: `a`, `b`. `isotonic`: `x` (increasing uncertainties), `y` (confidences). |
 | `calibration.ece_before`, `ece_after` | float \| null | ECE on the held-out part before and after calibration. |
 | `candidates` | object | Calibration-part metrics of every compared method, keyed by name (for the demo's comparison). |

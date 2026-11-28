@@ -100,13 +100,13 @@ scores["semantic_entropy"]  # nan: needs sample_log_likelihoods
 
 Short answers like "1969" or "Lyon" can be hard to compare without the question. With
 `use_question=True` the question is put in front of every answer before NLI (the benchmark's
-`nli_use_question` setting, A4; by default the helper follows that setting, which is off):
+`nli_use_question` setting; by default the helper follows that setting, which is off):
 
 ```python
 scores = semantic_scores(["1969", "In 1969.", "1972"], question="When did Apollo 11 land?", use_question=True)
 ```
 
-In A4 this did not change the AUROC clearly and doubled the NLI time, so it is off by default.
+In the NLI setup study (`docs/methods.md`) this did not change the AUROC clearly and doubled the NLI time, so it is off by default.
 `semantic_scores_many` takes `question` in each item and the same `use_question` argument.
 
 ## The scores
@@ -159,7 +159,7 @@ Instead of the NLI model, the answers can be compared with sentence embeddings
 same meaning). It is about 26-33x faster than the deberta-large NLI model (measured on
 20 questions). On TriviaQA its AUROC was on par with NLI on Qwen 0.5B, where the threshold
 was chosen (SE 0.745 vs 0.744), and about 0.03 lower on the held-out Qwen 1.5B (SE 0.744 vs
-0.776, EigVal 0.752 vs 0.784) (B3, `results/*/triviaqa_200/analysis/embedding_backend.md`). The clusterer is
+0.776, EigVal 0.752 vs 0.784) (`results/*/triviaqa_200/analysis/embedding_backend.md`). The clusterer is
 `probly.representer.semantic_clustering.huggingface.HFEmbeddingSemanticClusterer`,
 a drop-in for the NLI clusterer:
 
@@ -186,7 +186,7 @@ as NLI matrices, or the other way round.
 
 ## Why uncertain? Decomposed semantic entropy
 
-`decomposed_semantic_entropy` (B4, Hou et al., 2024) asks *why* the answers disagree.
+`decomposed_semantic_entropy` (Hou et al., 2024) asks *why* the answers disagree.
 The model rephrases the question 3 times and answers each rephrasing 5 times; all 15
 answers are clustered together and the entropy splits into
 
@@ -213,7 +213,7 @@ split is for explaining *why* an answer is uncertain, not a better error detecto
 ## How many samples?
 
 10 samples are the benchmark default. With 5 the AUROC of semantic entropy drops by
-about 0.01-0.02, with 2-3 clearly more (see `results/*/triviaqa_200/analysis/sample_count.md`, B2).
+about 0.01-0.02, with 2-3 clearly more (see `results/*/triviaqa_200/analysis/sample_count.md`).
 
 ## Errors
 
@@ -234,7 +234,7 @@ All of them are `SemanticInputError`, a `ValueError`.
 ## Limits
 
 - The NLI model compares the answers without the question. Very short answers
-  ("1969" vs "1970") are judged as text only; A4 studies adding the question.
+  ("1969" vs "1970") are judged as text only; adding the question was tested in the NLI setup study.
 - The clusters come from probly's greedy clusterer: a sample joins the first
   cluster whose first member it does not contradict (and is not neutral to in
   both directions).
