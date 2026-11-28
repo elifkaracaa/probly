@@ -151,7 +151,9 @@ number: 1.5B says "95" for 170 of 200 questions, 3B says "100" for 145. `scripts
 asks the same question with two 0-10 prompts (`common/verbalized.py`): `plain10` (`ASK[10]`, only the
 scale changes) and `anchored` (`ASK_ANCHORED`, 0 = certainly wrong, 10 = certainly correct).
 Results in `results/<model>/triviaqa_200/c4/`; TriviaQA-200, AUROC, paired bootstrap against the
-week-1 prompt on the same questions (1000 resamples):
+week-1 prompt on the same questions (1000 resamples). The table is reproduced from the saved files,
+without a model, by `uv run python -m scripts.c4_verbalized_prompt --run qwen1.5b --from-saved`
+(and `--run qwen3b`):
 
 | model | 0-100 (week 1) | plain 0-10 | anchored 0-10 | anchored - week 1 | anchored - plain 0-10 |
 |---|---|---|---|---|---|
@@ -201,9 +203,10 @@ AUROC on TriviaQA-200 (`results/<model>/triviaqa_200/`), compared with the two i
   54 / 46 / 57 / 79 % of the questions (0.5B / 1.5B / 3B / 7B), and then the ranking among those
   questions is lost. A factor near 0 has two causes: all samples repeat the greedy answer
   (inconsistency < 0.01: 6 / 18 / 38 / 60 % of the questions) or p(True) is about 1
-  (1 - p(True) < 0.01: 44 / 25 / 42 / 68 %); some questions have both. On the small models it is
-  mostly the confident p(True), on 3B and 7B mostly agreeing samples: bigger models repeat their
-  answers also when they are wrong (README finding 3). (Thanks to Eylül's review of #82.)
+  (1 - p(True) < 0.01: 44 / 25 / 42 / 68 %); some questions have both. On 0.5B it is almost only
+  the confident p(True); on 3B and 7B both causes are about equally common and often come
+  together: bigger models repeat their answers also when they are wrong (README finding 3) and
+  are then also sure of them. (Thanks to Eylül's reviews of #82.)
 - Decision: both stay in the table as the `hybrid` family; the selector should not prefer them
   over p(True) from 3B on. A weighted sum or the logistic stack (D2) avoids the zero product.
 

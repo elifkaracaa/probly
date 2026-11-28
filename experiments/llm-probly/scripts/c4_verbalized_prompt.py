@@ -15,6 +15,10 @@ Example:
     uv run python -m scripts.c4_verbalized_prompt --run qwen3b --device mps --dtype float16 --prompts plain100 anchored
 
 The second line is for a 16 GB machine; add ``plain10`` too to run all three prompts in the same setup.
+``--from-saved`` loads no model: it prints the table of docs/methods.md (AUROC, replies and the paired
+bootstrap against the week 1 prompt) from the files already in ``c4/``::
+
+    uv run python -m scripts.c4_verbalized_prompt --run qwen3b --from-saved
 """
 
 from __future__ import annotations
@@ -23,14 +27,18 @@ import argparse
 from collections import Counter
 import json
 import time
+from typing import TYPE_CHECKING
 
 from common.data import load_data
-from common.evaluate import bootstrap_auroc, evaluate
+from common.evaluate import bootstrap_auroc, evaluate, paired_bootstrap
 from common.io import RESULTS_ROOT, load_scores
 from common.verbalized import ASK, ASK_ANCHORED, verbalized_2s
 import torch
 
 from probly.representer.sampler.huggingface import load_model
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 MODELS = {
     "qwen0.5b": "Qwen/Qwen2.5-0.5B-Instruct",
@@ -54,6 +62,38 @@ def summarize(label: str, replies: list[str], uncertainty: list[float], correct:
     print(f"  most common: {counts.most_common(5)}")
 
 
+def paired_report(folder: Path, ids: list, correct: list[bool]) -> list[str]:
+    """Paired bootstrap of the saved 0-10 prompts against the week 1 prompt (same questions).
+
+    The week 1 reference is ``c4/verbalized_2s_plain100.json`` when it exists (rerun in the same setup
+    as the new prompts), otherwise the saved ``verbalized_2s.json``.
+
+    Args:
+        folder: Run folder, ``results/<run>/triviaqa_<n>``.
+        ids: Question ids of the data cache, in order.
+        correct: Correctness per question, same order.
+
+    Returns:
+        One printable line per comparison.
+    """
+    plain100 = folder / "c4" / "verbalized_2s_plain100.json"
+    reference = plain100 if plain100.exists() else folder / "verbalized_2s.json"
+    saved = {
+        name: load_scores(folder / "c4" / f"verbalized_2s_{name}.json", expected_ids=ids)["uncertainty"]
+        for name in ("plain10", "anchored")
+        if (folder / "c4" / f"verbalized_2s_{name}.json").exists()
+    }
+    week1 = load_scores(reference, expected_ids=ids)["uncertainty"]
+    pairs = [(name, "week 1", values, week1) for name, values in saved.items()]
+    if len(saved) == len(("plain10", "anchored")):
+        pairs.append(("anchored", "plain10", saved["anchored"], saved["plain10"]))
+    lines = [f"paired bootstrap (AUROC difference, 95 % interval), week 1 = {reference.name}:"]
+    for name_a, name_b, values_a, values_b in pairs:
+        d = paired_bootstrap(values_a, values_b, correct)
+        lines.append(f"  {name_a} - {name_b}: {d.diff:+.3f} [{d.ci_low:+.3f}, {d.ci_high:+.3f}]")
+    return lines
+
+
 def main() -> None:
     """Run the 0-10 prompts on one model and compare them with the saved week 1 result."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -62,6 +102,7 @@ def main() -> None:
     parser.add_argument("--dtype", default="float32", choices=["float32", "float16", "bfloat16"])
     parser.add_argument("--device", default="cpu", choices=["cpu", "mps", "cuda"])
     parser.add_argument("--prompts", nargs="+", default=["plain10", "anchored"], choices=list(PROMPTS))
+    parser.add_argument("--from-saved", action="store_true", help="no model: report the saved c4/ files")
     args = parser.parse_args()
 
     rows = load_data(args.run, args.n)
@@ -71,6 +112,16 @@ def main() -> None:
 
     old = load_scores(folder / "verbalized_2s.json", expected_ids=ids)  # same questions, same order
     summarize("before (0-100)", old["replies"], old["uncertainty"], correct)
+
+    if args.from_saved:
+        for name in PROMPTS:
+            path = folder / "c4" / f"verbalized_2s_{name}.json"
+            if path.exists():
+                saved = load_scores(path, expected_ids=ids)
+                setup = f"{saved.get('device', '?')} {saved.get('dtype', '?')}"
+                summarize(f"saved ({name}, {setup})", saved["replies"], saved["uncertainty"], correct)
+        print("\n".join(paired_report(folder, ids, correct)))
+        return
 
     model, tok = load_model(MODELS[args.run], model_kwargs={"dtype": getattr(torch, args.dtype)})
     model = model.to(args.device)
@@ -111,6 +162,7 @@ def main() -> None:
         }
         out.write_text(json.dumps(record, indent=2) + "\n")
         print(f"  saved {out}")
+    print("\n".join(paired_report(folder, ids, correct)))
 
 
 if __name__ == "__main__":

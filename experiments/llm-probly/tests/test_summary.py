@@ -113,3 +113,15 @@ def test_paired_comparison_marks_best_tied_and_worse(tmp_path):
     assert table.loc["almost", "vs_best"] == "tied"
     assert table.loc["constant", "vs_best"] == "worse"
     assert table.loc["constant", "d_ci_high"] < 0
+
+
+def test_rows_are_sorted_whatever_ran_last(tmp_path):
+    """Rows come in alphabetical order, not with the methods of the last run first (Eylül's review of #81)."""
+    folder = tmp_path / "run"
+    folder.mkdir()
+    ids = [r["id"] for r in ROWS]
+    perfect = [0.0 if r["correct"] else 1.0 for r in ROWS]
+    for name in ("msp", "deg_mat", "verbalized_2s"):
+        write(folder, name, ids, perfect)
+    table = summary_table(ROWS, run="run", methods=("verbalized_2s",), results_root=tmp_path, n_boot=50)
+    assert list(table["method"]) == ["deg_mat", "msp", "verbalized_2s"]

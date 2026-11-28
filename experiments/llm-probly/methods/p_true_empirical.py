@@ -24,6 +24,8 @@ if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 NAME = "p_true_empirical"
+IMPLEMENTATION = "HFSelfEvaluator.sample_judgments"
+"""Where the judgments come from (C2, library code), stored in every record."""
 N_SAMPLES = 10
 BATCH_SIZE = 1  # questions per generate call; more was slower on CPU (check on GPU before raising)
 SEED = 42  # same seed as the week 1 run, but sampling in batches draws different random numbers
@@ -70,4 +72,8 @@ def score(
         "failed": failed,
         "seconds_per_question": seconds,
         "model_calls_per_question": N_SAMPLES,
+        # Provenance: scores of the week-1 code (scripts/r3_methods.py) are not reproducible with this one.
+        "implementation": IMPLEMENTATION,
+        "device": str(model.device),
+        "dtype": str(model.dtype).removeprefix("torch."),
     }
