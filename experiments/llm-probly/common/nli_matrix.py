@@ -1,4 +1,4 @@
-"""Shared pairwise NLI matrix per question (A1).
+"""Shared pairwise NLI matrix per question.
 
 One matrix per question holds the NLI probabilities for every ordered pair of
 ``[greedy_answer, sample_1, ..., sample_K]``. Semantic entropy, discrete semantic
@@ -10,11 +10,11 @@ The matrix itself comes from probly
 entailment). This module only adds what the experiments need on top: which texts
 go in, SE / discrete SE from a matrix, and the ``.nli.npz`` cache file format.
 
-The cache is persistent (A5): the runner reads it before computing anything and writes new
+The cache is persistent: the runner reads it before computing anything and writes new
 matrices back, so a second run of SE / DSE on the same data does no NLI work. One file per
 data cache and NLI setup, named by :func:`nli_cache_path`::
 
-    data/<model>/<dataset>_<n>.nli.npz                  deberta-base, answers only (week-2 name)
+    data/<model>/<dataset>_<n>.nli.npz                  deberta-base, answers only (legacy name)
     data/<model>/<dataset>_<n>.nli.<tag>.npz            any other setup, e.g. .nli.deberta-large.npz
 
 A cached matrix is only reused if the file was made with the same NLI model and conditioning
@@ -29,12 +29,12 @@ Cache file format (version 2; version 1 files load too, but have no fingerprints
     labels                str     (3,)              order of the last axis of ``nli`` in the file
     nli_model             str     ()                Hugging Face name of the NLI model
     use_question          bool    ()                True if the question was put in front of each text
-    deduplicate           bool    ()                True if identical texts were scored once (A2); missing = False
+    deduplicate           bool    ()                True if identical texts were scored once; missing = False
     seconds_per_question  float   ()                NLI time when the file was built
     fingerprints          str     (N,)              per question, see matrix_fingerprint (version 2)
 
 The file stores the last axis as ``labels`` says (entail, neutral, contradict,
-as in the week-2 files). :func:`load_nli_cache` always returns probly's order.
+as in the first cache files). :func:`load_nli_cache` always returns probly's order.
 """
 
 from __future__ import annotations
@@ -42,6 +42,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -58,20 +59,22 @@ from probly.representer.semantic_clustering.huggingface import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
     from probly.representer.semantic_clustering.huggingface import HFSemanticClusterer
+
+log = logging.getLogger(__name__)
 
 FORMAT_VERSION = 2
 GREEDY_INDEX = 0
 FILE_LABELS = ("entail", "neutral", "contradict")
-"""Order of the last axis inside ``.nli.npz`` files (kept from week 2 so old readers keep working)."""
+"""Order of the last axis inside ``.nli.npz`` files (kept from the first format so old readers keep working)."""
 
 
 NLI_MODELS = {"deberta-base": "microsoft/deberta-base-mnli", "deberta-large": "microsoft/deberta-large-mnli"}
-"""Short names of the NLI models compared in A4 (any Hugging Face NLI model name works too)."""
+"""Short names of the NLI models compared in ``scripts/compare_nli_setups.py`` (any Hugging Face name works)."""
 DEFAULT_NLI_MODEL = "deberta-large"
-"""Default NLI model of the experiments (A4, see docs/methods.md "NLI setup").
+"""Default NLI model of the experiments (see docs/methods.md "NLI setup").
 
 On 80 hand-labelled answer pairs deberta-large agrees best with the human labels (0.971 vs 0.937 for
 deberta-base, weighted), while SE / DSE AUROC stays the same within noise; it is about 3x slower, a
@@ -80,7 +83,7 @@ cost that is paid once per cache. probly's library default stays deberta-base.
 
 
 BACKENDS = ("nli", "embedding")
-"""How answers are compared: ``nli`` (cross-encoder, default) or ``embedding`` (cosine similarity, B3)."""
+"""How answers are compared: ``nli`` (cross-encoder, default) or ``embedding`` (cosine similarity)."""
 
 
 @dataclass(frozen=True)
@@ -92,8 +95,8 @@ class NliSettings:
 
     Attributes:
         model: NLI model: short name from ``NLI_MODELS`` or a Hugging Face model name.
-        use_question: Put the question in front of every answer before NLI (A4: no clear gain, 2x slower).
-        backend: ``"nli"`` or ``"embedding"`` (B3: sentence embeddings instead of the NLI model).
+        use_question: Put the question in front of every answer before NLI (no clear gain, 2x slower).
+        backend: ``"nli"`` or ``"embedding"`` (sentence embeddings instead of the NLI model).
         embedding_model: Sentence-transformers model of the embedding backend.
         threshold: Cosine similarity above which two answers are equivalent (embedding backend only).
     """
@@ -163,7 +166,7 @@ def set_nli_settings(
     Raises:
         ValueError: For an unknown backend.
     """
-    global _settings  # noqa: PLW0603
+    global _settings  # noqa: PLW0603 - one setting per process, set once by the runner
     _settings = NliSettings(
         model=_settings.model if model is None else model,
         use_question=_settings.use_question if use_question is None else use_question,
@@ -188,7 +191,7 @@ def set_nli_cache_file(path: str | Path | None) -> None:
     Args:
         path: The ``.nli*.npz`` file, or None to keep matrices in memory only.
     """
-    global _cache_file  # noqa: PLW0603
+    global _cache_file  # noqa: PLW0603 - one cache file per process, set by the runner
     _cache_file = None if path is None else Path(path)
 
 
@@ -197,7 +200,7 @@ def nli_cache_path(data_file: str | Path, settings: NliSettings) -> Path:
 
     Args:
         data_file: The data cache, e.g. ``data/qwen0.5b/triviaqa_200.jsonl`` (model and dataset are in the path).
-        settings: The NLI setup; deberta-base on answers only keeps the week-2 name ``.nli.npz``.
+        settings: The NLI setup; deberta-base on answers only keeps the legacy name ``.nli.npz``.
 
     Returns:
         E.g. ``data/qwen0.5b/triviaqa_200.nli.deberta-large.npz``.
@@ -220,7 +223,7 @@ def question_texts(row: dict) -> list[str]:
 
 
 QUESTIONS_PER_BATCH = 16
-"""Questions whose NLI pairs share model batches (A3); a question has at most 110 pairs."""
+"""Questions whose NLI pairs share model batches (batching across questions); a question has at most 110 pairs."""
 
 
 def pick_device() -> str:
@@ -284,13 +287,13 @@ def compute_matrices(
     use_question: bool = False,
     deduplicate: bool = True,
 ) -> list[torch.Tensor]:
-    """Compute the NLI matrices of several questions in shared model batches (A3).
+    """Compute the NLI matrices of several questions in shared model batches.
 
     Args:
         clusterer: probly semantic clusterer that holds the NLI model.
         rows: Rows of the data cache.
         use_question: If True, the question is put in front of every text.
-        deduplicate: If True, identical texts of a question are sent to the NLI model only once (A2).
+        deduplicate: If True, identical texts of a question are sent to the NLI model only once.
 
     Returns:
         One ``(K+1, K+1, 3)`` tensor per row in probly's label order (``NLI_LABELS``).
@@ -326,8 +329,9 @@ def nli_pair_count(row: dict, *, deduplicate: bool = True) -> int:
     return m * (m - 1)
 
 
-RULES = ("probly", "strict")
-"""Equivalence rules: ``probly`` = semantic entropy's rule; ``strict`` = entailment in both directions."""
+RULES = ("probly", "strict", "lenient")
+"""Equivalence rules: ``probly`` = semantic entropy's rule; ``strict`` = entailment in both directions;
+``lenient`` = no contradiction in either direction."""
 
 
 def same_meaning(matrix: torch.Tensor, a: int, b: int, rule: str = "probly") -> bool:
@@ -337,12 +341,13 @@ def same_meaning(matrix: torch.Tensor, a: int, b: int, rule: str = "probly") -> 
     :meth:`HFGreedySemanticClusterer.cluster_nli_matrix` on the 2 x 2 block): no contradiction in
     either direction and not neutral in both directions. ``rule="strict"`` asks for entailment in
     both directions (bidirectional entailment), which never merges a vaguer answer with a specific one.
+    ``rule="lenient"`` only asks for no contradiction in either direction.
 
     Args:
         matrix: Question matrix of shape ``(n, n, 3)`` in probly's label order.
         a: Index of the first text.
         b: Index of the second text.
-        rule: ``"probly"`` or ``"strict"``.
+        rule: One of ``RULES``.
 
     Returns:
         True if the two texts are treated as having the same meaning.
@@ -356,8 +361,38 @@ def same_meaning(matrix: torch.Tensor, a: int, b: int, rule: str = "probly") -> 
     if rule == "strict":
         entailment = NLI_LABELS.index("entailment")
         return bool(matrix[a, b].argmax() == entailment and matrix[b, a].argmax() == entailment)
+    if rule == "lenient":
+        contradiction = NLI_LABELS.index("contradiction")
+        return bool(matrix[a, b].argmax() != contradiction and matrix[b, a].argmax() != contradiction)
     msg = f"rule must be one of {RULES}, got {rule!r}."
     raise ValueError(msg)
+
+
+def greedy_clusters(matrix: torch.Tensor, indices: Iterable[int], rule: str = "probly") -> list[list[int]]:
+    """Cluster texts greedily, as probly does: each text joins the first cluster whose first member matches.
+
+    Args:
+        matrix: Question matrix of shape ``(n, n, 3)`` in probly's label order.
+        indices: Texts to cluster, in order (e.g. ``range(1, n)`` for the samples only).
+        rule: One of ``RULES``, see :func:`same_meaning`.
+
+    Returns:
+        The clusters as lists of text indices, in order of first appearance.
+    """
+    clusters: list[list[int]] = []
+    for text in indices:
+        for cluster in clusters:
+            if same_meaning(matrix, cluster[0], text, rule):
+                cluster.append(text)
+                break
+        else:
+            clusters.append([text])
+    return clusters
+
+
+def as_partition(clusters: Iterable[Iterable[int]]) -> set[frozenset[int]]:
+    """Return clusters as a set of sets, so the order and the cluster ids do not matter."""
+    return {frozenset(cluster) for cluster in clusters}
 
 
 def sample_block(matrix: torch.Tensor) -> torch.Tensor:
@@ -366,7 +401,7 @@ def sample_block(matrix: torch.Tensor) -> torch.Tensor:
 
 
 def cluster_shares(matrix: torch.Tensor) -> tuple[float, float]:
-    """How concentrated the samples are, from one question matrix (features for the selector, D2).
+    """How concentrated the samples are, from one question matrix (features for the selector).
 
     Uses the same greedy clustering rule as semantic entropy.
 
@@ -503,7 +538,7 @@ def load_nli_cache(path: str | Path) -> dict:
     """Load a ``.nli.npz`` file with the matrices in probly's label order.
 
     Args:
-        path: The cache file (week-2 files without ``format_version`` load too).
+        path: The cache file (first-format files without ``format_version`` load too).
 
     Returns:
         Dict with ``matrices`` (list of ``(n_i, n_i, 3)`` float32 tensors, probly order),
@@ -548,10 +583,10 @@ def read_cached_matrices(path: str | Path, settings: NliSettings) -> dict[int, t
         and cache["use_question"] == settings.use_question
     )
     if not same_setup:
-        print(f"   NLI cache {path.name}: made with another NLI setup, computing again")
+        log.warning("NLI cache %s: made with another NLI setup, computing again", path.name)
         return {}
     if cache["fingerprints"] is None:
-        print(f"   NLI cache {path.name}: no fingerprints (old format), computing again")
+        log.warning("NLI cache %s: no fingerprints (old format), computing again", path.name)
         return {}
     return {
         int(qid): (fp, matrix)
@@ -576,7 +611,7 @@ def cached_nli_seconds(path: str | Path) -> float:
 
 
 def count_cached_questions(path: str | Path, settings: NliSettings, rows: Sequence[dict]) -> int:
-    """Number of ``rows`` whose NLI matrix the cache file can give without any NLI work.
+    """Count the ``rows`` whose NLI matrix the cache file can give without any NLI work.
 
     Args:
         path: The cache file.

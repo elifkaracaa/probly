@@ -48,7 +48,7 @@ def test_strict_rule_needs_entailment_both_ways() -> None:
     assert not same_meaning(matrix, 0, 1, rule="strict")
     assert same_meaning(matrix, 0, 2, rule="strict")
     with pytest.raises(ValueError, match="rule"):
-        same_meaning(matrix, 0, 1, rule="lenient")
+        same_meaning(matrix, 0, 1, rule="other")
 
 
 def test_normalize() -> None:

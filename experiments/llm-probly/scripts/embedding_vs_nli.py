@@ -1,7 +1,7 @@
-"""Speed and AUROC of the embedding backend vs NLI clustering (B3).
+"""Speed and AUROC of the embedding backend vs NLI clustering.
 
 Reads the cached samples and the benchmark's NLI matrices (no LLM): the NLI setup of
-``common.nli_matrix.nli_settings()`` (deberta-large by default) from its A5 cache, computed and
+``common.nli_matrix.nli_settings()`` (deberta-large by default) from its persistent cache, computed and
 added to the cache for any question that is missing. Run from
 ``experiments/llm-probly``::
 
@@ -28,6 +28,7 @@ from common.data import cache_path, load_jsonl
 from common.evaluate import auroc
 from common.io import RESULTS_ROOT
 from common.nli_matrix import QUESTIONS_PER_BATCH, compute_matrices, nli_cache_path, nli_settings, set_nli_cache_file
+from common.sample_count import tied
 from common.semantic_scores import cluster_ids, scores_from_matrix
 import numpy as np
 
@@ -38,19 +39,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import torch
-
-
-def tied(values: np.ndarray, tolerance: float = 1e-5) -> np.ndarray:
-    """Make scores closer than ``tolerance`` exact ties before AUROC.
-
-    Same as ``common.sample_count.tied`` (B2, in review); switch to that import once B2 is merged.
-    """
-    order = np.argsort(values, kind="stable")
-    ranked = values[order]
-    start = np.concatenate(([True], np.diff(ranked) >= tolerance))
-    out = np.empty_like(ranked)
-    out[order] = ranked[np.flatnonzero(start)[np.cumsum(start) - 1]]
-    return out
 
 
 SCORED = ("semantic_entropy", "discrete_semantic_entropy", "eig_val_laplacian", "deg_mat", "num_semantic_sets")
@@ -73,7 +61,7 @@ def embedding_matrices(
 
 
 def nli_seconds(rows: list[dict]) -> float:
-    """Seconds per question of the benchmark's NLI path (current NLI settings, A2 + A3) on this machine."""
+    """Seconds per question of the benchmark's NLI path (current settings) on this machine."""
     from methods._se_common import get_clusterer  # noqa: PLC0415  (loads the NLI model)
 
     clusterer = get_clusterer()
@@ -84,7 +72,7 @@ def nli_seconds(rows: list[dict]) -> float:
 
 
 def benchmark_nli_matrices(rows: list[dict], data_file: Path) -> list[torch.Tensor]:
-    """NLI matrices of the benchmark's setup: from its A5 cache, computed (and cached) where missing."""
+    """Return the NLI matrices of the benchmark's setup: from its cache, computed (and cached) where missing."""
     from methods import _se_common  # noqa: PLC0415  (loads the NLI model only if something is missing)
 
     set_nli_cache_file(nli_cache_path(data_file, nli_settings()))
@@ -105,12 +93,12 @@ def evaluate(matrices: list[torch.Tensor], rows: list[dict], correct: np.ndarray
 
 
 def same_partition(a: list[int], b: list[int]) -> bool:
-    """True if two cluster assignments group the samples identically (ids may differ)."""
+    """Return True if two cluster assignments group the samples identically (ids may differ)."""
     return len({*zip(a, b, strict=True)}) == len(set(a)) == len(set(b))
 
 
 def to_markdown(model: str, run: str, record: dict) -> str:
-    """The comparison as Markdown."""
+    """Render the comparison as Markdown."""
     speedup = record["seconds_nli"] / record["seconds_embedding"]
     head = "| backend | " + " | ".join(SCORED) + " | mean clusters | same clusters as NLI |"
     lines = [
@@ -125,7 +113,7 @@ def to_markdown(model: str, run: str, record: dict) -> str:
         "",
         "| backend | seconds per question | speed-up |",
         "|---|---|---|",
-        f"| NLI ({record['nli_setup']}, A2 + A3) | {record['seconds_nli']:.3f} | 1x |",
+        f"| NLI ({record['nli_setup']}, deduplicated + batched) | {record['seconds_nli']:.3f} | 1x |",
         f"| embedding | {record['seconds_embedding']:.3f} | {speedup:.0f}x |",
         "",
         "## AUROC",
