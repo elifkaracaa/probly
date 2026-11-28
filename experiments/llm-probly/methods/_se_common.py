@@ -152,8 +152,11 @@ def get_matrix(row: dict) -> torch.Tensor:
 
 
 def compute_se_and_dse(row: dict) -> tuple[float, float]:
-    """Semantic entropy and discrete semantic entropy of one question."""
-    return se_and_dse(get_matrix(row), row["samples_ll_mean"])
+    """Semantic entropy and discrete semantic entropy of one question.
+
+    On a text-only cache (no ``samples_ll_mean``) semantic entropy is ``nan``; discrete SE still works.
+    """
+    return se_and_dse(get_matrix(row), row.get("samples_ll_mean"))
 
 
 def score_rows(rows: list[dict], name: str, which: int) -> dict:

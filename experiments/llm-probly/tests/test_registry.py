@@ -50,7 +50,12 @@ def test_methods_that_need_the_model_are_self_evaluation_or_opt_in():
         "p_true_empirical",
         "verbalized_2s",
     }
-    assert {s.name for s in REGISTRY.values() if s.opt_in} == {"decomposed_semantic_entropy"}
+    # The F2 API plugins only read text-only caches, so "all" runs skip them.
+    assert {s.name for s in REGISTRY.values() if s.opt_in} == {
+        "decomposed_semantic_entropy",
+        "verbalized_2s_api",
+        "p_true_empirical_api",
+    }
 
 
 def test_nli_methods_cost_one_more_than_their_llm_passes():
@@ -78,6 +83,8 @@ def test_text_only_methods_match_f2():
         "greedy_cluster_share",
         "verbalized_2s",
         "p_true_empirical",
+        "verbalized_2s_api",
+        "p_true_empirical_api",
         "dummy_random",
     }
 

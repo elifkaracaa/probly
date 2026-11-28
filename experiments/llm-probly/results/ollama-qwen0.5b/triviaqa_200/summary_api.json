@@ -1,0 +1,19 @@
+{
+  "accuracy": 0.235,
+  "methods": {
+    "verbalized_2s_api": {
+      "auroc": 0.4383952162425254,
+      "local_auroc": 0.5838206627680314,
+      "failed": 0,
+      "seconds_per_question": 0.7497617605400001,
+      "api_requests_per_question": 1.0
+    },
+    "p_true_empirical_api": {
+      "auroc": 0.5652204144068974,
+      "local_auroc": 0.5179499675113709,
+      "failed": 0,
+      "seconds_per_question": 1.4454036192600006,
+      "api_requests_per_question": 10.0
+    }
+  }
+}

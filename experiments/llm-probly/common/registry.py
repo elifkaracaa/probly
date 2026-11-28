@@ -255,6 +255,27 @@ _SPECS = (
         probability=True,
         note="one short generation for the stated confidence",
     ),
+    # --- F2: the same self-evaluation through an OpenAI-compatible API ------------------------
+    # They read text-only caches from scripts/generate_api.py and refuse local caches, so a run
+    # over ``all`` methods skips them (opt_in); run them with scripts/score_api_cache.py.
+    MethodSpec(
+        "verbalized_2s_api",
+        "self_eval",
+        "text_only",
+        GREEDY + 1,
+        probability=True,
+        opt_in=True,
+        note="verbalized_2s through an OpenAI-compatible API (F2), text-only caches only",
+    ),
+    MethodSpec(
+        "p_true_empirical_api",
+        "self_eval",
+        "text_only",
+        GREEDY + SAMPLES,
+        probability=True,
+        opt_in=True,
+        note="p_true_empirical through an OpenAI-compatible API (F2), text-only caches only",
+    ),
 )
 
 REGISTRY: dict[str, MethodSpec] = {spec.name: spec for spec in _SPECS}
