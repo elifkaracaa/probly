@@ -8,19 +8,25 @@ from __future__ import annotations
 
 import math
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from methods import p_true_brainstorm, p_true_zeroshot
 import numpy as np
 import pytest
 
-MODEL = object()  # the plugins only pass the model and tokenizer on to the evaluator
-TOKENIZER = object()
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizerBase
+
+# The plugins only pass the model and tokenizer on to the evaluator, so plain objects are enough.
+MODEL = cast("PreTrainedModel", object())
+TOKENIZER = cast("PreTrainedTokenizerBase", object())
 
 
 def make_rows(samples: list[list[str] | None] | None = None, n: int = 3) -> list[dict[str, Any]]:
     """Return ``n`` cached rows; ``samples`` adds the sampled answers that brainstorm needs."""
-    rows = [{"id": i, "model": "fake-model", "question": f"Q{i}?", "greedy_answer": f"A{i}"} for i in range(n)]
+    rows: list[dict[str, Any]] = [
+        {"id": i, "model": "fake-model", "question": f"Q{i}?", "greedy_answer": f"A{i}"} for i in range(n)
+    ]
     if samples is not None:
         for row, sample in zip(rows, samples, strict=True):
             row["samples"] = sample
