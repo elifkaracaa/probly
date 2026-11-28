@@ -1,4 +1,4 @@
-"""Tests for selector.select (D1, step 4: the selection rule)."""
+"""Tests for selector.select (step 4: the selection rule)."""
 
 from __future__ import annotations
 
