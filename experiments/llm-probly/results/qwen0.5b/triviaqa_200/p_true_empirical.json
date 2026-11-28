@@ -812,5 +812,8 @@
     false
   ],
   "seconds_per_question": 0.5693973249999544,
-  "model_calls_per_question": 10
+  "model_calls_per_question": 10,
+  "implementation": "HFSelfEvaluator.sample_judgments",
+  "device": "cpu",
+  "dtype": "float32"
 }

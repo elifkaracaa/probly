@@ -2,9 +2,9 @@ Run `qwen0.5b/mmlu_200`, 200 questions, precision float32
 
 | method | family | access | cost | status | auroc | ci_low | ci_high | vs_best | d_auroc | d_ci_low | d_ci_high | aurc | prr | ece | n_failed | coverage | seconds_per_question |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| dummy_random | baseline | text_only | 1 | ok | 0.516 | 0.420 | 0.611 | tied | -0.064 | -0.224 | 0.092 | 0.808 | -0.062 |  | 0 |  | 0.000 |
 | deg_mat | agreement | text_only | 12 | ok | 0.503 | 0.400 | 0.608 | tied | -0.077 | -0.173 | 0.010 | 0.795 | 0.053 |  | 0 |  | 0.000 |
 | discrete_semantic_entropy | agreement | text_only | 12 | ok | 0.517 | 0.418 | 0.617 | tied | -0.063 | -0.152 | 0.023 | 0.792 | 0.073 |  | 0 |  | 0.000 |
+| dummy_random | baseline | text_only | 1 | ok | 0.516 | 0.420 | 0.611 | tied | -0.064 | -0.224 | 0.092 | 0.808 | -0.062 |  | 0 |  | 0.000 |
 | eccentricity | agreement | text_only | 12 | ok | 0.518 | 0.419 | 0.620 | tied | -0.062 | -0.158 | 0.034 | 0.791 | 0.065 |  | 0 |  | 0.000 |
 | eig_val_laplacian | agreement | text_only | 12 | ok | 0.522 | 0.426 | 0.620 | tied | -0.057 | -0.151 | 0.028 | 0.792 | 0.070 |  | 0 |  | 0.000 |
 | lexical_similarity | agreement | text_only | 11 | ok | 0.507 | 0.403 | 0.611 | tied | -0.072 | -0.168 | 0.016 | 0.794 | 0.068 |  | 0 |  | 0.000 |

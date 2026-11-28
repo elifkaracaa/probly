@@ -814,5 +814,7 @@
     false
   ],
   "seconds_per_question": 0.3180187481249959,
-  "model_calls_per_question": 1
+  "model_calls_per_question": 1,
+  "device": "cpu",
+  "dtype": "float32"
 }

@@ -2,11 +2,11 @@ Run `qwen1.5b/triviaqa_200`, 200 questions, precision float32
 
 | method | family | access | cost | status | auroc | ci_low | ci_high | vs_best | d_auroc | d_ci_low | d_ci_high | aurc | prr | ece | n_failed | coverage | seconds_per_question |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| dummy_random | baseline | text_only | 1 | ok | 0.521 | 0.439 | 0.610 | worse | -0.313 | -0.406 | -0.214 | 0.597 | 0.131 |  | 0 |  | 0.000 |
 | cocoa_msp | hybrid | logprobs | 12 | ok | 0.759 | 0.689 | 0.820 | worse | -0.075 | -0.134 | -0.021 | 0.457 | 0.481 |  | 0 |  | 0.000 |
 | cocoa_p_true | hybrid | logprobs | 13 | ok | 0.833 | 0.775 | 0.886 | best | 0.000 | 0.000 | 0.000 | 0.423 | 0.571 |  | 0 |  | 0.313 |
 | deg_mat | agreement | text_only | 12 | ok | 0.779 | 0.711 | 0.835 | worse | -0.054 | -0.103 | -0.011 | 0.449 | 0.499 |  | 0 |  | 0.000 |
 | discrete_semantic_entropy | agreement | text_only | 12 | ok | 0.779 | 0.716 | 0.830 | worse | -0.055 | -0.105 | -0.008 | 0.452 | 0.508 |  | 0 |  | 0.000 |
+| dummy_random | baseline | text_only | 1 | ok | 0.521 | 0.439 | 0.610 | worse | -0.313 | -0.406 | -0.214 | 0.597 | 0.131 |  | 0 |  | 0.000 |
 | eccentricity | agreement | text_only | 12 | ok | 0.748 | 0.674 | 0.813 | worse | -0.085 | -0.145 | -0.033 | 0.469 | 0.460 |  | 0 |  | 0.000 |
 | eig_val_laplacian | agreement | text_only | 12 | ok | 0.784 | 0.717 | 0.841 | worse | -0.049 | -0.098 | -0.007 | 0.441 | 0.506 |  | 0 |  | 0.000 |
 | greedy_cluster_share | agreement | text_only | 12 | ok | 0.770 | 0.705 | 0.826 | worse | -0.063 | -0.116 | -0.013 | 0.455 | 0.501 |  | 0 |  | 0.000 |

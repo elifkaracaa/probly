@@ -90,7 +90,7 @@ def summary_table(
 
     folder = Path(results_root) / run
     found = sorted(path.stem for path in folder.glob("*.json")) if folder.exists() else []
-    all_methods = [*methods, *(name for name in found if name not in methods)]
+    all_methods = sorted({*methods, *found})  # fixed order, whatever ran last
 
     table = []
     uncertainties = {}  # method -> uncertainty, for the paired comparison with the best method
