@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import sys
+
 from common.evaluate import auroc
 import numpy as np
 import pandas as pd
 import pytest
+from selector import combine as combine_module
 from selector.combine import (
     compare_stack,
     cross_validated_comparison,
@@ -80,3 +83,17 @@ def test_compare_stack_reports_both_parts() -> None:
     assert d["low"] <= d["diff"] <= d["high"]
     assert d["diff"] == pytest.approx(report.held_out_stack_auroc - report.held_out_best_auroc)
     assert report.cv_stack_auroc > report.cv_best_auroc
+
+
+def test_main_prints_stack_versus_best_and_the_weights(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(combine_module, "load_score_table", lambda *_args, **_kwargs: make_table())
+    monkeypatch.setattr(sys, "argv", ["combine", "--models", "m", "--calibration-size", "200", "--n-boot", "50"])
+    combine_module.main()
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("model")
+    row = next(line for line in lines if line.startswith("m "))
+    assert "view_" in row  # the best single method is one of the two informative views
+    assert any(line.startswith("Stack weights") for line in lines)
+    assert any("view_a" in line and "view_b" in line for line in lines[-2:])
