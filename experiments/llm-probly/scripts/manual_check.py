@@ -1,8 +1,8 @@
-"""Check automatic correctness labels by hand and estimate the label error rate (DATA).
+"""Check automatic correctness labels by hand and estimate the label error rate.
 
 Run from ``experiments/llm-probly``. Two people split 30 answers per model:
 
-    uv run python -m scripts.manual_check --model qwen0.5b --n 200 --part 1   # DATA, 15 answers
+    uv run python -m scripts.manual_check --model qwen0.5b --n 200 --part 1   # 15 answers
     uv run python -m scripts.manual_check --model qwen0.5b --n 200 --part 2   # BIG, the other 15
     uv run python -m scripts.manual_check --model qwen0.5b --n 200 --summary  # label error rate
 

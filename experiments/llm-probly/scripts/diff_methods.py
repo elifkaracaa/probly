@@ -1,4 +1,4 @@
-"""Is method A better than method B on this model? Paired bootstrap on one run (E4).
+"""Is method A better than method B on this model? Paired bootstrap on one run.
 
 Run from ``experiments/llm-probly``::
 

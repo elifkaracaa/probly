@@ -1,6 +1,6 @@
-"""Method registry (E2): one table that says what every uncertainty method is and what it costs.
+"""Method registry: one table that says what every uncertainty method is and what it costs.
 
-The runner, the summary table and the selector (D1) read this table instead of
+The runner, the summary table and the selector read this table instead of
 the plugin modules, so the metadata of a method lives in one place. A plugin
 file in ``methods/`` only needs ``NAME`` and ``score()`` (see CONTRACT.md).
 
@@ -20,7 +20,7 @@ Fields of a method:
 - ``cost``: relative cost per question, generation included. The unit is one
   LLM generation pass: ``1`` is the greedy answer alone, the 10 cached samples
   add 10, every extra model call adds 1 and an NLI pass adds 1 (same rule as
-  the selector, D1). So lexical similarity costs ``11`` and semantic entropy ``12``.
+  the selector). So lexical similarity costs ``11`` and semantic entropy ``12``.
 - ``needs_model``: the runner loads the LLM and passes it to ``score()``.
 - ``uses_nli``: the method also runs the NLI model on sample pairs (cheap
   compared with the LLM, but it is reported separately).
@@ -137,7 +137,7 @@ _SPECS = (
         uses_nli=True,
         note="NLI clusters weighted by sample likelihoods",
     ),
-    # Graph measures (B1, LM-Polygraph / Lin et al. 2024): read the same NLI matrix as SE, so next to
+    # Graph measures (LM-Polygraph / Lin et al. 2024): read the same NLI matrix as SE, so next to
     # SE they add no NLI pass; alone they cost the same as discrete SE.
     MethodSpec(
         "num_semantic_sets",
@@ -171,7 +171,7 @@ _SPECS = (
         uses_nli=True,
         note="spread of the samples in the graph's spectral embedding",
     ),
-    # Decomposed SE (B4, Hou et al. 2024): 3 clarifications + 3 x 5 answers + NLI over all of them.
+    # Decomposed SE (Hou et al. 2024): 3 clarifications + 3 x 5 answers + NLI over all of them.
     MethodSpec(
         "decomposed_semantic_entropy",
         "agreement",
@@ -182,7 +182,7 @@ _SPECS = (
         opt_in=True,
         note="clarify the question 3x, answer each 5x; total = aleatoric + epistemic",
     ),
-    # Cluster shares (A, for the selector D2): read the same NLI matrix as SE.
+    # Cluster shares (for the selector): read the same NLI matrix as SE.
     MethodSpec(
         "largest_cluster_share",
         "agreement",

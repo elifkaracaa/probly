@@ -1,4 +1,4 @@
-"""Check that a larger cache starts with the smaller one (E3: TriviaQA 1000 vs 200).
+"""Check that a larger cache starts with the smaller one (e.g. TriviaQA 1000 vs 200).
 
 ``common.data`` shuffles the dataset once with a fixed seed and takes the first
 ``n`` questions, and ``scripts/generate.py`` seeds every question with

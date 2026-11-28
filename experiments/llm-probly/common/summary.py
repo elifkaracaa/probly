@@ -59,7 +59,7 @@ SANITY_COLUMNS = ["method", "model", "auroc", "gap", "n_distinct", "verdict"]
 
 
 def mean_coverage(record: dict) -> float:
-    """Mean answer coverage of a result record, or NaN if the method does not store one (C3).
+    """Mean answer coverage of a result record, or NaN if the method does not store one.
 
     Coverage is ``P(A) + P(B)`` per question for the p(True) methods: how much probability mass
     the model puts on the two allowed answers. For ``p_true_empirical`` the analogue is
@@ -81,7 +81,7 @@ def summary_table(
 ) -> pd.DataFrame:
     """Evaluate every method file in ``results_root/run`` and return one row per method.
 
-    ``rows`` are the shared data rows (B1) with the keys ``id`` and ``correct``.
+    ``rows`` are the shared data rows with the keys ``id`` and ``correct``.
     Methods without a valid file get a row with ``status`` set to ``pending``.
     """
     ids = [row["id"] for row in rows]
@@ -135,12 +135,12 @@ def add_paired_comparison(
     correct: list[bool],
     n_boot: int = 1000,
 ) -> None:
-    """Compare every evaluated method with the best one (highest AUROC) by a paired bootstrap (E4).
+    """Compare every evaluated method with the best one (highest AUROC) by a paired bootstrap.
 
     Fills ``vs_best``, ``d_auroc``, ``d_ci_low`` and ``d_ci_high`` in place.
     ``tied`` means the data cannot tell the method apart from the best one: the
     95 % interval of its AUROC difference contains 0. This is the same test the
-    selector (D1) uses to pick the cheapest method among the tied ones.
+    selector uses to pick the cheapest method among the tied ones.
     """
     evaluated = [row for row in table if row["status"] == "ok"]
     if not evaluated:

@@ -1,4 +1,4 @@
-"""The benchmark report (E4): every run, every method, with cost, in Markdown and HTML.
+"""The benchmark report: every run, every method, with cost, in Markdown and HTML.
 
 Run from ``experiments/llm-probly``::
 
@@ -104,7 +104,7 @@ def find_runs(results_root: Path = RESULTS_ROOT, min_n: int = 100) -> list[tuple
 def pick_method(table: pd.DataFrame, access: tuple[str, ...] | None = None) -> str:
     """Cheapest registered method among the best and the tied ones; higher AUROC breaks cost ties.
 
-    Same rule as the selector (D1): the data cannot tell the tied methods apart from the
+    Same rule as the selector: the data cannot tell the tied methods apart from the
     best one, so the cheapest of them is the sensible choice. The random reference is
     never picked, and if it is itself tied with the best method, nothing is better than
     random on this run and :data:`NO_SIGNAL` is returned.
