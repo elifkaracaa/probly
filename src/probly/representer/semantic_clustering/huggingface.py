@@ -369,10 +369,11 @@ class HFSemanticClusterer(Representer[Any, Any, torch.Tensor, SemanticClusterOut
             ``[b, a]`` can differ. The diagonal is NaN.
 
         Example:
-            >>> clusterer = HFGreedySemanticClusterer.from_model_name()  # doctest: +SKIP
-            >>> matrix = clusterer.pairwise_nli(["Paris", "paris", "Lyon"])  # doctest: +SKIP
-            >>> HFGreedySemanticClusterer.cluster_nli_matrix(matrix)  # doctest: +SKIP
-            tensor([0, 0, 1])
+            Score three answers once and cluster them (downloads the NLI model on first use)::
+
+                clusterer = HFGreedySemanticClusterer.from_model_name()
+                matrix = clusterer.pairwise_nli(["Paris", "paris", "Lyon"])
+                HFGreedySemanticClusterer.cluster_nli_matrix(matrix)  # tensor([0, 0, 1])
         """
         texts = np.asarray(statements, dtype=object)
         if texts.ndim != 1:
@@ -664,10 +665,11 @@ class HFEmbeddingSemanticClusterer(HFGreedySemanticClusterer):
     other. The "NLI" matrices hold :func:`cosine_to_nli_probabilities` of the similarities.
 
     Example:
-        >>> clusterer = HFEmbeddingSemanticClusterer.from_model_name()  # doctest: +SKIP
-        >>> matrix = clusterer.pairwise_nli(["Paris", "It is Paris.", "Lyon"])  # doctest: +SKIP
-        >>> HFEmbeddingSemanticClusterer.cluster_nli_matrix(matrix)  # doctest: +SKIP
-        tensor([0, 0, 1])
+        Cluster three answers by embedding similarity (downloads the embedding model on first use)::
+
+            clusterer = HFEmbeddingSemanticClusterer.from_model_name()
+            matrix = clusterer.pairwise_nli(["Paris", "It is Paris.", "Lyon"])
+            HFEmbeddingSemanticClusterer.cluster_nli_matrix(matrix)  # tensor([0, 0, 1])
     """
 
     embedder: HFTextEmbedder
