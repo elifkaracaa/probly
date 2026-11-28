@@ -148,7 +148,13 @@ sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
     "doc_module": ("probly",),
     "filename_pattern": r"plot_.*\.py",
-    "ignore_pattern": r"(__init__|.*/llm/.*)\.py",
+    # sphinx-gallery matches this against the bare file name, not the path.
+    # The scripts in examples/llm/ other than plot_llm_uncertainty_pipeline.py
+    # are benchmarks that need a GPU or saved results, so they stay out.
+    "ignore_pattern": (
+        r"(^|[/\\])(__init__|sampling|semantic_entropy|semantic_entropy_generation_batching_benchmark"
+        r"|semantic_entropy_nli_batching_benchmark|spectral_uncertainty|plot_semantic_entropy_batching_benchmark)\.py$"
+    ),
     "plot_gallery": True,
     "download_all_examples": False,
     "notebook_extensions": set(),
