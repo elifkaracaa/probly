@@ -25,7 +25,7 @@ Measured: 2026-11-27 by Elçin (T5), MacBook Pro (macOS, zsh)
 - noqa: 49 vs 50 in the plan; same commit, difference not explained yet (likely counting scope).
 - Docstrings: `ruff --isolated` also reports rules that Google style does not use
   (D413, D401, D400). Only D103 counts.
-- Branches: 12 open instead of 13. Which branch is missing? Check before deleting anything.
+- Branches: 12 open instead of 13. The missing one is b2-sample-count: deleted on GitHub, its content is most likely in main via another PR (to be confirmed by whoever deleted it).
   The merged count excludes origin/main itself.
 - Test runtime depends on the machine: measure "after" on the same machine.
 - macOS / zsh: quote globs in the audit commands (`--include='*.py'`), otherwise zsh fails.
