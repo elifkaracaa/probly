@@ -4,7 +4,7 @@ The plugins use the library now: empirical p(True) runs on
 ``probly.representer.self_evaluation.huggingface.HFSelfEvaluator`` (C2, batched, more robust reply
 parsing) and verbalized confidence lives in ``common/verbalized.py``. This module keeps the week-1
 empirical p(True) (one question at a time, the original reply rule) because
-``scripts/bench_self_eval.py`` measures the library against it and ``notebooks/R3_text_only.ipynb``
+``scripts/bench_self_eval.py`` measures the library against it and ``notebooks/text_only_self_evaluation.ipynb``
 documents how the method was built. The verbalized names are re-exported from ``common.verbalized``,
 so there is only one verbalized implementation.
 """

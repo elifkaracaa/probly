@@ -12,7 +12,7 @@ PR that carries them. PR numbers refer to this fork (`elifkaracaa/probly`).
 | 28 Nov | The hybrid scores (`cocoa_msp`, `cocoa_p_true`) stay in the table as family `hybrid`, but are not preferred. | They win only on 1.5B (within noise) and lose to p(True) from 3B on; the product is about 0 when the samples agree or p(True) is about 1. The selector rerun changes no pick. | #82, #96, [methods.md](methods.md#hybrid-scores-c5-cocoa) |
 | 28 Nov | Verbalized confidence stays a method; the anchored 0-10 prompt is the better prompt. | The rule for the new verbalized-confidence prompt (baseline only if AUROC < 0.65 on 1.5B and 3B) is not met: anchored gives 0.644 (1.5B) and 0.804 (3B), +0.107 / +0.091 over the week-1 prompt (paired intervals above 0). The main table keeps the week-1 prompt until all sizes are rerun. | #76, [methods.md](methods.md#verbalized-confidence-prompt-c4) |
 | 20 Nov | Drop `perplexity`. | `perplexity = exp(likelihood_mean)` keeps the order, so AUROC, AURC and PRR are identical on all four sizes; the selector would get the same method twice. | #47 |
-| 9 Nov | p(True) uses the `plain_ab` prompt (no chat template, next token A vs B). | Chosen by the week-1 sanity comparison against `chat_groups` (`notebooks/reflexive_mode_comparison.ipynb`). | #6 |
+| 9 Nov | p(True) uses the `plain_ab` prompt (no chat template, next token A vs B). | Chosen by the week-1 sanity comparison against `chat_groups` (`notebooks/p_true_prompt_modes.ipynb`). | #6 |
 
 ## Semantic methods and NLI
 
