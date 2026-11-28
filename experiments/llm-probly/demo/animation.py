@@ -6,8 +6,8 @@ probly's own ``docs/source/_static/readme/llm_uncertainty_demo_*.svg``: plain SV
 
 Usage (from ``experiments/llm-probly``)::
 
-    uv run python scripts/make_readme_demo.py --list --run qwen1.5b --n 200
-    uv run python scripts/make_readme_demo.py --ids 27 28 44 --run qwen1.5b --n 200
+    uv run python demo/animation.py --list --run qwen1.5b --n 200
+    uv run python demo/animation.py --ids 27 28 44 --run qwen1.5b --n 200
 
 Scores are read from ``results/<run>/<dataset>_<n>/<method>.json`` (pipeline layout) and, if that folder
 does not exist, from the older flat folder ``results/<run>/``.
