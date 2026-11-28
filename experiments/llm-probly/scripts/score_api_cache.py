@@ -17,13 +17,11 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
-import sys
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-if (
-    str(ROOT) not in sys.path
-):  # allow `python scripts/score_api_cache.py` as well as `-m`
+if str(ROOT) not in sys.path:  # allow `python scripts/score_api_cache.py` as well as `-m`
     sys.path.insert(0, str(ROOT))
 
 from common.evaluate import auroc  # noqa: E402
@@ -77,15 +75,9 @@ def main(argv: list[str] | None = None) -> dict[str, dict]:
     Returns:
         Per-method summary (AUROC, local AUROC, failures, cost).
     """
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument(
-        "--cache", type=Path, required=True, help="cache from scripts/generate_api.py"
-    )
-    parser.add_argument(
-        "--compare", type=Path, default=None, help="local cache of the same questions"
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--cache", type=Path, required=True, help="cache from scripts/generate_api.py")
+    parser.add_argument("--compare", type=Path, default=None, help="local cache of the same questions")
     parser.add_argument("--methods", nargs="+", default=list(METHODS), choices=METHODS)
     parser.add_argument("--results-root", type=Path, default=ROOT / "results")
     args = parser.parse_args(argv)
@@ -99,19 +91,15 @@ def main(argv: list[str] | None = None) -> dict[str, dict]:
     print(f"{args.cache}: {len(rows)} questions, accuracy {accuracy:.3f}")
     if args.compare:
         local_rows = load_rows(args.compare)
-        print(
-            f"{args.compare}: accuracy {sum(r['correct'] for r in local_rows) / len(local_rows):.3f}"
-        )
+        print(f"{args.compare}: accuracy {sum(r['correct'] for r in local_rows) / len(local_rows):.3f}")
 
     summary: dict[str, dict] = {}
     for method in args.methods:
         record = importlib.import_module(f"methods.{method}").score(rows)
-        (out_dir / f"{method}.json").write_text(json.dumps(record))
+        (out_dir / f"{method}.json").write_text(json.dumps(record) + "\n")
         summary[method] = {
             "auroc": float(auroc(record["uncertainty"], correct)),
-            "local_auroc": local_auroc(args.compare, args.results_root, method)
-            if args.compare
-            else None,
+            "local_auroc": local_auroc(args.compare, args.results_root, method) if args.compare else None,
             "failed": sum(record["failed"]),
             "seconds_per_question": record["seconds_per_question"],
             "api_requests_per_question": record.get("api_requests_per_question", 0),
@@ -123,9 +111,7 @@ def main(argv: list[str] | None = None) -> dict[str, dict]:
             f"s/q={s['seconds_per_question']:.2f}  api_requests/q={s['api_requests_per_question']:g}",
             flush=True,
         )
-    (out_dir / "summary_api.json").write_text(
-        json.dumps({"accuracy": accuracy, "methods": summary}, indent=2)
-    )
+    (out_dir / "summary_api.json").write_text(json.dumps({"accuracy": accuracy, "methods": summary}, indent=2) + "\n")
     return summary
 
 

@@ -42,8 +42,10 @@ Rows have the usual fields (`id`, `question`, `aliases`, `greedy_answer`,
 `samples`, `correct`, `samples_correct`, `model`) plus `"access": "text"` and
 `"api": {"model", "base_url"}`. All log-likelihood fields are `null`:
 logit methods (MSP, perplexity, likelihood, SE with likelihoods) do not apply,
-and `semantic_entropy` returns `nan` on these rows. The `*_api` plugins raise
-a clear error on caches of local models.
+and `semantic_entropy` returns `nan` on these rows (`se_and_dse` in
+`common/nli_matrix.py`; discrete SE and the graph measures still work). The `*_api`
+plugins raise a clear error on caches of local models; in `common/registry.py` they are
+`text_only` and `opt_in`, so a benchmark run over `all` methods skips them.
 
 ## Result: qwen2.5:0.5b via Ollama, TriviaQA-200
 

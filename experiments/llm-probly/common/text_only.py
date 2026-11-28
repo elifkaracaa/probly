@@ -18,7 +18,9 @@ import re
 from common.openai_client import OpenAICompatibleClient
 
 # ---------------- Empirical p(True) (same as scripts/r3_methods.py) ----------------
-PT_PROMPT = "Question: {q}\nPossible answer: {a}\nIs the possible answer:\n (A) True\n (B) False\nThe possible answer is:"
+PT_PROMPT = (
+    "Question: {q}\nPossible answer: {a}\nIs the possible answer:\n (A) True\n (B) False\nThe possible answer is:"
+)
 
 
 def is_true(text: str) -> bool:

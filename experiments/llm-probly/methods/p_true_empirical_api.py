@@ -60,6 +60,5 @@ def score(rows: list[dict], model: object = None, tok: object = None) -> dict:
         "seconds_per_question": seconds,
         "model_calls_per_question": N_SAMPLES,
         "api_requests_per_question": usage["requests"] / len(rows),
-        "api_tokens_per_question": (usage["prompt_tokens"] + usage["completion_tokens"])
-        / len(rows),
+        "api_tokens_per_question": (usage["prompt_tokens"] + usage["completion_tokens"]) / len(rows),
     }

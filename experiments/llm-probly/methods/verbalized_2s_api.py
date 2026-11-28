@@ -33,9 +33,7 @@ def score(rows: list[dict], model: object = None, tok: object = None) -> dict:
     uncertainty, failed, replies = [], [], []
     start = time.perf_counter()
     for row in rows:
-        confidence, no_number, reply = verbalized_2s(
-            client, row["question"], row["greedy_answer"], scale=SCALE
-        )
+        confidence, no_number, reply = verbalized_2s(client, row["question"], row["greedy_answer"], scale=SCALE)
         uncertainty.append(1.0 if no_number else 1.0 - confidence)
         failed.append(no_number)
         replies.append(reply)
@@ -54,6 +52,5 @@ def score(rows: list[dict], model: object = None, tok: object = None) -> dict:
         "seconds_per_question": seconds,
         "model_calls_per_question": 1,
         "api_requests_per_question": usage["requests"] / len(rows),
-        "api_tokens_per_question": (usage["prompt_tokens"] + usage["completion_tokens"])
-        / len(rows),
+        "api_tokens_per_question": (usage["prompt_tokens"] + usage["completion_tokens"]) / len(rows),
     }

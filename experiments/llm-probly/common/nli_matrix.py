@@ -42,6 +42,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -405,7 +406,7 @@ def canonical_group_ids(group_ids: torch.Tensor) -> torch.Tensor:
     return new_id[group_ids]
 
 
-def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float]) -> tuple[float, float]:
+def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float] | None) -> tuple[float, float]:
     """Semantic entropy and discrete semantic entropy from one question matrix.
 
     Clusters the K samples with probly's greedy rule on the shared matrix, then
@@ -419,14 +420,23 @@ def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float]) -> tuple[
     (2.16395545 vs 2.16395569) and broke those ties, and DSE AUROC moved between 0.741 and 0.749 under
     such noise. (Rounding does not fix this: the two values can round to different sides.)
 
+    Text-only caches (F2, ``scripts/generate_api.py``) have no log-likelihoods. Discrete SE only
+    counts the clusters, so it still works; SE needs the likelihoods and is ``nan`` there instead of
+    a made-up value.
+
     Args:
         matrix: Question matrix of shape ``(K+1, K+1, 3)`` in probly's label order.
-        samples_ll_mean: Mean token log-likelihood of each of the K samples.
+        samples_ll_mean: Mean token log-likelihood of each of the K samples, or None for a
+            text-only cache.
 
     Returns:
-        ``(semantic_entropy, discrete_semantic_entropy)`` in nats.
+        ``(semantic_entropy, discrete_semantic_entropy)`` in nats; semantic entropy is ``nan``
+        when ``samples_ll_mean`` is None.
     """
     samples = sample_block(matrix)
+    text_only = samples_ll_mean is None
+    if samples_ll_mean is None:
+        samples_ll_mean = [0.0] * samples.shape[0]  # equal weights; only discrete SE is used
     if samples.shape[0] != len(samples_ll_mean):
         msg = f"matrix has {samples.shape[0]} samples but {len(samples_ll_mean)} likelihoods were given."
         raise ValueError(msg)
@@ -435,7 +445,7 @@ def se_and_dse(matrix: torch.Tensor, samples_ll_mean: Sequence[float]) -> tuple[
         group_ids=group_ids,
         entry_logits=torch.tensor(list(samples_ll_mean), dtype=torch.float32),
     )
-    se = float(entropy(semantic.to_dense()).item())
+    se = math.nan if text_only else float(entropy(semantic.to_dense()).item())
     dse = float(entropy(semantic.uniform_logits().to_dense()).item())
     return se, dse
 

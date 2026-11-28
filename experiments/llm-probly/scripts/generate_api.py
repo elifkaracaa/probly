@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # allow `python scripts/generate_api.py` as well as `-m`
@@ -118,20 +118,14 @@ def main(argv: list[str] | None = None) -> Path:
     Returns:
         Path of the written cache.
     """
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--model-key",
         required=True,
         help="folder name under data/, e.g. ollama-qwen0.5b",
     )
-    parser.add_argument(
-        "--api-model", required=True, help="model name on the server, e.g. qwen2.5:0.5b"
-    )
-    parser.add_argument(
-        "--base-url", default=None, help="API root incl. /v1 (default $OPENAI_BASE_URL)"
-    )
+    parser.add_argument("--api-model", required=True, help="model name on the server, e.g. qwen2.5:0.5b")
+    parser.add_argument("--base-url", default=None, help="API root incl. /v1 (default $OPENAI_BASE_URL)")
     parser.add_argument(
         "--source",
         type=Path,
@@ -156,11 +150,7 @@ def main(argv: list[str] | None = None) -> Path:
     )
     args = parser.parse_args(argv)
 
-    sources = [
-        json.loads(line)
-        for line in args.source.read_text().splitlines()
-        if line.strip()
-    ]
+    sources = [json.loads(line) for line in args.source.read_text().splitlines() if line.strip()]
     if args.limit:
         sources = sources[: args.limit]
     client = OpenAICompatibleClient(model=args.api_model, base_url=args.base_url)
@@ -218,24 +208,18 @@ def main(argv: list[str] | None = None) -> Path:
         "max_tokens": args.max_tokens,
         "seed": args.seed,
         "system": args.system,
-        "accuracy": sum(json.loads(r)["correct"] for r in out.read_text().splitlines())
-        / max(len(sources), 1),
+        "accuracy": sum(json.loads(r)["correct"] for r in out.read_text().splitlines()) / max(len(sources), 1),
         # Cost is measured on the questions generated in this run only (a resumed
         # run did not see the cost of the rows it kept).
         "questions_generated_this_run": generated,
         "seconds_per_question": seconds / generated if generated else None,
-        "requests_per_question": client.usage.requests / generated
-        if generated
-        else None,
-        "tokens_per_question": (
-            client.usage.prompt_tokens + client.usage.completion_tokens
-        )
-        / generated
+        "requests_per_question": client.usage.requests / generated if generated else None,
+        "tokens_per_question": (client.usage.prompt_tokens + client.usage.completion_tokens) / generated
         if generated
         else None,
         "usage": client.usage.snapshot(),
     }
-    out.with_suffix(".meta.json").write_text(json.dumps(meta, indent=2))
+    out.with_suffix(".meta.json").write_text(json.dumps(meta, indent=2) + "\n")
     print(json.dumps(meta, indent=2))
     return out
 

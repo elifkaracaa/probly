@@ -251,3 +251,21 @@ def test_equal_partitions_give_exactly_equal_dse():
 
     assert len(values) == 1
     assert values.pop() == pytest.approx(-(0.2 * np.log(0.2) + 8 * 0.1 * np.log(0.1)), abs=1e-6)
+
+
+def test_text_only_rows_give_nan_se_and_the_same_dse():
+    """F2: without sample log-likelihoods SE is nan, and discrete SE is what it is with likelihoods."""
+    contradiction, entailment = torch.tensor([1.0, 0.0, 0.0]), torch.tensor([0.0, 0.0, 1.0])
+    groups = [0, 0, 0, 1, 2]  # three samples agree, two are alone
+    matrix = contradiction.repeat(len(groups) + 1, len(groups) + 1, 1)
+    for a in range(1, len(groups) + 1):
+        for b in range(1, len(groups) + 1):
+            if groups[a - 1] == groups[b - 1]:
+                matrix[a, b] = entailment
+
+    se, dse = se_and_dse(matrix, None)
+    _, dse_with_ll = se_and_dse(matrix, [-0.1, -0.5, -0.9, -1.2, -2.0])
+
+    assert np.isnan(se)
+    assert dse == pytest.approx(dse_with_ll)
+    assert dse == pytest.approx(-(0.6 * np.log(0.6) + 2 * 0.2 * np.log(0.2)), abs=1e-6)

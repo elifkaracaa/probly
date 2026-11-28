@@ -9,13 +9,13 @@ Only the Python standard library is used, so this backend adds no dependency.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import json
 import os
 import time
+from typing import Any
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
-from typing import Any
 
 RETRY_STATUS_CODES = frozenset({408, 409, 429, 500, 502, 503, 504})
 
@@ -89,11 +89,7 @@ class OpenAICompatibleClient:
 
     def __post_init__(self) -> None:
         """Fill defaults from the environment."""
-        self.base_url = (
-            self.base_url
-            or os.environ.get("OPENAI_BASE_URL")
-            or "https://api.openai.com/v1"
-        ).rstrip("/")
+        self.base_url = (self.base_url or os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
         self.api_key = self.api_key or os.environ.get("OPENAI_API_KEY") or "not-needed"
 
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -125,7 +121,6 @@ class OpenAICompatibleClient:
                 with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
                     data = json.loads(response.read().decode())
                 self._record(data, time.perf_counter() - start)
-                return data
             except urllib.error.HTTPError as err:
                 self.usage.seconds += time.perf_counter() - start
                 detail = err.read().decode(errors="replace")[:500]
@@ -135,6 +130,8 @@ class OpenAICompatibleClient:
             except (urllib.error.URLError, TimeoutError, ConnectionError) as err:
                 self.usage.seconds += time.perf_counter() - start
                 last_error = f"connection error: {err}"
+            else:
+                return data
             if attempt < self.max_retries:
                 time.sleep(self.backoff * 2**attempt)
         msg = f"giving up after {self.max_retries + 1} attempts ({last_error})"

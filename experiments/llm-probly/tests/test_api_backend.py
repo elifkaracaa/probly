@@ -5,15 +5,13 @@ All tests use a local mock OpenAI-compatible server: no network, no model.
 
 from __future__ import annotations
 
-import json
-import threading
 from collections.abc import Callable, Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
-from typing import Any
+import json
+import threading
+from typing import TYPE_CHECKING, Any
 
-import pytest
-
+from common import text_only
 from common.openai_client import APIError, OpenAICompatibleClient
 from common.text_only import (
     PT_PROMPT,
@@ -25,7 +23,12 @@ from common.text_only import (
     verbalized_2s,
 )
 from methods import p_true_empirical_api, verbalized_2s_api
+import pytest
+
 from scripts import generate_api, score_api_cache
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 Responder = Callable[[list[dict[str, str]], int, dict[str, Any]], str]
 
@@ -47,15 +50,11 @@ class MockServer:
         mock = self
 
         class Handler(BaseHTTPRequestHandler):
-            def do_POST(self) -> None:  # noqa: N802
-                payload = json.loads(
-                    self.rfile.read(int(self.headers["Content-Length"]))
-                )
+            def do_POST(self) -> None:
+                payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 mock.requests.append(payload)
                 if len(mock.requests) <= mock.fail_first:
-                    return self._send(
-                        mock.fail_status, {"error": {"message": "mock failure"}}
-                    )
+                    return self._send(mock.fail_status, {"error": {"message": "mock failure"}})
                 n = int(payload.get("n", 1)) if mock.honour_n else 1
                 choices = [
                     {
@@ -83,7 +82,7 @@ class MockServer:
                 self.end_headers()
                 self.wfile.write(data)
 
-            def log_message(self, *args: object) -> None:
+            def log_message(self, format: str, *args: object) -> None:  # noqa: A002 (name from BaseHTTPRequestHandler)
                 pass
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -108,11 +107,7 @@ def quiz(messages: list[dict[str, str]], index: int, payload: dict[str, Any]) ->
     if last.endswith("The possible answer is:"):
         return ("(B)" if index % 2 else "A") if hard else "(A) True"
     if hard:
-        return (
-            "Zork"
-            if payload["temperature"] == 0
-            else ["Zork", "Blip", "Quux"][(payload.get("seed", 0) + index) % 3]
-        )
+        return "Zork" if payload["temperature"] == 0 else ["Zork", "Blip", "Quux"][(payload.get("seed", 0) + index) % 3]
     return "Paris"
 
 
@@ -123,10 +118,8 @@ def server() -> Iterator[MockServer]:
     s.close()
 
 
-def client_for(s: MockServer, **kwargs: Any) -> OpenAICompatibleClient:
-    return OpenAICompatibleClient(
-        model="mock", base_url=s.base_url, backoff=0.0, **kwargs
-    )
+def client_for(s: MockServer, max_retries: int = 4) -> OpenAICompatibleClient:
+    return OpenAICompatibleClient(model="mock", base_url=s.base_url, backoff=0.0, max_retries=max_retries)
 
 
 # ---------------- client ----------------
@@ -134,10 +127,7 @@ def client_for(s: MockServer, **kwargs: Any) -> OpenAICompatibleClient:
 
 def test_chat_uses_n_in_one_request(server: MockServer) -> None:
     client = client_for(server)
-    assert (
-        client.chat([{"role": "user", "content": "x"}], n=5, temperature=1.0)
-        == ["Paris"] * 5
-    )
+    assert client.chat([{"role": "user", "content": "x"}], n=5, temperature=1.0) == ["Paris"] * 5
     assert len(server.requests) == 1
     assert server.requests[0]["n"] == 5
     assert client.supports_n is True
@@ -148,9 +138,7 @@ def test_chat_falls_back_when_server_ignores_n() -> None:
     s = MockServer(quiz, honour_n=False)
     try:
         client = client_for(s)
-        out = client.chat(
-            [{"role": "user", "content": "hardest"}], n=4, temperature=1.0, seed=0
-        )
+        out = client.chat([{"role": "user", "content": "hardest"}], n=4, temperature=1.0, seed=0)
         client.chat([{"role": "user", "content": "x"}], n=2, temperature=1.0)
     finally:
         s.close()
@@ -190,9 +178,7 @@ def test_chat_does_not_retry_auth_error() -> None:
 
 def test_chat_rejects_bad_n() -> None:
     with pytest.raises(ValueError, match="n must be"):
-        OpenAICompatibleClient(model="m", base_url="http://127.0.0.1:1/v1").chat(
-            [], n=0
-        )
+        OpenAICompatibleClient(model="m", base_url="http://127.0.0.1:1/v1").chat([], n=0)
 
 
 def test_client_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -206,11 +192,7 @@ def test_client_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_prompts_match_week1() -> None:
-    r3 = pytest.importorskip(
-        "scripts.r3_methods"
-    )  # needs torch; skipped where it is missing
-    from common import text_only
-
+    r3 = pytest.importorskip("scripts.r3_methods")  # needs torch; skipped where it is missing
     assert r3.PT_PROMPT == text_only.PT_PROMPT
     assert r3.ASK == text_only.ASK
     for reply in ["A", "(B)", "true", "False.", "maybe", "a)", "Absolutely"]:
@@ -243,18 +225,14 @@ def test_true_false_parsing(reply: str, t: bool, f: bool) -> None:
     ],
 )
 def test_parse_confidence(reply: str, expected: float | None) -> None:
-    assert parse_confidence(reply, 100) == (
-        None if expected is None else pytest.approx(expected)
-    )
+    assert parse_confidence(reply, 100) == (None if expected is None else pytest.approx(expected))
 
 
 def test_api_reflexive_methods(server: MockServer) -> None:
     client = client_for(server)
     p, texts, unparsed = empirical_p_true(client, "Capital of France?", "Paris", n=10)
     assert (p, len(texts), unparsed) == (1.0, 10, 0)
-    assert server.requests[-1]["messages"][0]["content"] == PT_PROMPT.format(
-        q="Capital of France?", a="Paris"
-    )
+    assert server.requests[-1]["messages"][0]["content"] == PT_PROMPT.format(q="Capital of France?", a="Paris")
     assert server.requests[-1]["max_tokens"] == 3
     p_hard, _, _ = empirical_p_true(client, "the hardest question", "Zork", n=10)
     assert p_hard == pytest.approx(0.5)
@@ -294,8 +272,7 @@ def api_cache(server: MockServer, tmp_path: Path) -> list[dict]:
     ]
     source.write_text(
         "".join(
-            json.dumps({"id": i, "dataset": "triviaqa", "question": q, "aliases": a})
-            + "\n"
+            json.dumps({"id": i, "dataset": "triviaqa", "question": q, "aliases": a}) + "\n"
             for i, (q, a) in enumerate(questions)
         )
     )
@@ -306,9 +283,7 @@ def api_cache(server: MockServer, tmp_path: Path) -> list[dict]:
     return [json.loads(line) for line in out.read_text().splitlines()]
 
 
-def test_generate_api_writes_cache_format(
-    api_cache: list[dict], tmp_path: Path
-) -> None:
+def test_generate_api_writes_cache_format(api_cache: list[dict], tmp_path: Path) -> None:
     row = api_cache[0]
     for key in (
         "id",
@@ -327,9 +302,7 @@ def test_generate_api_writes_cache_format(
     assert row["samples_ll_mean"] is None
     assert len(row["samples"]) == 6
     assert [r["correct"] for r in api_cache] == [True, False, True]
-    meta = json.loads(
-        (tmp_path / "data" / "mock-model" / "triviaqa_3.meta.json").read_text()
-    )
+    meta = json.loads((tmp_path / "data" / "mock-model" / "triviaqa_3.meta.json").read_text())
     assert meta["n"] == 3
     assert meta["accuracy"] == pytest.approx(2 / 3)
 
@@ -343,9 +316,9 @@ def test_api_plugins_on_generated_cache(api_cache: list[dict]) -> None:
         assert record["ids"] == [0, 1, 2]
         assert record["failed"] == [False, False, False]
         unc = record["uncertainty"]
-        assert unc[1] > unc[0] and unc[1] > unc[2], (
-            plugin.NAME
-        )  # hard question is the most uncertain
+        # the hard question is the most uncertain
+        assert unc[1] > unc[0], plugin.NAME
+        assert unc[1] > unc[2], plugin.NAME
         assert record["api_requests_per_question"] >= 1
 
 
@@ -359,7 +332,7 @@ def test_api_plugins_refuse_local_cache() -> None:
         }
     ]
     for plugin in (p_true_empirical_api, verbalized_2s_api):
-        with pytest.raises(ValueError, match="generate_api.py"):
+        with pytest.raises(ValueError, match=r"generate_api\.py"):
             plugin.score(rows)
 
 
@@ -367,13 +340,8 @@ def test_generate_api_resume_after_crash(server: MockServer, tmp_path: Path) -> 
     source = tmp_path / "triviaqa_3.jsonl"
     source.write_text(
         "".join(
-            json.dumps(
-                {"id": i, "dataset": "triviaqa", "question": q, "aliases": ["Paris"]}
-            )
-            + "\n"
-            for i, q in enumerate(
-                ["Capital of France?", "France capital?", "Paris is the capital of?"]
-            )
+            json.dumps({"id": i, "dataset": "triviaqa", "question": q, "aliases": ["Paris"]}) + "\n"
+            for i, q in enumerate(["Capital of France?", "France capital?", "Paris is the capital of?"])
         )
     )
     args = ["--model-key", "m", "--api-model", "mock", "--base-url", server.base_url,
@@ -386,12 +354,11 @@ def test_generate_api_resume_after_crash(server: MockServer, tmp_path: Path) -> 
     generate_api.main([*args, "--resume"])
     rows = [json.loads(line) for line in out.read_text().splitlines()]
     assert [r["id"] for r in rows] == [0, 1, 2]
-    assert (
-        len(server.requests) - n_before == 2 * 2
-    )  # only questions 1 and 2 regenerated (greedy + samples each)
+    assert len(server.requests) - n_before == 2 * 2  # only questions 1 and 2 regenerated (greedy + samples each)
 
 
-def test_score_api_cache_saves_results(api_cache: list[dict], tmp_path: Path) -> None:
+@pytest.mark.usefixtures("api_cache")  # writes the cache file this test scores
+def test_score_api_cache_saves_results(tmp_path: Path) -> None:
     cache = tmp_path / "data" / "mock-model" / "triviaqa_3.jsonl"
     results = tmp_path / "results"
     summary = score_api_cache.main([
@@ -399,9 +366,7 @@ def test_score_api_cache_saves_results(api_cache: list[dict], tmp_path: Path) ->
         "--methods", "verbalized_2s_api", "p_true_empirical_api",
     ])  # fmt: skip
     for method in ("verbalized_2s_api", "p_true_empirical_api"):
-        record = json.loads(
-            (results / "mock-model" / "triviaqa_3" / f"{method}.json").read_text()
-        )
+        record = json.loads((results / "mock-model" / "triviaqa_3" / f"{method}.json").read_text())
         assert record["method"] == method
         assert summary[method]["auroc"] == 1.0  # the wrong answer is the most uncertain
         assert summary[method]["local_auroc"] is None
