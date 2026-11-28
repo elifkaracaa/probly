@@ -1,6 +1,6 @@
 # Benchmark caches and accuracy per model
 
-*Owner: PIPE (E3). One row per cached generation file in `data/<model>/`. Updated week 3, day 3.*
+*One row per cached generation file in `data/<model>/`. Updated week 3, day 3.*
 
 Every cache holds, per question, the greedy answer, 10 samples (temperature 0.7) and their token
 log-probabilities, plus the correctness label of the greedy answer. All methods read these files, so the

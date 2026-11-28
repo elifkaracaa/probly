@@ -1,6 +1,6 @@
 # Pipeline & evaluation
 
-*Owner: PIPE. Describes the code in `cli.py`, `common/registry.py`, `scripts/run_benchmark.py`, `scripts/compare_models.py`,
+*Describes the code in `cli.py`, `common/registry.py`, `scripts/run_benchmark.py`, `scripts/compare_models.py`,
 `scripts/plot_results.py`, `common/evaluate.py` and `common/summary.py`.*
 
 ## One command per run
@@ -103,7 +103,7 @@ lm-polygraph's implementations in `tests/test_evaluate.py`.
 Why PRR next to AURC: a bigger model is right more often, which alone improves AURC.
 PRR divides that out, so it shows whether the *ranking* got better.
 
-## The report (E4)
+## The report
 
     uv run python -m cli report            # writes results/report.md and results/report.html
 
@@ -122,7 +122,7 @@ One command, no model needed: it reads every `results/<model>/<dataset>_<n>/` th
 The HTML page is self-contained (one file, no scripts) and marks the best row, the tied rows and
 the pick. `--n-boot 200` gives a quick draft; the default 1000 takes about two minutes.
 
-## Is method X better than method Y? (paired bootstrap, E4)
+## Is method X better than method Y? (paired bootstrap)
 
 Two separate 95 % AUROC intervals often overlap even when one method is better on
 almost every resample, because both methods find the same questions hard. The
@@ -148,7 +148,7 @@ Every `summary.md` compares each method with the best one of the run:
 | `d_auroc` | AUROC minus the best AUROC |
 | `d_ci_low`, `d_ci_high` | paired 95 % interval of `d_auroc` |
 
-"Tied" is the same test the selector (D1) uses before it picks the cheapest of the
+"Tied" is the same test the selector uses before it picks the cheapest of the
 tied methods.
 
 ## Comparing models and plots
