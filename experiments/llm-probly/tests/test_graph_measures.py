@@ -73,6 +73,22 @@ def test_eig_val_laplacian_falls_as_two_groups_agree_more(cross):
     assert eig_val_laplacian(w) == pytest.approx(1 + (1 - cross) / (1 + cross))
 
 
+@pytest.mark.parametrize(
+    ("sizes", "expected_eig_val", "expected_eccentricity"),
+    [((10,), 1.0, 0.0), ((5, 5), 2.0, 1.0), ((4, 3, 3), 3.0, 1.414213562), ((1,) * 10, 10.0, 3.0)],
+)
+def test_spectral_measures_ignore_eigensolver_noise(sizes, expected_eig_val, expected_eccentricity):
+    """Noise of 1e-14 (more than different machines give) must not change the score, so ties stay ties."""
+    exact = blocks(*sizes)
+    rng = np.random.default_rng(0)
+    for _ in range(20):
+        noise = rng.normal(0.0, 1e-14, exact.shape)
+        noisy = np.clip(exact + (noise + noise.T) / 2, 0.0, 1.0)
+        np.fill_diagonal(noisy, 1.0)
+        assert eig_val_laplacian(noisy) == expected_eig_val
+        assert eccentricity(noisy) == expected_eccentricity
+
+
 def test_deg_mat_known_values():
     assert deg_mat(blocks(4)) == pytest.approx(0.0)  # everyone agrees
     assert deg_mat(blocks(1, 1, 1, 1)) == pytest.approx(0.75)  # nobody agrees: 1 - 1/K

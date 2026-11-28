@@ -36,6 +36,14 @@ if TYPE_CHECKING:
 ENTAILMENT = NLI_LABELS.index("entailment")
 ECCENTRICITY_THRESHOLD = 0.9
 """Eigenvalues of the Laplacian below this value give the embedding of Eccentricity (LM-Polygraph default)."""
+SPECTRAL_DECIMALS = 9
+"""Decimals kept by the eigenvalue-based measures.
+
+The eigensolver leaves noise of about 1e-15 that differs between machines. Many
+questions tie exactly (all answers agree, or c fully separated groups), and without
+rounding that noise decides how ties are ordered, so AUROC changed between runs.
+Real differences between questions are far larger than 1e-9.
+"""
 
 
 def similarity_matrix(matrix: torch.Tensor, self_similarity: float = 1.0) -> np.ndarray:
@@ -103,10 +111,10 @@ def eig_val_laplacian(similarity: np.ndarray) -> float:
         similarity: Symmetric similarity matrix ``(K, K)``.
 
     Returns:
-        Uncertainty in ``[1, K]``.
+        Uncertainty in ``[1, K]``. Rounded to ``SPECTRAL_DECIMALS`` decimals.
     """
     eigenvalues = np.linalg.eigvalsh(normalized_laplacian(similarity))
-    return float(np.clip(1.0 - eigenvalues, 0.0, None).sum())
+    return round(float(np.clip(1.0 - eigenvalues, 0.0, None).sum()), SPECTRAL_DECIMALS)
 
 
 def deg_mat(similarity: np.ndarray) -> float:
@@ -140,12 +148,12 @@ def eccentricity(similarity: np.ndarray, threshold: float = ECCENTRICITY_THRESHO
             The smallest eigenvalue is always 0, so at least one is kept.
 
     Returns:
-        Uncertainty, 0 when all answers get the same coordinate.
+        Uncertainty, 0 when all answers get the same coordinate. Rounded to ``SPECTRAL_DECIMALS`` decimals.
     """
     eigenvalues, eigenvectors = np.linalg.eigh(normalized_laplacian(similarity))
     embedding = eigenvectors[:, eigenvalues < threshold]  # one row per answer
     centred = embedding - embedding.mean(axis=0, keepdims=True)
-    return float(np.linalg.norm(centred))
+    return round(float(np.linalg.norm(centred)), SPECTRAL_DECIMALS)
 
 
 def graph_scores(matrix: torch.Tensor, self_similarity: float = 1.0) -> dict[str, float]:
