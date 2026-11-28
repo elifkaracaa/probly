@@ -66,7 +66,7 @@ AUROC (higher is better, 0.5 = random; best per model in bold):
 |---|---|---|---|---|---|
 | p_true_zeroshot | self-eval | 0.669 | **0.825** | **0.877** | **0.870** |
 | p_true_brainstorm | self-eval | 0.685 | 0.806 | 0.820 | 0.845 |
-| p_true_empirical | self-eval | 0.518 | 0.770 | 0.830 | 0.824 |
+| p_true_empirical | self-eval | 0.512 | 0.765 | 0.830 | 0.824 |
 | verbalized_2s | self-eval | 0.584 | 0.538 | 0.713 | 0.734 |
 | semantic_entropy | agreement | 0.744 | 0.776 | 0.761 | 0.729 |
 | discrete_semantic_entropy | agreement | 0.751 | 0.779 | 0.765 | 0.729 |
@@ -267,13 +267,15 @@ the LLM calls ran on CPU for 0.5B and 1.5B and on MPS for 3B and 7B, so compare 
 | p_true_zeroshot | 0.11 | 0.31 | 0.24 | 0.34 |
 | p_true_brainstorm | 0.29 | 0.50 | 0.47 | 0.68 |
 | verbalized_2s | 0.19 | 0.56 | 0.77 | 0.91 |
-| p_true_empirical (10 generations) | 0.85 | 2.25 | 3.16 | 5.93 |
+| p_true_empirical (10 generations) | 0.57 † | 1.59 † | 3.16 | 5.93 |
 | semantic_entropy + discrete SE (NLI, deberta-large on MPS, one shared matrix) | 0.67 | 0.25 | 0.13 | 0.06 |
 
 The NLI time (`nli_seconds_per_question`) is paid once for SE, DSE and the graph measures together, and a
 second run reads the NLI cache and pays 0 (A5). It falls with model size because bigger models give more
 identical answers, which are scored only once (A2). \* The 7B `lexical_similarity.json` records 7.75 s from its
 first run; ROUGE-L on 10 short answers takes well under a second, so this is not the method's cost.
+† 0.5B and 1.5B were rerun with the library's empirical p(True) (C2, `HFSelfEvaluator.sample_judgments`); before: 0.85 / 2.25 s,
+AUROC 0.518 / 0.770 (now 0.512 / 0.765, a sampling difference). 3B and 7B still have the week-2 run.
 
 **Mac limits**
 - 3B in float32 fits: memory pressure stays green while generating, with a short yellow peak while the weights load.
