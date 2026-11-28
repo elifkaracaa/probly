@@ -1,4 +1,4 @@
-"""Compare all model sizes for one dataset: methods x models (PIPE).
+"""Compare all model sizes for one dataset: methods x models.
 
 Run from ``experiments/llm-probly`` after ``run_benchmark`` has run for each model::
 

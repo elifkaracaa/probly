@@ -243,7 +243,7 @@ def paired_bootstrap(
     alpha: float = 0.05,
     seed: int = 0,
 ) -> PairedDifference:
-    """Is method A better than method B on these questions (E4)?
+    """Is method A better than method B on these questions?
 
     Both methods are scored on the *same* resampled questions in every bootstrap
     round, and the interval is taken over the per-round difference. Questions

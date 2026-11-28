@@ -1,4 +1,4 @@
-# E3: MMLU for every model. First 100 = mmlu_100 (same cpu/float32). About 15 min.
+# MMLU for every model. First 100 = mmlu_100 (same cpu/float32). About 15 min.
 model: qwen0.5b
 dataset: mmlu
 n: 200

@@ -1,4 +1,4 @@
-"""Run the whole benchmark chain for one config (PIPE).
+"""Run the whole benchmark chain for one config.
 
 Run from ``experiments/llm-probly``::
 
@@ -10,12 +10,12 @@ Steps, in order. Each step is skipped if its output file already exists
 1. generate  -> data/<model>/<dataset>_<n>.jsonl + .meta.json  (scripts/generate.py)
 2. label     -> adds "correct" to that file           (scripts/label.py)
 3. methods   -> results/<model>/<dataset>/<method>.json, one per method in common/registry.py
-   SE / DSE read and update the NLI cache data/<model>/<dataset>_<n>.nli.<tag>.npz (A5),
+   SE / DSE read and update the NLI cache data/<model>/<dataset>_<n>.nli.<tag>.npz,
    so a second run does no NLI work; changed answers or another NLI setup are recomputed.
 4. evaluate  -> AUROC, AURC, bootstrap interval per method (common/summary.py)
 5. table     -> results/<model>/<dataset>/summary.md (with family, access and cost from the registry)
 
-``--semantic-backend embedding`` (B3) runs the NLI-based methods (``uses_nli`` in the registry)
+``--semantic-backend embedding`` runs the NLI-based methods (``uses_nli`` in the registry)
 with sentence embeddings instead of NLI: it sets ``backend="embedding"`` in the NLI settings, so the
 matrices go to their own cache (``.nli.embedding-<model>@<threshold>.npz``) and the results to
 ``results/<model>/<dataset>_<n>_embedding/``; the NLI cache and results stay untouched.
@@ -85,7 +85,7 @@ def load_config(path: str) -> dict:
     if missing:
         msg = f"{path}: missing keys {missing}"
         raise ValueError(msg)
-    if config["dataset"] not in DATASETS:  # the datasets DATA registered in common/data.py
+    if config["dataset"] not in DATASETS:  # the datasets registered in common/data.py
         msg = f"unknown dataset {config['dataset']!r}; known: {sorted(DATASETS)}"
         raise ValueError(msg)
     config.setdefault("precision", "float32")
@@ -145,7 +145,7 @@ def prepare_data(config: dict) -> list[dict]:
 def cache_precision(config: dict) -> str:
     """Read the precision the cache was made with and check it matches the config.
 
-    DATA found that precision changes the answers (bfloat16 -> float32 changed
+    We found that precision changes the answers (bfloat16 -> float32 changed
     9 of 50 answers on 0.5B), so a cache made with another precision than the
     config asks for must not be used silently.
     """

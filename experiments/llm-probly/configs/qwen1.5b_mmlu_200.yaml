@@ -1,4 +1,4 @@
-# E3: MMLU for every model, same precision/device as this model's TriviaQA cache. About 25 min.
+# MMLU for every model, same precision/device as this model's TriviaQA cache. About 25 min.
 model: qwen1.5b
 dataset: mmlu
 n: 200

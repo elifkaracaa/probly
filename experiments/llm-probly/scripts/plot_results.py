@@ -1,4 +1,4 @@
-"""Plots for the benchmark (PIPE): metric vs model size, and rejection curves.
+"""Plots for the benchmark: metric vs model size, and rejection curves.
 
 Run from ``experiments/llm-probly`` after ``run_benchmark`` (for each model)::
 

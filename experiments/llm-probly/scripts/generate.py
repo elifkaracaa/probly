@@ -1,4 +1,4 @@
-"""Generate the shared answer cache (cache v2) for any model and dataset (DATA).
+"""Generate the shared answer cache (cache v2) for any model and dataset.
 
 For every question we store one greedy answer (the answer that all methods
 judge) and 10 sampled answers, with their log likelihoods. Cache v2 also
@@ -51,7 +51,7 @@ MODELS = {
     "qwen1.5b": "Qwen/Qwen2.5-1.5B-Instruct",
     "qwen3b": "Qwen/Qwen2.5-3B-Instruct",
     "qwen7b": "Qwen/Qwen2.5-7B-Instruct",
-    # second model family (E3): open weights, no Hugging Face login needed
+    # second model family: open weights, no Hugging Face login needed
     "smollm2-1.7b": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
 }
 PRECISIONS = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}

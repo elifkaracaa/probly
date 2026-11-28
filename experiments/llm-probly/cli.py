@@ -1,4 +1,4 @@
-"""One command line entry point for the LLM-probly benchmark (E2).
+"""One command line entry point for the LLM-probly benchmark.
 
 Run from ``experiments/llm-probly``::
 

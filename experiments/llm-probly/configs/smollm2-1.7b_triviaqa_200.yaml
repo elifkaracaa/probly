@@ -1,4 +1,4 @@
-# E3 second model family (SmolLM2, Llama architecture) on the same 200 TriviaQA questions.
+# Second model family (SmolLM2, Llama architecture) on the same 200 TriviaQA questions.
 model: smollm2-1.7b
 dataset: triviaqa
 n: 200
