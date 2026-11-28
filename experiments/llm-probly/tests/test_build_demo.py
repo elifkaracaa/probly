@@ -127,3 +127,32 @@ def test_svg_escapes_names(tmp_path):
     svg = build_demo.render_svg(build_demo.load_profiles(_write(tmp_path, data)), dark=False)
     assert "a&lt;b" in svg
     assert "x&amp;y" in svg
+
+
+def test_summary_table_compares_on_the_calibration_part(tmp_path):
+    data = _profile_data()
+    data["held_out_metrics"] = {
+        "auroc": 0.75,
+        "auroc_low": 0.7,
+        "auroc_high": 0.8,
+        "prr": 0.5,
+        "prr_low": 0.4,
+        "prr_high": 0.6,
+    }
+    table = build_demo.render_summary_table(build_demo.load_profiles(_write(tmp_path, data)))
+    row = table.splitlines()[2]
+    # chosen method (calibration part) next to the best method (calibration part), held-out separately
+    assert "| 0.768 [0.672, 0.859] | p_true_zeroshot (0.808) | 0.750 |" in row
+
+
+def test_build_writes_the_animation_when_ids_are_given(monkeypatch):
+    calls = []
+
+    def fake_write_animation(run, n, ids, out, tag):
+        calls.append((run, n, ids, tag))
+        return [out / f"llm_uncertainty_demo{tag}_light.svg"]
+
+    monkeypatch.setattr(build_demo, "write_animation", fake_write_animation)
+    written = build_demo.build(PROFILES, None, None, None, "svg", animation=("qwen1.5b", 200, [48, 169]))
+    assert calls == [("qwen1.5b", 200, [48, 169], "_1.5b_200q")]
+    assert written[-1].name == "llm_uncertainty_demo_1.5b_200q_light.svg"

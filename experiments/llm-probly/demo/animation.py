@@ -6,31 +6,29 @@ probly's own ``docs/source/_static/readme/llm_uncertainty_demo_*.svg``: plain SV
 
 Usage (from ``experiments/llm-probly``)::
 
-    uv run python demo/animation.py --list --run qwen1.5b --n 200
-    uv run python demo/animation.py --ids 27 28 44 --run qwen1.5b --n 200
+    uv run python -m demo.animation --list --run qwen1.5b --n 200
+    uv run python -m demo.animation --ids 48 169 --run qwen1.5b --n 200
+
+``demo.build_demo`` calls :func:`write_animation` when it gets ``--animation-ids``.
 
 Scores are read from ``results/<run>/<dataset>_<n>/<method>.json`` (pipeline layout) and, if that folder
 does not exist, from the older flat folder ``results/<run>/``.
 """
 
-# ruff: noqa: E501
 from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
 import json
 from pathlib import Path
-import sys
 import textwrap
 from xml.sax.saxutils import escape
 
+from common.data import cache_path, load_data
+from common.io import RESULTS_ROOT, load_scores
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from common.data import load_data  # noqa: E402
-from common.io import RESULTS_ROOT, load_scores  # noqa: E402
+DEMO_DIR = Path(__file__).resolve().parent
 
 WIDTH, HEIGHT = 900, 470
 CHAR_W = 7.2  # width of one character at font-size 12 (monospace)
@@ -149,6 +147,15 @@ def typed(
 
 
 def clean(text: str, limit: int) -> str:
+    """Collapse whitespace and cut the text to ``limit`` characters (with an ellipsis).
+
+    Args:
+        text: Any text.
+        limit: Maximum length of the result.
+
+    Returns:
+        The cleaned text.
+    """
     text = " ".join(str(text).split())
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
@@ -176,7 +183,8 @@ def scene_items(scene: dict, t0: float, theme: dict) -> tuple[list[Item], float]
     items.append(
         Item(
             "rect",
-            f'x="{bx:.1f}" y="74" width="{width:.1f}" height="{height}" rx="12" fill="{theme["bubble"]}" stroke="{theme["bubble_line"]}"',
+            f'x="{bx:.1f}" y="74" width="{width:.1f}" height="{height}" rx="12" '
+            f'fill="{theme["bubble"]}" stroke="{theme["bubble_line"]}"',
             "",
             t,
             t_off,
@@ -190,7 +198,8 @@ def scene_items(scene: dict, t0: float, theme: dict) -> tuple[list[Item], float]
     t += 0.3
     dots = "".join(
         f'<circle cx="{36 + 14 * i}" cy="{ya + 24}" r="3.5" fill="{theme["muted"]}">'
-        f'<animate attributeName="opacity" values="0.25;1;0.25" dur="0.9s" begin="{0.3 * i}s" repeatCount="indefinite"/></circle>'
+        f'<animate attributeName="opacity" values="0.25;1;0.25" dur="0.9s" begin="{0.3 * i}s" '
+        'repeatCount="indefinite"/></circle>'
         for i in range(3)
     )
     items.append(Item("g", "", dots, t, t + 1.0))
@@ -283,6 +292,16 @@ def scene_items(scene: dict, t0: float, theme: dict) -> tuple[list[Item], float]
 
 
 def build_svg(scenes: list[dict], theme_name: str, footer: str) -> str:
+    """Build the whole animated SVG: one scene per question, played one after another in a loop.
+
+    Args:
+        scenes: Scenes from :func:`collect_scenes`.
+        theme_name: ``"light"`` or ``"dark"``.
+        footer: Text in the bottom left corner (model, precision, data).
+
+    Returns:
+        SVG markup.
+    """
     theme = THEMES[theme_name]
     items: list[Item] = []
     t = 0.0
@@ -292,18 +311,41 @@ def build_svg(scenes: list[dict], theme_name: str, footer: str) -> str:
     total = t + 0.5
 
     static = [
-        f'<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="{theme["bg1"]}"/><stop offset="1" stop-color="{theme["bg2"]}"/></linearGradient></defs>',
-        f'<rect x="1" y="1" width="{WIDTH - 2}" height="{HEIGHT - 2}" rx="14" fill="url(#bg)" stroke="{theme["border"]}" stroke-width="1.5"/>',
-        f'<circle cx="28" cy="30" r="4.5" fill="{theme["dot1"]}"/><circle cx="46" cy="30" r="4.5" fill="{theme["dot2"]}"/><circle cx="64" cy="30" r="4.5" fill="{theme["dot3"]}"/>',
+        (
+            '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">'
+            f'<stop offset="0" stop-color="{theme["bg1"]}"/><stop offset="1" stop-color="{theme["bg2"]}"/>'
+            "</linearGradient></defs>"
+        ),
+        (
+            f'<rect x="1" y="1" width="{WIDTH - 2}" height="{HEIGHT - 2}" rx="14" fill="url(#bg)" '
+            f'stroke="{theme["border"]}" stroke-width="1.5"/>'
+        ),
+        (
+            f'<circle cx="28" cy="30" r="4.5" fill="{theme["dot1"]}"/>'
+            f'<circle cx="46" cy="30" r="4.5" fill="{theme["dot2"]}"/>'
+            f'<circle cx="64" cy="30" r="4.5" fill="{theme["dot3"]}"/>'
+        ),
         f'<text x="{CHAT_RIGHT - 160}" y="34" font-size="10" fill="{theme["muted"]}">chat · monitored by probly</text>',
-        f'<rect x="{PANEL_X}" y="50" width="{PANEL_W}" height="{HEIGHT - 100}" rx="12" fill="{theme["panel"]}" stroke="{theme["bubble_line"]}"/>',
-        f'<text x="{PANEL_X + 16}" y="76" font-size="11" font-weight="bold" fill="{theme["text"]}">uncertainty scores</text>',
-        f'<text x="{PANEL_X + 16}" y="93" font-size="9" fill="{theme["faint"]}">bar = share of questions less uncertain</text>',
-        f'<text x="{PANEL_X + 16}" y="105" font-size="9" fill="{theme["faint"]}">rank 1 = the most uncertain question</text>',
+        (
+            f'<rect x="{PANEL_X}" y="50" width="{PANEL_W}" height="{HEIGHT - 100}" rx="12" fill="{theme["panel"]}" '
+            f'stroke="{theme["bubble_line"]}"/>'
+        ),
+        (
+            f'<text x="{PANEL_X + 16}" y="76" font-size="11" font-weight="bold" fill="{theme["text"]}">'
+            "uncertainty scores</text>"
+        ),
+        (
+            f'<text x="{PANEL_X + 16}" y="93" font-size="9" fill="{theme["faint"]}">'
+            "bar = share of questions less uncertain</text>"
+        ),
+        (
+            f'<text x="{PANEL_X + 16}" y="105" font-size="9" fill="{theme["faint"]}">'
+            "rank 1 = the most uncertain question</text>"
+        ),
         f'<text x="28" y="{HEIGHT - 20}" font-size="10" fill="{theme["faint"]}">{escape(footer)}</text>',
     ]
     body = "".join(render_item(item, total) for item in items)
-    label = "Animated demo: uncertainty scores of several methods for three real questions answered by a small language model"
+    label = "Animated demo: uncertainty scores of several methods for real questions answered by a small language model"
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" width="{WIDTH}" height="{HEIGHT}" '
         f'font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" role="img" aria-label="{label}">'
@@ -359,7 +401,7 @@ def load_method_scores(run: str, row_ids: list[int], n: int, dataset: str, metho
 
 def precision(run: str, n: int, dataset: str) -> str:
     """Return e.g. ``"float32 · "`` from the cache's .meta.json, or an empty string."""
-    path = ROOT / "data" / run / f"{dataset}_{n}.meta.json"
+    path = cache_path(run, n, dataset, suffix=".meta.json")
     try:
         value = json.loads(path.read_text(encoding="utf-8"))["settings"]["precision"]
     except (OSError, KeyError, ValueError):
@@ -394,7 +436,8 @@ def collect_scenes(
         scenes.append(scene)
         shown = ", ".join(f"{label} {unc:.2f}" for _, label, unc, _ in scene["scores"])
         print(
-            f"id {question_id}: correct={scene['correct']} | {clean(scene['question'], 60)} -> {clean(scene['answer'], 40)} | {shown}"
+            f"id {question_id}: correct={scene['correct']} | {clean(scene['question'], 60)} "
+            f"-> {clean(scene['answer'], 40)} | {shown}"
         )
     model = str(rows[0].get("model", run)).split("/")[-1]
     return (
@@ -424,7 +467,8 @@ def list_questions(
         for mean, row, ranks in selected[:limit]:
             cols = " ".join(f"{r:.2f}" for r in ranks)
             print(
-                f"  id {row['id']:>3}  {mean:.2f} | {cols} | {clean(row['question'], 70)} -> {clean(row['greedy_answer'], 28)}"
+                f"  id {row['id']:>3}  {mean:.2f} | {cols} | {clean(row['question'], 70)} "
+                f"-> {clean(row['greedy_answer'], 28)}"
             )
 
     wrong = sorted((e for e in entries if not e[1]["correct"]), key=lambda e: e[0])
@@ -435,14 +479,48 @@ def list_questions(
     show("CORRECT answers that look certain (low rank):", right[::-1])
 
 
+def write_animation(
+    run: str,
+    n: int,
+    ids: list[int],
+    out: Path = DEMO_DIR,
+    tag: str = "",
+    dataset: str = "triviaqa",
+    methods: list[str] | None = None,
+) -> list[Path]:
+    """Write the light and the dark animated SVG for the given questions.
+
+    Args:
+        run: Model folder name, e.g. ``"qwen1.5b"``.
+        n: Number of questions in the cache.
+        ids: Question ids, one scene each.
+        out: Output directory.
+        tag: File name suffix, e.g. ``"_1.5b_200q"``.
+        dataset: Dataset name.
+        methods: Method file names to show (default: the first five that exist).
+
+    Returns:
+        Paths of the two SVG files.
+    """
+    scenes, footer = collect_scenes(run, n, ids, dataset, methods)
+    out.mkdir(parents=True, exist_ok=True)
+    written = []
+    for theme in THEMES:
+        path = out / f"llm_uncertainty_demo{tag}_{theme}.svg"
+        path.write_text(build_svg(scenes, theme, footer), encoding="utf-8")
+        written.append(path)
+    return written
+
+
 def main() -> None:
+    """Command-line entry point: list candidate questions or write the two SVGs."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", default="qwen0.5b", help="model folder name, e.g. qwen0.5b, qwen1.5b, qwen3b")
     parser.add_argument("--n", type=int, default=200, help="number of questions in the cache (5, 50 or 200)")
     parser.add_argument("--dataset", default="triviaqa")
     parser.add_argument("--ids", type=int, nargs="+", help="question ids, one scene each (pick them with --list)")
     parser.add_argument("--methods", nargs="+", help="method file names to show (default: the first five that exist)")
-    parser.add_argument("--out", type=Path, default=ROOT / "demo")
+    parser.add_argument("--out", type=Path, default=DEMO_DIR)
     parser.add_argument(
         "--tag", default="", help="file name suffix, e.g. _0.5b_200q -> llm_uncertainty_demo_0.5b_200q_dark.svg"
     )
@@ -455,11 +533,7 @@ def main() -> None:
     if not args.ids:
         parser.error("give --ids (use --list to find good questions)")
 
-    scenes, footer = collect_scenes(args.run, args.n, args.ids, args.dataset, args.methods)
-    args.out.mkdir(parents=True, exist_ok=True)
-    for theme in THEMES:
-        path = args.out / f"llm_uncertainty_demo{args.tag}_{theme}.svg"
-        path.write_text(build_svg(scenes, theme, footer), encoding="utf-8")
+    for path in write_animation(args.run, args.n, args.ids, args.out, args.tag, args.dataset, args.methods):
         print(f"wrote {path} ({path.stat().st_size / 1024:.0f} KB)")
 
 

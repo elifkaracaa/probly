@@ -8,12 +8,16 @@ with ``selector.profile.load_profile``, format in CONTRACT.md) and regenerates t
 2. A standalone demo page (Markdown) with one section per model.
 3. A light and a dark SVG card with the selector's choice and the calibrated reliability per model.
 
+With ``--animation-ids`` it also writes the animated README demo (``demo/animation.py``) for those
+questions, so all demo outputs come from one command.
+
 Each profile already holds the metrics of every candidate method, so no separate results file is needed,
 and no model is loaded.
 
 Example (from ``experiments/llm-probly``)::
 
     uv run python -m demo.build_demo --readme README.md
+    uv run python -m demo.build_demo --animation-run qwen1.5b --animation-n 200 --animation-ids 48 169
 """
 
 from __future__ import annotations
@@ -23,6 +27,8 @@ import html
 from pathlib import Path
 
 from selector.profile import Metrics, Profile, load_profile
+
+from demo.animation import write_animation
 
 START_MARKER = "<!-- llm-probly-demo:start -->"
 END_MARKER = "<!-- llm-probly-demo:end -->"
@@ -117,6 +123,9 @@ def fmt_ece(p: Profile) -> str:
 def render_summary_table(profiles: list[Profile]) -> str:
     """Render the 'which method for which model' Markdown table.
 
+    The chosen method and the best single method are compared on the same data (the calibration
+    part, where the selector chose); the held-out AUROC of the chosen method has its own column.
+
     Args:
         profiles: Selector profiles.
 
@@ -124,16 +133,19 @@ def render_summary_table(profiles: list[Profile]) -> str:
         A Markdown table.
     """
     lines = [
-        "| Model | Chosen method | AUROC [95 % CI] | Best single method | Calibration | ECE | Relative cost |",
-        "|---|---|---|---|---|---|---|",
+        (
+            "| Model | Chosen method | AUROC, calibration part [95 % CI] | Best single method, calibration part "
+            "| Held-out AUROC | Calibration | ECE | Relative cost |"
+        ),
+        "|---|---|---|---|---|---|---|---|",
     ]
     for p in profiles:
         best = best_candidate(p)
         best_txt = f"{best[0]} ({fmt(best[1].auroc)})" if best else "-"
-        metrics, _ = shown_metrics(p)
+        held_out = fmt(p.held_out_metrics.auroc) if p.held_out_metrics is not None else "-"
         lines.append(
-            f"| {p.model_id} | `{p.method.name}` | {fmt_auroc(metrics)} | {best_txt} | {p.calibration.type} "
-            f"| {fmt_ece(p)} | {p.method.cost:g} |"
+            f"| {p.model_id} | `{p.method.name}` | {fmt_auroc(p.calibration_metrics)} | {best_txt} | {held_out} "
+            f"| {p.calibration.type} | {fmt_ece(p)} | {p.method.cost:g} |"
         )
     return "\n".join(lines)
 
@@ -268,6 +280,7 @@ def build(
     page: Path | None,
     svg_dir: Path | None,
     svg_base: str,
+    animation: tuple[str, int, list[int]] | None = None,
 ) -> list[Path]:
     """Regenerate every demo output from the profiles.
 
@@ -277,6 +290,7 @@ def build(
         page: Demo page to write, or ``None`` to skip.
         svg_dir: Directory for the SVG cards, or ``None`` to skip.
         svg_base: Prefix used for the SVG links in the README block.
+        animation: ``(run, n, ids)`` to also write the animated README demo, or ``None`` to skip.
 
     Returns:
         Paths of the files that were written.
@@ -296,6 +310,10 @@ def build(
         current = readme.read_text(encoding="utf-8") if readme.exists() else ""
         readme.write_text(replace_block(current, render_readme_block(profiles, svg_base)), encoding="utf-8")
         written.append(readme)
+    if animation is not None:
+        run, n, ids = animation
+        tag = f"_{run.removeprefix('qwen')}_{n}q"
+        written.extend(write_animation(run, n, ids, Path(__file__).resolve().parent, tag))
     return written
 
 
@@ -314,8 +332,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--svg-base", default="demo/assets", help="SVG link prefix in the README block, relative to the README"
     )
+    parser.add_argument("--animation-run", default="qwen1.5b", help="model folder for the animated demo")
+    parser.add_argument("--animation-n", type=int, default=200, help="number of questions in that cache")
+    parser.add_argument(
+        "--animation-ids", type=int, nargs="+", help="question ids for the animated demo (skipped if not given)"
+    )
     args = parser.parse_args(argv)
-    for path in build(args.profiles, args.readme, args.page, args.svg_dir, args.svg_base):
+    animation = (args.animation_run, args.animation_n, args.animation_ids) if args.animation_ids else None
+    for path in build(args.profiles, args.readme, args.page, args.svg_dir, args.svg_base, animation):
         print(f"wrote {path}")
 
 
