@@ -3,6 +3,8 @@ Run `qwen3b/triviaqa_200`, 200 questions, precision float32
 | method | family | access | cost | status | auroc | ci_low | ci_high | vs_best | d_auroc | d_ci_low | d_ci_high | aurc | prr | ece | n_failed | coverage | seconds_per_question |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | dummy_random | baseline | text_only | 1 | ok | 0.500 | 0.417 | 0.584 | worse | -0.378 | -0.473 | -0.286 | 0.504 | 0.093 |  | 0 |  | 0.000 |
+| cocoa_msp | hybrid | logprobs | 12 | ok | 0.737 | 0.667 | 0.804 | worse | -0.140 | -0.212 | -0.069 | 0.370 | 0.433 |  | 0 |  | 0.000 |
+| cocoa_p_true | hybrid | logprobs | 13 | ok | 0.786 | 0.721 | 0.848 | worse | -0.091 | -0.150 | -0.030 | 0.347 | 0.490 |  | 0 |  | 0.244 |
 | discrete_semantic_entropy | agreement | text_only | 12 | ok | 0.765 | 0.703 | 0.823 | worse | -0.112 | -0.173 | -0.052 | 0.353 | 0.467 |  | 0 |  | 0.000 |
 | greedy_cluster_share | agreement | text_only | 12 | ok | 0.761 | 0.697 | 0.818 | worse | -0.117 | -0.178 | -0.056 | 0.354 | 0.464 |  | 0 |  | 0.000 |
 | largest_cluster_share | agreement | text_only | 12 | ok | 0.758 | 0.696 | 0.817 | worse | -0.119 | -0.183 | -0.059 | 0.355 | 0.460 |  | 0 |  | 0.000 |

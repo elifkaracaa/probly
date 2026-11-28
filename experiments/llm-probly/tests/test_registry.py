@@ -42,7 +42,9 @@ def test_cost_counts_greedy_samples_extra_calls_and_nli():
 
 def test_methods_that_need_the_model_are_self_evaluation_or_opt_in():
     # decomposed SE (B4) generates clarifications and answers, so it needs the model; it is opt-in.
+    # cocoa_p_true (C5) is the one hybrid that needs it: it runs zero-shot p(True).
     assert {s.name for s in REGISTRY.values() if s.needs_model and not s.opt_in} == {
+        "cocoa_p_true",
         "p_true_zeroshot",
         "p_true_brainstorm",
         "p_true_empirical",
@@ -53,8 +55,9 @@ def test_methods_that_need_the_model_are_self_evaluation_or_opt_in():
 
 def test_nli_methods_cost_one_more_than_their_llm_passes():
     for spec in REGISTRY.values():
-        if spec.uses_nli and not spec.opt_in:
+        if spec.uses_nli and not spec.opt_in and spec.name != "cocoa_p_true":
             assert spec.cost == 12
+    assert get("cocoa_p_true").cost == 12 + 1  # plus the p(True) scoring pass
     # greedy, clarifications, answers, NLI: tied to the constants the plugin samples with
     assert get("decomposed_semantic_entropy").cost == 1 + N_CLARIFICATIONS + N_CLARIFICATIONS * N_ANSWERS + 1
 

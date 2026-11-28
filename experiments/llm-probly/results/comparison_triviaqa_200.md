@@ -15,6 +15,8 @@
 
 | method | qwen0.5b | qwen1.5b | qwen3b | qwen7b | smollm2-1.7b |
 |---|---|---|---|---|---|
+| cocoa_msp | 0.715 | 0.759 | 0.737 | 0.733 |  |
+| cocoa_p_true | 0.734 | 0.833 | 0.786 | 0.752 |  |
 | deg_mat | 0.751 | 0.779 |  |  |  |
 | discrete_semantic_entropy | 0.751 | 0.779 | 0.765 | 0.729 |  |
 | dummy_random | 0.567 | 0.521 | 0.500 | 0.560 | 0.525 |
@@ -38,6 +40,8 @@
 
 | method | qwen0.5b | qwen1.5b | qwen3b | qwen7b | smollm2-1.7b |
 |---|---|---|---|---|---|
+| cocoa_msp | 0.465 | 0.481 | 0.433 | 0.414 |  |
+| cocoa_p_true | 0.468 | 0.571 | 0.490 | 0.432 |  |
 | deg_mat | 0.514 | 0.499 |  |  |  |
 | discrete_semantic_entropy | 0.520 | 0.508 | 0.467 | 0.391 |  |
 | dummy_random | 0.160 | 0.131 | 0.093 | 0.168 | 0.098 |
@@ -61,6 +65,8 @@
 
 | method | qwen0.5b | qwen1.5b | qwen3b | qwen7b | smollm2-1.7b |
 |---|---|---|---|---|---|
+| cocoa_msp | 0.697 | 0.457 | 0.370 | 0.278 |  |
+| cocoa_p_true | 0.704 | 0.423 | 0.347 | 0.272 |  |
 | deg_mat | 0.686 | 0.449 |  |  |  |
 | discrete_semantic_entropy | 0.680 | 0.452 | 0.353 | 0.275 |  |
 | dummy_random | 0.771 | 0.597 | 0.504 | 0.372 | 0.613 |

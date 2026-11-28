@@ -199,6 +199,25 @@ _SPECS = (
         uses_nli=True,
         note="1 - share of the samples with the same meaning as the greedy answer",
     ),
+    # --- hybrid: confidence x consistency (C5, CoCoA) -----------------------------------------
+    # Both read the shared NLI matrix, so next to SE they add no NLI pass.
+    MethodSpec(
+        "cocoa_msp",
+        "hybrid",
+        "logprobs",
+        GREEDY + SAMPLES + NLI,
+        uses_nli=True,
+        note="-log P(greedy) x (1 - mean NLI similarity of greedy to the samples)",
+    ),
+    MethodSpec(
+        "cocoa_p_true",
+        "hybrid",
+        "logprobs",
+        GREEDY + SAMPLES + NLI + 1,
+        needs_model=True,
+        uses_nli=True,
+        note="(1 - p(True)) x (1 - mean NLI similarity of greedy to the samples)",
+    ),
     # --- self-evaluation: ask the model about its own answer -----------------------------------
     MethodSpec(
         "p_true_zeroshot",

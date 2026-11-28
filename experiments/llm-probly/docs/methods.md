@@ -170,6 +170,42 @@ week-1 prompt on the same questions (1000 resamples):
 - Not done yet: `verbalized_2s` in the main table still uses the week-1 prompt. Switching it to the
   anchored prompt needs a rerun on all four sizes (7B needs more than 16 GB), so it is a follow-up.
   0.5B is not part of the rule; its earlier anchored number (0.531) was made before the 0-10 parsing fix.
+## Hybrid scores (C5, CoCoA)
+
+CoCoA (Vashurin et al. 2025, https://arxiv.org/abs/2502.04964) multiplies a confidence signal of the
+greedy answer with how much the samples disagree with it:
+`uncertainty = u(greedy) * (1 - mean similarity(greedy, sample_i))`. Code: `common/hybrid.py`.
+
+- `cocoa_msp`: `u = -log P(greedy)` (the `msp` score); cache only, no model call.
+- `cocoa_p_true`: `u = 1 - p(True)` (the `p_true_zeroshot` score); the plugin runs p(True),
+  `scripts/hybrid_from_results.py` builds the same record from a saved `p_true_zeroshot.json`.
+- Similarity = mean entailment probability greedy -> sample and sample -> greedy, read from the shared
+  NLI matrix (deberta-large, A5 cache), so neither method adds an NLI pass. The paper uses a
+  cross-encoder similarity instead.
+
+AUROC on TriviaQA-200 (`results/<model>/triviaqa_200/`), compared with the two ingredients
+("inconsistency" = `1 - mean similarity` alone, computed with `common.hybrid.inconsistency`):
+
+| method | 0.5B | 1.5B | 3B | 7B |
+|---|---|---|---|---|
+| msp | 0.680 | 0.748 | 0.753 | 0.824 |
+| p_true_zeroshot | 0.669 | 0.825 | **0.877** | **0.870** |
+| inconsistency alone | 0.736 | 0.766 | 0.738 | 0.724 |
+| cocoa_msp | 0.715 | 0.759 | 0.737 | 0.733 |
+| cocoa_p_true | 0.734 | **0.833** | 0.786 | 0.752 |
+
+- The hybrid beats both ingredients only on 1.5B (`cocoa_p_true` 0.833 vs 0.825, inside the
+  intervals of about ±0.06). On 0.5B it helps the weak p(True) (+0.065) but does not beat consistency.
+- From 3B on it is clearly worse than p(True) alone (-0.09 on 3B, -0.12 on 7B; the paired
+  intervals in `summary.md` exclude 0). Reason: the product is about 0 (score < 0.01) for
+  54 / 46 / 57 / 79 % of the questions (0.5B / 1.5B / 3B / 7B), and then the ranking among those
+  questions is lost. A factor near 0 has two causes: all samples repeat the greedy answer
+  (inconsistency < 0.01: 6 / 18 / 38 / 60 % of the questions) or p(True) is about 1
+  (1 - p(True) < 0.01: 44 / 25 / 42 / 68 %); some questions have both. On the small models it is
+  mostly the confident p(True), on 3B and 7B mostly agreeing samples: bigger models repeat their
+  answers also when they are wrong (README finding 3). (Thanks to Eylül's review of #82.)
+- Decision: both stay in the table as the `hybrid` family; the selector should not prefer them
+  over p(True) from 3B on. A weighted sum or the logistic stack (D2) avoids the zero product.
 
 ## Known limitations
 
