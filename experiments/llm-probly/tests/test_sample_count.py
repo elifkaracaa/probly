@@ -12,11 +12,11 @@ from common.sample_count import (
     early_stop_count,
     early_stop_scores,
     k_curve,
-    lexical_uncertainty,
     subsample_matrix,
     subset_scores,
     tied,
 )
+from methods.lexical_similarity import lexical_uncertainty
 import numpy as np
 import pytest
 from scripts.sample_count_curve import load_model
