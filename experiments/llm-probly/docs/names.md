@@ -32,6 +32,7 @@ codes inside question text in `data/*.jsonl` (dataset content), "method A / meth
 | C2 | batched empirical p(True) | branch `c2/empirical-batched` |
 | C3 | coverage column in the results table | branch `c3/coverage-column` |
 | C4 | new verbalized-confidence prompt | branch `c4/verbalized-prompt` |
+| C5 | hybrid scores (CoCoA) | `common/hybrid.py`, `methods/cocoa_msp.py`, `methods/cocoa_p_true.py` |
 | D1 | method selector | `selector/select.py`, `selector/rank.py` |
 | D2 | method combination (stacking) | `selector/combine.py` |
 | D3 | calibration (Platt / isotonic) | `selector/calibrate.py` |
