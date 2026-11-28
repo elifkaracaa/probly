@@ -42,7 +42,9 @@ SPECTRAL_DECIMALS = 9
 The eigensolver leaves noise of about 1e-15 that differs between machines. Many
 questions tie exactly (all answers agree, or c fully separated groups), and without
 rounding that noise decides how ties are ordered, so AUROC changed between runs.
-Real differences between questions are far larger than 1e-9.
+Real differences between questions are far larger than 1e-9. A true value lying within
+about 1e-15 of a rounding boundary could still round differently on another machine;
+this did not happen in 200 noisy reruns of qwen0.5b/triviaqa_200.
 """
 
 

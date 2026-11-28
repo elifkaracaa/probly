@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from common.graph_measures import (
+    SPECTRAL_DECIMALS,
     deg_mat,
     eccentricity,
     eig_val_laplacian,
@@ -75,7 +77,12 @@ def test_eig_val_laplacian_falls_as_two_groups_agree_more(cross):
 
 @pytest.mark.parametrize(
     ("sizes", "expected_eig_val", "expected_eccentricity"),
-    [((10,), 1.0, 0.0), ((5, 5), 2.0, 1.0), ((4, 3, 3), 3.0, 1.414213562), ((1,) * 10, 10.0, 3.0)],
+    [
+        ((10,), 1.0, 0.0),
+        ((5, 5), 2.0, 1.0),
+        ((4, 3, 3), 3.0, round(math.sqrt(2), SPECTRAL_DECIMALS)),  # c separated groups: sqrt(c - 1)
+        ((1,) * 10, 10.0, 3.0),
+    ],
 )
 def test_spectral_measures_ignore_eigensolver_noise(sizes, expected_eig_val, expected_eccentricity):
     """Noise of 1e-14 (more than different machines give) must not change the score, so ties stay ties."""
