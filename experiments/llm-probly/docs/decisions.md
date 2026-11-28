@@ -9,8 +9,8 @@ PR that carries them. PR numbers refer to this fork (`elifkaracaa/probly`).
 | date | decision | why | where |
 |---|---|---|---|
 | 28 Nov | Drop `likelihood_sum` and `scripts/baseline_likelihood.py`. | Same formula as `msp` (`-sum(greedy_token_logprobs)` = `-greedy_ll_sum`, equal on all 200 rows of qwen0.5b/triviaqa_200); no plugin, only a week-1 file on 50 questions. Nothing is lost: it is in every table as `msp`. | #98 |
-| 28 Nov | The hybrid scores (`cocoa_msp`, `cocoa_p_true`) stay in the table as family `hybrid`, but are not preferred. | They win only on 1.5B (within noise) and lose to p(True) from 3B on; the product is about 0 when the samples agree or p(True) is about 1. The selector rerun changes no pick. | #82, #96, [methods.md](methods.md#hybrid-scores-c5-cocoa) |
-| 28 Nov | Verbalized confidence stays a method; the anchored 0-10 prompt is the better prompt. | The rule for the new verbalized-confidence prompt (baseline only if AUROC < 0.65 on 1.5B and 3B) is not met: anchored gives 0.644 (1.5B) and 0.804 (3B), +0.107 / +0.091 over the week-1 prompt (paired intervals above 0). The main table keeps the week-1 prompt until all sizes are rerun. | #76, [methods.md](methods.md#verbalized-confidence-prompt-c4) |
+| 28 Nov | The hybrid scores (`cocoa_msp`, `cocoa_p_true`) stay in the table as family `hybrid`, but are not preferred. | They win only on 1.5B (within noise) and lose to p(True) from 3B on; the product is about 0 when the samples agree or p(True) is about 1. The selector rerun changes no pick. | #82, #96, [methods.md](methods.md#hybrid-scores-cocoa) |
+| 28 Nov | Verbalized confidence stays a method; the anchored 0-10 prompt is the better prompt. | The rule for the new verbalized-confidence prompt (baseline only if AUROC < 0.65 on 1.5B and 3B) is not met: anchored gives 0.644 (1.5B) and 0.804 (3B), +0.107 / +0.091 over the week-1 prompt (paired intervals above 0). The main table keeps the week-1 prompt until all sizes are rerun. | #76, [methods.md](methods.md#verbalized-confidence-prompt) |
 | 20 Nov | Drop `perplexity`. | `perplexity = exp(likelihood_mean)` keeps the order, so AUROC, AURC and PRR are identical on all four sizes; the selector would get the same method twice. | #47 |
 | 9 Nov | p(True) uses the `plain_ab` prompt (no chat template, next token A vs B). | Chosen by the week-1 sanity comparison against `chat_groups` (`notebooks/reflexive_mode_comparison.ipynb`). | #6 |
 
@@ -19,7 +19,7 @@ PR that carries them. PR numbers refer to this fork (`elifkaracaa/probly`).
 | date | decision | why | where |
 |---|---|---|---|
 | 23 Nov | No answer normalization (case, punctuation) before deduplication. | The NLI model already treats such pairs as the same meaning: 1-3 % fewer NLI pairs, no SE/DSE score changes on 0.5B/1.5B; normalization would join "3.5"/"35". | #64, [methods.md](methods.md) |
-| 23 Nov | Default NLI setup: deberta-large on the answers only (probly's library default stays deberta-base). | Best agreement with 80 hand-labelled pairs (0.971, second labeller 20/20); same SE AUROC as the other setups; the extra time is paid once per cache. The question in front doubles the time with no consistent gain. | #56, [methods.md](methods.md#nli-setup-a4) |
+| 23 Nov | Default NLI setup: deberta-large on the answers only (probly's library default stays deberta-base). | Best agreement with 80 hand-labelled pairs (0.971, second labeller 20/20); same SE AUROC as the other setups; the extra time is paid once per cache. The question in front doubles the time with no consistent gain. | #56, [methods.md](methods.md#nli-setup) |
 
 ## Self-evaluation code
 
