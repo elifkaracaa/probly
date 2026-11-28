@@ -172,7 +172,7 @@ without a model, by `uv run python -m scripts.c4_verbalized_prompt --run qwen1.5
 - Not done yet: `verbalized_2s` in the main table still uses the week-1 prompt. Switching it to the
   anchored prompt needs a rerun on all four sizes (7B needs more than 16 GB), so it is a follow-up.
   0.5B is not part of the rule; its earlier anchored number (0.531) was made before the 0-10 parsing fix.
-## Hybrid scores (C5, CoCoA)
+## Hybrid scores (CoCoA)
 
 CoCoA (Vashurin et al. 2025, https://arxiv.org/abs/2502.04964) multiplies a confidence signal of the
 greedy answer with how much the samples disagree with it:
@@ -182,7 +182,7 @@ greedy answer with how much the samples disagree with it:
 - `cocoa_p_true`: `u = 1 - p(True)` (the `p_true_zeroshot` score); the plugin runs p(True),
   `scripts/hybrid_from_results.py` builds the same record from a saved `p_true_zeroshot.json`.
 - Similarity = mean entailment probability greedy -> sample and sample -> greedy, read from the shared
-  NLI matrix (deberta-large, A5 cache), so neither method adds an NLI pass. The paper uses a
+  NLI matrix (deberta-large, persistent NLI cache), so neither method adds an NLI pass. The paper uses a
   cross-encoder similarity instead.
 
 AUROC on TriviaQA-200 (`results/<model>/triviaqa_200/`), compared with the two ingredients
@@ -208,7 +208,7 @@ AUROC on TriviaQA-200 (`results/<model>/triviaqa_200/`), compared with the two i
   together: bigger models repeat their answers also when they are wrong (README finding 3) and
   are then also sure of them. (Thanks to Eylül's reviews of #82.)
 - Decision: both stay in the table as the `hybrid` family; the selector should not prefer them
-  over p(True) from 3B on. A weighted sum or the logistic stack (D2) avoids the zero product.
+  over p(True) from 3B on. A weighted sum or the logistic stack (`selector/combine.py`) avoids the zero product.
 
 ## Known limitations
 
