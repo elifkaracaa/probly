@@ -297,7 +297,6 @@ AUROC 0.518 / 0.770 (now 0.512 / 0.765, a sampling difference). 3B and 7B still 
 - cli.py      one entry point: run, methods, generate, label, compare, plot, check-prefix
 - common/     shared code (data.py, generation.py, correctness.py: DATA; evaluate.py, io.py, summary.py, registry.py: PIPE; reflexive.py: SELF)
 - scripts/    generate.py, label.py, manual_check.py (DATA); run_benchmark.py, compare_models.py, plot_results.py, check_prefix.py (PIPE); method scripts
-- archive/week1/  superseded week-1 scripts, kept for reproducibility (not linted)
 - methods/    one plugin per uncertainty method (see CONTRACT.md)
 - selector/   method selector, calibration, stacking, held-out evaluation (D)
 - profiles/   one selector profile per model, read by the API and the demo (D)

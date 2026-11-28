@@ -203,7 +203,6 @@ exclude = [
     "experiments/river_uncertainty",
     "experiments/rl_uncertainty",
     "experiments/stacking",
-    "experiments/llm-probly/archive",
     "experiments/llm-probly/notebooks",
     "*.pyi",
 ]
@@ -333,7 +332,6 @@ exclude = [
     "experiments/river_uncertainty",
     "experiments/rl_uncertainty",
     "experiments/stacking",
-    "experiments/llm-probly/archive",
     "experiments/llm-probly/notebooks",
 ]
 
