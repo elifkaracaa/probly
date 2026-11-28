@@ -63,8 +63,7 @@ same size.
 ## How the caches were made
 
 `configs/<model>_<dataset>_<n>.yaml`, run one at a time with `uv run python -m cli run --config ...`.
-Precision and device are stored in
-each cache's `.meta.json`; a cache is only extended (resumed) with the same settings. Larger caches of a
-model use the same precision and device as its 200-question cache, so the prefix stays identical. MMLU on
-cpu for 3B and SmolLM2 differs from their TriviaQA device (mps); MMLU is a separate cache, so this only
-affects run time.
+Precision and device are stored in each cache's `.meta.json`; a cache is only extended (resumed) with the same
+settings. Larger caches of a model use the same precision and device as its 200-question cache, so the prefix
+stays identical. MMLU on cpu for 3B and SmolLM2 differs from their TriviaQA device (mps); MMLU is a separate
+cache, so this only affects run time.
