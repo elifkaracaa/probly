@@ -1,4 +1,4 @@
-"""D3: turn the chosen method's raw score into a calibrated confidence in [0, 1].
+"""Step 5 of the selector: turn the chosen method's raw score into a calibrated confidence in [0, 1].
 
 The selector's chosen method gives an uncertainty on its own scale (msp: 0..inf,
 p(True): 1 - probability, ...). For the API and the demo we need "how likely is

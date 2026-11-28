@@ -1,4 +1,4 @@
-"""Tests for selector.calibrate (D3: calibrated confidence)."""
+"""Tests for selector.calibrate (calibrated confidence)."""
 
 from __future__ import annotations
 

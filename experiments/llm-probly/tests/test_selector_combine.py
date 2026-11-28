@@ -1,4 +1,4 @@
-"""Tests for selector.combine (D2: logistic-regression stacking)."""
+"""Tests for selector.combine (logistic-regression stacking)."""
 
 from __future__ import annotations
 

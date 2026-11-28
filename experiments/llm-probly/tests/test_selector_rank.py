@@ -1,4 +1,4 @@
-"""Tests for selector.rank (D1, step 3: AUROC and PRR with bootstrap intervals)."""
+"""Tests for selector.rank (step 3: AUROC and PRR with bootstrap intervals)."""
 
 from __future__ import annotations
 

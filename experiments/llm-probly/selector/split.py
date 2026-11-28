@@ -36,7 +36,7 @@ class Split:
     Attributes:
         calibration: Ids the selector may use to choose and fit.
         held_out: Ids kept back for the final evaluation.
-        seed: Random seed that produced this split (stored in the profile, D4).
+        seed: Random seed that produced this split (stored in the profile).
     """
 
     calibration: list[int]

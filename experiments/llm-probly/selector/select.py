@@ -17,7 +17,7 @@ p_true_zeroshot's despite a 0.145 AUROC gap), so overlap would pick msp there.
 Run from ``experiments/llm-probly``::
 
     uv run python -m selector.select                 # all models, print the choice
-    uv run python -m selector.select --save          # also calibrate (D3) and write profiles/<model>.json
+    uv run python -m selector.select --save          # also calibrate and write profiles/<model>.json
     uv run python -m selector.select --access text_only --max-cost 5
 """
 
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
     from selector.table import ScoreTable
 
-# Family, access level and cost of every method come from E2's registry (common/registry.py).
+# Family, access level and cost of every method come from the method registry (common/registry.py).
 DEFAULT_REGISTRY: dict[str, dict] = {name: spec.to_dict() for name, spec in REGISTRY.items()}
 
 # What each access level allows, from the registry's order (text_only < logprobs < white_box):
@@ -251,7 +251,7 @@ def build_profile(
     model_id: str | None = None,
     n_boot: int = DEFAULT_N_BOOT,
 ) -> Profile:
-    """Turn a selection into the D4 profile, with the chosen method's metrics on both parts.
+    """Turn a selection into the per-model profile, with the chosen method's metrics on both parts.
 
     The calibration map is filled afterwards by ``selector.calibrate.calibrate_profile``.
 

@@ -1,4 +1,4 @@
-"""Tests for selector.profile (D4: per-model profile schema)."""
+"""Tests for selector.profile (per-model profile schema)."""
 
 from __future__ import annotations
 

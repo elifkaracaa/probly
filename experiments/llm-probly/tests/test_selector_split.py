@@ -1,4 +1,4 @@
-"""Tests for selector.split (D1, step 2: calibration / held-out split)."""
+"""Tests for selector.split (step 2: calibration / held-out split)."""
 
 from __future__ import annotations
 

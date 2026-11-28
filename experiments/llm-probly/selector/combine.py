@@ -1,4 +1,4 @@
-"""D2: combine several methods' scores into one with logistic-regression stacking.
+"""Combine several methods' scores into one with logistic-regression stacking.
 
 Each method looks at a different signal (token probabilities, self-evaluation,
 agreement between samples), so a combination might beat the best single method.

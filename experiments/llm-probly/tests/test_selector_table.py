@@ -1,4 +1,4 @@
-"""Tests for selector.table (D1, step 1: loading one model's scores)."""
+"""Tests for selector.table (step 1: loading one model's scores)."""
 
 from __future__ import annotations
 
