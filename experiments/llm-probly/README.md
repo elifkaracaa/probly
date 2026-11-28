@@ -66,7 +66,7 @@ AUROC (higher is better, 0.5 = random; best per model in bold):
 |---|---|---|---|---|---|
 | p_true_zeroshot | self-eval | 0.669 | 0.825 | **0.877** | **0.870** |
 | p_true_brainstorm | self-eval | 0.685 | 0.806 | 0.820 | 0.845 |
-| p_true_empirical | self-eval | 0.518 | 0.770 | 0.830 | 0.824 |
+| p_true_empirical | self-eval | 0.512 | 0.765 | 0.830 | 0.824 |
 | verbalized_2s | self-eval | 0.584 | 0.538 | 0.713 | 0.734 |
 | semantic_entropy | agreement | 0.744 | 0.776 | 0.761 | 0.729 |
 | discrete_semantic_entropy | agreement | 0.751 | 0.779 | 0.765 | 0.729 |
@@ -87,7 +87,7 @@ SE and discrete SE use `microsoft/deberta-large-mnli` (A4) since week 3; with we
 
 **Takeaways**
 1. Self-evaluation needs model size. Zero-shot p(True) goes 0.67 → 0.83 → 0.88 → 0.87 (0.5B → 7B) and is the best method from 1.5B on; at 0.5B every p(True) variant is worse than the cheap baselines.
-2. Verbalized confidence stays weak (0.58, 0.54, 0.71, 0.73); the 1.5B model answers "95" for most questions.
+2. Verbalized confidence stays weak with the week-1 prompt (0.58, 0.54, 0.71, 0.73); the 1.5B model answers "95" for most questions. A 0-10 prompt with both ends explained (C4) raises it to 0.644 on 1.5B and 0.804 on 3B (paired gain +0.11 and +0.09, intervals above 0), so verbalized stays a method; the table still shows the old prompt until it is rerun on all sizes ([`docs/methods.md`](docs/methods.md#verbalized-confidence-prompt-c4)).
 3. Semantic entropy and its discrete version are almost identical (0.73–0.78) and do not grow with size (0.76 at 3B, 0.73 at 7B): a likely reason is that bigger models repeat their answers more often, so the samples also agree when the answer is wrong. They stay below zero-shot p(True) from 1.5B on, although they need 10 samples and an NLI model per question.
 4. The cheap baselines need no extra model calls and get better with size; at 7B mean token entropy and MSP reach 0.82–0.83.
 
@@ -272,13 +272,15 @@ the LLM calls ran on CPU for 0.5B and 1.5B and on MPS for 3B and 7B, so compare 
 | p_true_zeroshot | 0.11 | 0.31 | 0.24 | 0.34 |
 | p_true_brainstorm | 0.29 | 0.50 | 0.47 | 0.68 |
 | verbalized_2s | 0.19 | 0.56 | 0.77 | 0.91 |
-| p_true_empirical (10 generations) | 0.85 | 2.25 | 3.16 | 5.93 |
+| p_true_empirical (10 generations) | 0.57 † | 1.59 † | 3.16 | 5.93 |
 | semantic_entropy + discrete SE (NLI, deberta-large on MPS, one shared matrix) | 0.67 | 0.25 | 0.13 | 0.06 |
 
 The NLI time (`nli_seconds_per_question`) is paid once for SE, DSE and the graph measures together, and a
 second run reads the NLI cache and pays 0 (A5). It falls with model size because bigger models give more
 identical answers, which are scored only once (A2). \* The 7B `lexical_similarity.json` records 7.75 s from its
 first run; ROUGE-L on 10 short answers takes well under a second, so this is not the method's cost.
+† 0.5B and 1.5B were rerun with the library's empirical p(True) (C2, `HFSelfEvaluator.sample_judgments`); before: 0.85 / 2.25 s,
+AUROC 0.518 / 0.770 (now 0.512 / 0.765, a sampling difference). 3B and 7B still have the week-2 run.
 
 **Mac limits**
 - 3B in float32 fits: memory pressure stays green while generating, with a short yellow peak while the weights load.

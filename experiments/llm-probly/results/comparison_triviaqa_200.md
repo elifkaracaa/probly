@@ -30,7 +30,7 @@
 | msp | 0.680 | 0.748 | 0.753 | 0.824 | 0.795 |
 | num_semantic_sets | 0.759 | 0.775 |  |  |  |
 | p_true_brainstorm | 0.685 | 0.806 | 0.820 | 0.845 |  |
-| p_true_empirical | 0.518 | 0.770 | 0.830 | 0.824 |  |
+| p_true_empirical | 0.512 | 0.765 | 0.830 | 0.824 |  |
 | p_true_zeroshot | 0.669 | 0.825 | 0.877 | 0.870 |  |
 | semantic_entropy | 0.744 | 0.776 | 0.761 | 0.729 |  |
 | verbalized_2s | 0.584 | 0.538 | 0.713 | 0.734 |  |
@@ -55,7 +55,7 @@
 | msp | 0.400 | 0.552 | 0.573 | 0.719 | 0.671 |
 | num_semantic_sets | 0.530 | 0.504 |  |  |  |
 | p_true_brainstorm | 0.291 | 0.577 | 0.689 | 0.693 |  |
-| p_true_empirical | -0.000 | 0.472 | 0.650 | 0.633 |  |
+| p_true_empirical | 0.003 | 0.460 | 0.650 | 0.633 |  |
 | p_true_zeroshot | 0.275 | 0.650 | 0.793 | 0.767 |  |
 | semantic_entropy | 0.514 | 0.505 | 0.463 | 0.391 |  |
 | verbalized_2s | 0.090 | 0.081 | 0.350 | 0.409 |  |
@@ -80,7 +80,7 @@
 | msp | 0.719 | 0.462 | 0.342 | 0.207 | 0.431 |
 | num_semantic_sets | 0.676 | 0.453 |  |  |  |
 | p_true_brainstorm | 0.730 | 0.427 | 0.299 | 0.196 |  |
-| p_true_empirical | 0.805 | 0.467 | 0.298 | 0.218 |  |
+| p_true_empirical | 0.805 | 0.471 | 0.298 | 0.218 |  |
 | p_true_zeroshot | 0.744 | 0.411 | 0.262 | 0.189 |  |
 | semantic_entropy | 0.685 | 0.455 | 0.355 | 0.274 |  |
 | verbalized_2s | 0.777 | 0.606 | 0.395 | 0.279 |  |
@@ -91,6 +91,6 @@
 | method | qwen0.5b | qwen1.5b | qwen3b | qwen7b | smollm2-1.7b |
 |---|---|---|---|---|---|
 | p_true_brainstorm | 0.662 | 0.389 | 0.259 | 0.255 |  |
-| p_true_empirical | 0.651 | 0.314 | 0.181 | 0.171 |  |
+| p_true_empirical | 0.661 | 0.308 | 0.181 | 0.171 |  |
 | p_true_zeroshot | 0.690 | 0.335 | 0.176 | 0.220 |  |
 | verbalized_2s | 0.722 | 0.563 | 0.412 | 0.320 |  |

@@ -17,7 +17,7 @@ Run `qwen1.5b/triviaqa_200`, 200 questions, precision float32
 | msp | baseline | logprobs | 1 | ok | 0.748 | 0.673 | 0.817 | worse | -0.085 | -0.158 | -0.016 | 0.462 | 0.552 |  | 0 |  | 0.000 |
 | num_semantic_sets | agreement | text_only | 12 | ok | 0.775 | 0.716 | 0.830 | worse | -0.058 | -0.109 | -0.010 | 0.453 | 0.504 |  | 0 |  | 0.004 |
 | p_true_brainstorm | self_eval | logprobs | 12 | ok | 0.806 | 0.738 | 0.864 | tied | -0.027 | -0.093 | 0.036 | 0.427 | 0.577 | 0.389 | 0 | 0.999 | 0.505 |
-| p_true_empirical | self_eval | text_only | 11 | ok | 0.770 | 0.708 | 0.826 | tied | -0.063 | -0.127 | 0.001 | 0.467 | 0.472 | 0.314 | 0 | 1.000 | 2.252 |
+| p_true_empirical | self_eval | text_only | 11 | ok | 0.765 | 0.703 | 0.822 | worse | -0.068 | -0.132 | -0.007 | 0.471 | 0.460 | 0.308 | 0 | 1.000 | 1.592 |
 | p_true_zeroshot | self_eval | logprobs | 2 | ok | 0.825 | 0.764 | 0.883 | tied | -0.008 | -0.064 | 0.054 | 0.411 | 0.650 | 0.335 | 0 | 1.000 | 0.313 |
 | semantic_entropy | agreement | logprobs | 12 | ok | 0.776 | 0.713 | 0.827 | worse | -0.057 | -0.107 | -0.008 | 0.455 | 0.505 |  | 0 |  | 0.255 |
 | verbalized_2s | self_eval | text_only | 2 | ok | 0.538 | 0.488 | 0.587 | worse | -0.296 | -0.365 | -0.226 | 0.606 | 0.081 | 0.563 | 0 |  | 0.560 |
