@@ -5,7 +5,7 @@ benchmark of uncertainty methods for LLMs. llm-probly does not try to match its
 number of methods. It adds a layer on top of probly: it tells you which method
 to use for your model, what that method costs, and what the confidence means.
 
-> Status: 27 Nov 2026. Links marked *(open)* point to work that is not merged into main yet.
+> Status: 28 Nov 2026. Links marked *(open)* point to work that is not merged into main yet.
 
 ## What we offer
 
@@ -17,15 +17,15 @@ to use for your model, what that method costs, and what the confidence means.
 | Fewer generations for semantic entropy | Sample-count curve + early-stop rule | – | [#44](https://github.com/elifkaracaa/probly/pull/44) |
 | Faster semantic entropy | One NLI matrix per question, dedup, batching | – | [#30](https://github.com/elifkaracaa/probly/pull/30), [#48](https://github.com/elifkaracaa/probly/pull/48), [#51](https://github.com/elifkaracaa/probly/pull/51) |
 | "Is method X better than Y?" with an interval | Paired bootstrap | – | [#37](https://github.com/elifkaracaa/probly/pull/37) |
-| Built into probly | probly's conventions, tests, docs | Standalone library | [#32](https://github.com/elifkaracaa/probly/pull/32), [#46](https://github.com/elifkaracaa/probly/pull/46) *(open)* |
+| Built into probly | probly's conventions, tests, docs | Standalone library | [#32](https://github.com/elifkaracaa/probly/pull/32), [#46](https://github.com/elifkaracaa/probly/pull/46) |
+| Self-evaluation methods in the library | p(True) and verbalized confidence as probly methods; p(True) batched | Has p(True) and verbalized-confidence estimators | [#46](https://github.com/elifkaracaa/probly/pull/46), [#49](https://github.com/elifkaracaa/probly/pull/49) |
 
 ## In progress
 
 | Feature | Evidence |
 |---|---|
 | API that returns answer, chosen method, confidence and cost (`POST /uncertainty`) | [#39](https://github.com/elifkaracaa/probly/pull/39) *(open)* |
-| Demo and runnable example generated from the real profiles | [#45](https://github.com/elifkaracaa/probly/pull/45) *(open)*, [#50](https://github.com/elifkaracaa/probly/pull/50) *(open)* |
-| Self-evaluation methods moved into the library, batched | [#46](https://github.com/elifkaracaa/probly/pull/46) *(open)*, [#49](https://github.com/elifkaracaa/probly/pull/49) *(open)* |
+| Demo and runnable example generated from the real profiles | [#77](https://github.com/elifkaracaa/probly/pull/77), [#79](https://github.com/elifkaracaa/probly/pull/79); one generator incl. the animation: cleanup/t6-one-demo-generator *(open)* |
 | Models behind an OpenAI-compatible API (text-only methods) | [#41](https://github.com/elifkaracaa/probly/pull/41) *(open)* |
 
 ## Where LM-Polygraph is ahead
