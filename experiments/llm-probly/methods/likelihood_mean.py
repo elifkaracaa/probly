@@ -2,7 +2,7 @@
 
 uncertainty = -mean token log likelihood of the greedy answer (length-normalised).
 Reads the cache only, so it needs no model and costs nothing extra.
-Plugin version of scripts/baseline_likelihood.py.
+The summed version (no length normalisation) is the msp plugin.
 """
 
 from __future__ import annotations

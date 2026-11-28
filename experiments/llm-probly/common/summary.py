@@ -14,7 +14,6 @@ from common.registry import REGISTRY
 
 EXPECTED_METHODS = (
     "likelihood_mean",
-    "likelihood_sum",
     "p_true_zeroshot_norm",
     "p_true_brainstorm",
     "p_true_empirical",
