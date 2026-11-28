@@ -7,7 +7,7 @@ check what the code adds on top of the library (prompt, reply parsing, score con
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from common import verbalized
 from methods import p_true_empirical, verbalized_2s
@@ -15,9 +15,14 @@ import numpy as np
 import pytest
 import torch
 
-MODEL = object()
-TOKENIZER = object()
-FAKE_LM = SimpleNamespace(device=torch.device("cpu"), dtype=torch.float32)  # the empirical plugin stores both
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizerBase
+
+MODEL = cast("PreTrainedModel", object())
+TOKENIZER = cast("PreTrainedTokenizerBase", object())
+FAKE_LM = cast(
+    "PreTrainedModel", SimpleNamespace(device=torch.device("cpu"), dtype=torch.float32)
+)  # the empirical plugin stores both
 
 
 def make_rows(n: int = 3) -> list[dict[str, Any]]:
