@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
+from selector import profile as profile_module
 from selector.profile import (
     Calibration,
     MethodChoice,
@@ -67,6 +69,10 @@ def test_profile_without_held_out_metrics_or_calibration_round_trips(tmp_path: P
         ({"calibration": Calibration(type="platt", parameters={"a": 1.0})}, "platt"),
         ({"calibration": Calibration(type="isotonic", parameters={"x": [0.5, 0.1], "y": [0.9, 0.2]})}, "increasing"),
         ({"schema_version": 99}, "schema_version"),
+        ({"calibration": Calibration(type="other", parameters={})}, "calibration.type"),  # ty: ignore[invalid-argument-type]
+        ({"calibration": Calibration(type="isotonic", parameters={})}, "non-empty"),
+        ({"calibration": Calibration(type="isotonic", parameters={"x": [0.1, 0.5], "y": [0.9]})}, "same length"),
+        ({"calibration": Calibration(type="isotonic", parameters={"x": [0.1, 0.5], "y": [0.9, 1.2]})}, "lie in"),
     ],
 )
 def test_invalid_profiles_are_not_saved(tmp_path: Path, changes: dict, message: str) -> None:
@@ -107,3 +113,26 @@ def test_uncalibrated_raw_score_raises() -> None:
     profile = make_profile(method=MethodChoice(name="msp", family="baseline", access="logprobs", cost=1.0))
     with pytest.raises(ValueError, match="not calibrated"):
         confidence(profile, 3.2)
+
+
+def test_load_rejects_a_file_that_was_edited_into_an_invalid_state(tmp_path: Path) -> None:
+    path = save_profile(make_profile(), tmp_path / "m.json")
+    data = json.loads(path.read_text())
+    data["calibration_size"] = 200  # as large as the whole run
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="calibration_size"):
+        load_profile(path)
+
+
+def test_main_prints_a_summary_of_the_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = save_profile(make_profile(), tmp_path / "m.json")
+    monkeypatch.setattr(sys, "argv", ["profile", str(path)])
+    profile_module.main()
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "m (org/m), schema v1"
+    assert "p_true_zeroshot (self_eval, logprobs, cost 2)" in lines[1]
+    assert "best AUROC" in lines[2]
+    assert "0.800 [0.700, 0.900] on 100 calibration questions" in lines[3]
+    assert lines[4].endswith("none")
