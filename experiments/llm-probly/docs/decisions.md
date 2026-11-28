@@ -39,6 +39,7 @@ PR that carries them. PR numbers refer to this fork (`elifkaracaa/probly`).
 
 | date | decision | why | where |
 |---|---|---|---|
+| 28 Nov | Before an incremental docs build, CI removes generated gallery folders whose source folder in `examples/` has no README (sphinx-gallery never builds those, so they can only be leftovers). | The docs cache is restored from earlier runs and saved even after a failed build; a moved or removed example folder left stale pages there, which failed the strict build again on every rerun (#77). | #77 (`.github/workflows/_docs-build.yml`) |
 | 28 Nov | `main` is protected by a ruleset: merging needs a PR with 1 approval and green `Code Quality Checks`, `Experiment Tests (ubuntu, py3.13)` and `Test Documentation Build / build`; no force pushes or deletion; only the repository admin can bypass, and only for pull requests. | It enforces the team rule that every PR is merged only after its reviewer approved it and the checks pass, instead of relying on everyone remembering it. | Repository settings (Rulesets) |
 | 28 Nov | Deploy Docs is disabled on the fork (GitHub Actions setting, reversible). | It is upstream's deployment to pwhofman.github.io and needs a release asset the fork does not have, so it failed on every push to main. | Actions settings |
 | 28 Nov | Docstring examples that need a model download are literal blocks (`::`), not `>>>` with `# doctest: +SKIP`. | sphinx-codeautolink cannot match the trimmed doctest flags, and the strict docs build (`-W`) turned that into a failure on every PR. | #85 |
