@@ -1,15 +1,15 @@
-"""Week-1 reference p(True) for the reflexive methods (R1 zero-shot, R2 brainstorm), one prompt at a time.
+"""Week-1 reference p(True) for the reflexive methods (zero-shot and brainstorm), one prompt at a time.
 
 The plugins use the library now: ``probly.representer.self_evaluation.huggingface.HFSelfEvaluator``
 (C1) scores the same prompts in batches with left padding. This module is kept as the reference that
 the library is checked against (``tests/test_self_eval_equivalence.py``, ``scripts/bench_self_eval.py``)
-and because the week-1 notebooks (R1, R2, mode comparison) document the method with it.
+and because the week-1 notebooks (zero-shot, brainstorm, mode comparison) document the method with it.
 
 Same prompt for both methods; the only difference is the brainstorm line. Two modes:
 
-- ``"chat_groups"`` (R1): chat template, next token compared over the token groups
+- ``"chat_groups"`` (zero-shot): chat template, next token compared over the token groups
   True/A/(A vs False/B/(B (only strings that are single tokens).
-- ``"plain_ab"`` (R2): no chat template, the prompt ends with ``" ("``, next token A vs B.
+- ``"plain_ab"`` (brainstorm): no chat template, the prompt ends with ``" ("``, next token A vs B.
 
 Raw baseline: :func:`true_logit` (logit of the single token "True", as LM-Polygraph does).
 """
@@ -113,7 +113,7 @@ def p_true_details(
         tok: Its tokenizer.
         question: Question.
         answer: Answer to judge.
-        brainstorm: Sampled answers for the brainstorm line (R2), or None for zero-shot.
+        brainstorm: Sampled answers for the brainstorm line, or None for zero-shot.
         mode: ``"plain_ab"`` or ``"chat_groups"``.
 
     Returns:

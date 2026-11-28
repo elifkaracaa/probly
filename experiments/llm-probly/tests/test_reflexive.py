@@ -64,3 +64,45 @@ def test_empty_group_raises(vocab):
     model, tok = fakes(vocab)
     with pytest.raises(ValueError, match="empty token group"):
         reflexive.p_true(model, tok, "q", "a", mode="plain_ab")
+
+
+class FakeChatTokenizer(FakeTokenizer):
+    """Fake tokenizer that also has a chat template (wraps the text in markers)."""
+
+    def apply_chat_template(self, messages, tokenize, add_generation_prompt):
+        assert tokenize is False
+        assert add_generation_prompt is True
+        return "<chat>" + messages[0]["content"] + "</chat>"
+
+
+def test_build_prompt_plain_ab_ends_with_an_open_bracket():
+    _, tok = fakes({})
+    prompt = reflexive.build_prompt(tok, "Q?", "Paris", mode="plain_ab")
+    assert prompt == reflexive.build_text("Q?", "Paris") + " ("
+
+
+def test_build_prompt_chat_groups_uses_the_chat_template():
+    tok = cast("PreTrainedTokenizerBase", FakeChatTokenizer({}))
+    prompt = reflexive.build_prompt(tok, "Q?", "Paris", mode="chat_groups")
+    assert prompt == "<chat>" + reflexive.build_text("Q?", "Paris") + "</chat>"
+
+
+def test_build_prompt_unknown_mode_raises():
+    _, tok = fakes({})
+    with pytest.raises(ValueError, match="unknown mode: nope"):
+        reflexive.build_prompt(tok, "Q?", "Paris", mode="nope")
+
+
+def test_build_text_adds_the_brainstorm_line_only_when_given():
+    assert "brainstormed" not in reflexive.build_text("Q?", "Paris")
+    assert "brainstormed" not in reflexive.build_text("Q?", "Paris", [])
+    with_ideas = reflexive.build_text("Q?", "Paris", ["Lyon", "Nice"])
+    assert "Here are some ideas that were brainstormed: Lyon, Nice\n" in with_ideas
+
+
+def test_true_logit_is_the_logit_of_the_single_true_token():
+    model = cast("PreTrainedModel", FakeModel(LOGITS))
+    tok = cast("PreTrainedTokenizerBase", FakeChatTokenizer({"True": 1}))
+    assert reflexive.true_logit(model, tok, "q", "a") == pytest.approx(0.0)  # LOGITS[1]
+    tok = cast("PreTrainedTokenizerBase", FakeChatTokenizer({"True": 0}))
+    assert reflexive.true_logit(model, tok, "q", "a") == pytest.approx(2.0)  # LOGITS[0]
