@@ -205,10 +205,6 @@ exclude = [
     "experiments/stacking",
     "experiments/llm-probly/archive",
     "experiments/llm-probly/notebooks",
-    # Rewritten or removed this week; each owner removes the entry in that PR:
-    # C1 (common/reflexive.py), C2 (scripts/r3_methods.py).
-    "experiments/llm-probly/common/reflexive.py",
-    "experiments/llm-probly/scripts/r3_methods.py",
     "*.pyi",
 ]
 
@@ -339,9 +335,6 @@ exclude = [
     "experiments/stacking",
     "experiments/llm-probly/archive",
     "experiments/llm-probly/notebooks",
-    # Rewritten or removed this week (same list as in [tool.ruff] exclude).
-    "experiments/llm-probly/common/reflexive.py",
-    "experiments/llm-probly/scripts/r3_methods.py",
 ]
 
 [tool.ty.environment]

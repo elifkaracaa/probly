@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import math
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 from common import reflexive
 import pytest
 import torch
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 
 class FakeTokenizer:
@@ -43,15 +47,20 @@ class FakeModel:
 LOGITS = [2.0, 0.0, -1.0, -1.0]  # id 0 = "A", id 1 = "B"
 
 
+def fakes(vocab: dict[str, int]) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
+    """Fake model and tokenizer, typed as the real ones for the type checker."""
+    return cast("PreTrainedModel", FakeModel(LOGITS)), cast("PreTrainedTokenizerBase", FakeTokenizer(vocab))
+
+
 def test_p_true_plain_ab():
-    tok = FakeTokenizer({"A": 0, "B": 1})
-    d = reflexive.p_true_details(FakeModel(LOGITS), tok, "q", "a", mode="plain_ab")
+    model, tok = fakes({"A": 0, "B": 1})
+    d = reflexive.p_true_details(model, tok, "q", "a", mode="plain_ab")
     assert d["p_true"] == pytest.approx(1 / (1 + math.exp(-2.0)))  # sigmoid(2 - 0)
     assert 0.0 < d["coverage"] <= 1.0
 
 
 @pytest.mark.parametrize("vocab", [{"B": 1}, {"A": 0}, {}])
 def test_empty_group_raises(vocab):
-    tok = FakeTokenizer(vocab)
+    model, tok = fakes(vocab)
     with pytest.raises(ValueError, match="empty token group"):
-        reflexive.p_true(FakeModel(LOGITS), tok, "q", "a", mode="plain_ab")
+        reflexive.p_true(model, tok, "q", "a", mode="plain_ab")
