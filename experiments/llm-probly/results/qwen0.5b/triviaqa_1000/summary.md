@@ -5,7 +5,7 @@ Run `qwen0.5b/triviaqa_1000`, 1000 questions, precision float32
 | deg_mat | agreement | text_only | 12 | ok | 0.743 | 0.704 | 0.785 | worse | -0.009 | -0.016 | -0.001 | 0.668 | 0.478 |  | 0 |  | 0.000 |
 | discrete_semantic_entropy | agreement | text_only | 12 | ok | 0.732 | 0.688 | 0.774 | worse | -0.021 | -0.032 | -0.009 | 0.671 | 0.458 |  | 0 |  | 0.001 |
 | dummy_random | baseline | text_only | 1 | ok | 0.515 | 0.465 | 0.561 | worse | -0.237 | -0.298 | -0.174 | 0.780 | 0.065 |  | 0 |  | 0.000 |
-| eccentricity | agreement | text_only | 12 | ok | 0.710 | 0.667 | 0.752 | worse | -0.042 | -0.062 | -0.024 | 0.684 | 0.426 |  | 0 |  | 0.000 |
+| eccentricity | agreement | text_only | 12 | ok | 0.710 | 0.667 | 0.751 | worse | -0.042 | -0.061 | -0.025 | 0.684 | 0.423 |  | 0 |  | 0.000 |
 | eig_val_laplacian | agreement | text_only | 12 | ok | 0.752 | 0.712 | 0.794 | best | 0.000 | 0.000 | 0.000 | 0.663 | 0.498 |  | 0 |  | 0.000 |
 | lexical_similarity | agreement | text_only | 11 | ok | 0.681 | 0.642 | 0.717 | worse | -0.072 | -0.112 | -0.033 | 0.714 | 0.325 |  | 0 |  | 0.000 |
 | likelihood_mean | baseline | logprobs | 1 | ok | 0.712 | 0.672 | 0.747 | worse | -0.040 | -0.085 | -0.000 | 0.689 | 0.401 |  | 0 |  | 0.000 |
