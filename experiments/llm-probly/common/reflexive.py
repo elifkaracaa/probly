@@ -1,7 +1,7 @@
 """Week-1 reference p(True) for the reflexive methods (zero-shot and brainstorm), one prompt at a time.
 
 The plugins use the library now: ``probly.representer.self_evaluation.huggingface.HFSelfEvaluator``
-(C1) scores the same prompts in batches with left padding. This module is kept as the reference that
+scores the same prompts in batches with left padding. This module is kept as the reference that
 the library is checked against (``tests/test_self_eval_equivalence.py``, ``scripts/bench_self_eval.py``)
 and because the week-1 notebooks (zero-shot, brainstorm, mode comparison) document the method with it.
 

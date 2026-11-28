@@ -1,6 +1,6 @@
 """Zero-shot p(True): ask the model whether its own greedy answer is true.
 
-Thin wrapper around probly's ``HFSelfEvaluator`` in plain_ab mode (week 1, R1; moved into the library in week 3, C1).
+Thin wrapper around probly's ``HFSelfEvaluator`` in plain_ab mode (written in week 1, in the library since week 3).
 Uncertainty = 1 - p_true (score contract rule 1).
 Also stores coverage = P(A) + P(B) per question, to check that the model
 really answers with A/B.

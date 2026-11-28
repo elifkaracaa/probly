@@ -1,6 +1,6 @@
 """Verbalized confidence, two-stage (2S): ask the model how confident it is in its own answer.
 
-Moved from scripts/r3_methods.py (week 1, R3) so that the plugin in methods/ does not import from scripts/.
+Moved from scripts/r3_methods.py (week 1) so that the plugin in methods/ does not import from scripts/.
 The behavior is unchanged.
 """
 
@@ -22,7 +22,7 @@ ASK = {
 PERCENT_SCALE = 100
 """The 0-100 scale, where a reply like "0.99" is read as a fraction."""
 
-# C4: the plain prompts above make the small models answer almost always "95" or "100". This variant
+# Prompt experiment: the plain prompts above make the small models answer almost always "95" or "100". This variant
 # tells the model what the ends of the scale mean, so that low numbers become a possible answer.
 ASK_ANCHORED = (
     "How confident are you that your answer is correct? Reply with only a number from 0 to 10, "
@@ -55,7 +55,7 @@ def verbalized_2s(
 ) -> tuple[float, bool, str]:
     """Return (confidence 0..1, failed, raw reply). Unreadable replies give confidence 0 (uncertainty 1.0).
 
-    ``ask`` replaces the default question for ``scale`` (used by the C4 prompt experiment).
+    ``ask`` replaces the default question for ``scale`` (used by the anchored-prompt experiment).
     """
     chat = [
         {"role": "user", "content": question},

@@ -1,4 +1,4 @@
-"""Plugin: CoCoA with MSP, -log P(greedy answer) times the inconsistency of the samples (C5).
+"""Plugin: CoCoA with MSP, -log P(greedy answer) times the inconsistency of the samples.
 
 Reads the cache (greedy token log-probs) and the shared NLI matrix, so it needs no model
 call and no extra NLI pass. See ``common/hybrid.py``.
