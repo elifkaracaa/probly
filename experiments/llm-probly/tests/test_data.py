@@ -41,3 +41,11 @@ def test_trivia_loader_order_depends_only_on_the_seed() -> None:
 def test_unknown_dataset_names_the_known_ones() -> None:
     with pytest.raises(ValueError, match=r"Unknown dataset 'squad'; known: .*triviaqa"):
         common.data.load_questions("squad", 3)
+
+
+@pytest.mark.usefixtures("fake_trivia")
+def test_smaller_set_is_a_prefix_of_the_larger_one() -> None:
+    # The 200- and 1000-question caches rely on this (scripts/check_prefix.py).
+    small = common.data.load_questions("triviaqa", 5, seed=0)
+    large = common.data.load_questions("triviaqa", 12, seed=0)
+    assert large[:5] == small

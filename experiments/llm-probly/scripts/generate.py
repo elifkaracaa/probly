@@ -14,6 +14,7 @@ Run from ``experiments/llm-probly``::
 
 For long runs, keep the computer awake (macOS: put ``caffeinate -i`` in front of the
 command; Linux: ``systemd-inhibit``; Windows: the power settings).
+
 Rows are appended to ``data/<model>/<dataset>_<n>.partial.jsonl`` after every
 question, so an interrupted run continues where it stopped (run the same
 command again). At the end the file is renamed to ``<dataset>_<n>.jsonl``.
