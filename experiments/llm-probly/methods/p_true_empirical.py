@@ -2,8 +2,10 @@
 
 The model judges its own answer 10 times at temperature 1.0.
 
-Wraps scripts/r3_methods.empirical_p_true() (week 1, R3).
-No logits needed, but 10 model calls per question (the most expensive method).
+Uses probly's ``HFSelfEvaluator.sample_judgments`` (week 1, R3; moved into the library in week 3, C2). The 10
+replies of a question come from one ``generate`` call (``num_return_sequences``). Putting several questions into
+one call is possible (BATCH_SIZE), but on CPU it was 3 to 5 times slower, so the default is 1 question per call.
+No logits needed, but 10 sampled replies per question (the most expensive method).
 Uncertainty = 1 - p_true (score contract rule 1).
 Also stores parsed_fraction per question: how many of the 10 replies could be
 read as True or False (the empirical version of coverage).
@@ -14,15 +16,17 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
-from scripts.r3_methods import empirical_p_true
 import torch
+
+from probly.representer.self_evaluation.huggingface import HFSelfEvaluator, parse_judgment
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 NAME = "p_true_empirical"
 N_SAMPLES = 10
-SEED = 42  # same seed as the week 1 run (archive/week1/scripts/r3_real_data.py), so results can be reproduced
+BATCH_SIZE = 1  # questions per generate call; more was slower on CPU (check on GPU before raising)
+SEED = 42  # same seed as the week 1 run, but sampling in batches draws different random numbers
 
 
 def score(
@@ -35,16 +39,25 @@ def score(
         msg = f"{NAME} needs the model (needs_model=True in common/registry.py)"
         raise ValueError(msg)
 
-    torch.manual_seed(SEED)  # once, before the loop, exactly as in week 1
-    uncertainty, failed, parsed_fraction = [], [], []
+    torch.manual_seed(SEED)  # once, before sampling
+    evaluator = HFSelfEvaluator(model, tok, batch_size=BATCH_SIZE)
     start = time.perf_counter()
-    for row in rows:
-        p, texts, unparsed = empirical_p_true(model, tok, row["question"], row["greedy_answer"], n=N_SAMPLES)
-        parsed_fraction.append(1 - unparsed / len(texts))
-        no_reply_parsed = unparsed == len(texts)
+    replies = evaluator.sample_judgments(
+        [row["question"] for row in rows],
+        [row["greedy_answer"] for row in rows],
+        num_samples=N_SAMPLES,
+    )
+    seconds = (time.perf_counter() - start) / len(rows)
+
+    uncertainty, failed, parsed_fraction = [], [], []
+    for texts in replies:
+        judgments = [parse_judgment(text) for text in texts]
+        unparsed = sum(judgment is None for judgment in judgments)
+        p = sum(judgment is True for judgment in judgments) / len(judgments)
+        parsed_fraction.append(1 - unparsed / len(judgments))
+        no_reply_parsed = unparsed == len(judgments)
         uncertainty.append(1.0 if no_reply_parsed else 1.0 - p)  # contract rule 3
         failed.append(no_reply_parsed)
-    seconds = (time.perf_counter() - start) / len(rows)
 
     return {
         "method": NAME,

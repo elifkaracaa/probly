@@ -1,9 +1,9 @@
 """Zero-shot p(True): ask the model whether its own greedy answer is true.
 
-Wraps common/reflexive.p_true_details() in plain_ab mode (week 1, R1).
+Thin wrapper around probly's ``HFSelfEvaluator`` in plain_ab mode (week 1, R1; moved into the library in week 3, C1).
 Uncertainty = 1 - p_true (score contract rule 1).
 Also stores coverage = P(A) + P(B) per question, to check that the model
-really answers with A/B (week 1: ~1.00 on 0.5B; unchecked on larger models).
+really answers with A/B.
 """
 
 from __future__ import annotations
@@ -12,13 +12,14 @@ import math
 import time
 from typing import TYPE_CHECKING, Any
 
-from common.reflexive import p_true_details
+from probly.representer.self_evaluation.huggingface import HFSelfEvaluator
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 NAME = "p_true_zeroshot"
 MODE = "plain_ab"
+BATCH_SIZE = 8
 
 
 def score(
@@ -31,16 +32,13 @@ def score(
         msg = f"{NAME} needs the model (needs_model=True in common/registry.py)"
         raise ValueError(msg)
 
-    uncertainty, failed, coverage = [], [], []
+    evaluator = HFSelfEvaluator(model, tok, mode=MODE, batch_size=BATCH_SIZE)
     start = time.perf_counter()
-    for row in rows:
-        details = p_true_details(model, tok, row["question"], row["greedy_answer"], mode=MODE)
-        p = details["p_true"]
-        coverage.append(details["coverage"])  # P(A) + P(B): is the model really answering A/B?
-        ok = math.isfinite(p)
-        uncertainty.append(1.0 - p if ok else 1.0)  # contract rule 3: failed -> 1.0
-        failed.append(not ok)
+    result = evaluator.evaluate([row["question"] for row in rows], [row["greedy_answer"] for row in rows])
     seconds = (time.perf_counter() - start) / len(rows)
+
+    ok = [math.isfinite(p) for p in result.p_true]
+    uncertainty = [1.0 - p if good else 1.0 for p, good in zip(result.p_true, ok, strict=True)]  # rule 3: failed -> 1.0
 
     return {
         "method": NAME,
@@ -48,9 +46,9 @@ def score(
         "answer": "greedy",
         "probability": True,  # uncertainty = 1 - probability, so summary.py computes ECE
         "mode": MODE,
-        "coverage": coverage,
+        "coverage": result.coverage.tolist(),
         "ids": [row["id"] for row in rows],
         "uncertainty": uncertainty,
-        "failed": failed,
+        "failed": [not good for good in ok],
         "seconds_per_question": seconds,
     }
