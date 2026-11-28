@@ -13,7 +13,7 @@
     "parameters": {},
     "probability": false
   },
-  "reason": "likelihood_mean (AUROC 0.768) is not significantly worse than the best, p_true_zeroshot (difference -0.039, 95 % interval [-0.154, +0.079]), and costs 2x less.",
+  "reason": "likelihood_mean (AUROC 0.768) is not significantly worse than the best, cocoa_p_true (difference -0.042, 95 % interval [-0.135, +0.051]), and costs 13x less.",
   "calibration_metrics": {
     "auroc": 0.7683,
     "auroc_low": 0.6717,
@@ -34,12 +34,20 @@
     "type": "platt",
     "parameters": {
       "a": 3.2251410090421535,
-      "b": -0.8012131666371368
+      "b": -0.8012131666371369
     },
     "ece_before": null,
     "ece_after": 0.0949
   },
   "candidates": {
+    "cocoa_p_true": {
+      "auroc": 0.8101,
+      "auroc_low": 0.7218,
+      "auroc_high": 0.8906,
+      "prr": 0.5527,
+      "prr_low": 0.3016,
+      "prr_high": 0.753
+    },
     "p_true_zeroshot": {
       "auroc": 0.8077,
       "auroc_low": 0.7156,
@@ -104,14 +112,6 @@
       "prr_low": 0.2073,
       "prr_high": 0.6762
     },
-    "p_true_empirical": {
-      "auroc": 0.7424,
-      "auroc_low": 0.6525,
-      "auroc_high": 0.8281,
-      "prr": 0.4296,
-      "prr_low": 0.2457,
-      "prr_high": 0.6075
-    },
     "num_semantic_sets": {
       "auroc": 0.7413,
       "auroc_low": 0.6292,
@@ -119,6 +119,14 @@
       "prr": 0.4754,
       "prr_low": 0.2198,
       "prr_high": 0.6639
+    },
+    "p_true_empirical": {
+      "auroc": 0.7362,
+      "auroc_low": 0.6453,
+      "auroc_high": 0.8222,
+      "prr": 0.4177,
+      "prr_low": 0.2225,
+      "prr_high": 0.6012
     },
     "deg_mat": {
       "auroc": 0.7345,
@@ -143,6 +151,14 @@
       "prr": 0.5187,
       "prr_low": 0.2816,
       "prr_high": 0.6982
+    },
+    "cocoa_msp": {
+      "auroc": 0.7133,
+      "auroc_low": 0.5939,
+      "auroc_high": 0.8125,
+      "prr": 0.4332,
+      "prr_low": 0.1552,
+      "prr_high": 0.6365
     },
     "eccentricity": {
       "auroc": 0.6974,
@@ -170,5 +186,5 @@
     }
   },
   "schema_version": 1,
-  "created_at": "2026-11-24T11:40:16+00:00"
+  "created_at": "2026-11-28T11:51:52+00:00"
 }

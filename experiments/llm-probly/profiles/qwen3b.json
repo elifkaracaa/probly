@@ -150,6 +150,14 @@
       "prr_low": 0.2038,
       "prr_high": 0.6171
     },
+    "cocoa_p_true": {
+      "auroc": 0.7423,
+      "auroc_low": 0.6405,
+      "auroc_high": 0.8378,
+      "prr": 0.3985,
+      "prr_low": 0.1272,
+      "prr_high": 0.5997
+    },
     "lexical_similarity": {
       "auroc": 0.7087,
       "auroc_low": 0.609,
@@ -157,6 +165,14 @@
       "prr": 0.3641,
       "prr_low": 0.1134,
       "prr_high": 0.5514
+    },
+    "cocoa_msp": {
+      "auroc": 0.7083,
+      "auroc_low": 0.6046,
+      "auroc_high": 0.8021,
+      "prr": 0.3578,
+      "prr_low": 0.1003,
+      "prr_high": 0.5608
     },
     "verbalized_2s": {
       "auroc": 0.6889,
@@ -168,5 +184,5 @@
     }
   },
   "schema_version": 1,
-  "created_at": "2026-11-24T11:40:34+00:00"
+  "created_at": "2026-11-28T11:52:21+00:00"
 }
