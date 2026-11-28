@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 DEFAULT_MODE = "plain_ab"
-"""Chosen by the sanity comparison (notebooks/reflexive_mode_comparison.ipynb)."""
+"""Chosen by the sanity comparison (notebooks/p_true_prompt_modes.ipynb)."""
 
 GROUPS = {
     "chat_groups": (["True", " True", "A", " A", "(A"], ["False", " False", "B", " B", "(B"]),
