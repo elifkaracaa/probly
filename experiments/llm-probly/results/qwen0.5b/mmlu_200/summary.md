@@ -5,8 +5,8 @@ Run `qwen0.5b/mmlu_200`, 200 questions, precision float32
 | deg_mat | agreement | text_only | 12 | ok | 0.503 | 0.400 | 0.608 | tied | -0.077 | -0.173 | 0.010 | 0.795 | 0.053 |  | 0 |  | 0.000 |
 | discrete_semantic_entropy | agreement | text_only | 12 | ok | 0.517 | 0.418 | 0.617 | tied | -0.063 | -0.152 | 0.023 | 0.792 | 0.073 |  | 0 |  | 0.000 |
 | dummy_random | baseline | text_only | 1 | ok | 0.516 | 0.420 | 0.611 | tied | -0.064 | -0.224 | 0.092 | 0.808 | -0.062 |  | 0 |  | 0.000 |
-| eccentricity | agreement | text_only | 12 | ok | 0.518 | 0.419 | 0.620 | tied | -0.062 | -0.158 | 0.034 | 0.791 | 0.065 |  | 0 |  | 0.000 |
-| eig_val_laplacian | agreement | text_only | 12 | ok | 0.522 | 0.426 | 0.620 | tied | -0.057 | -0.151 | 0.028 | 0.792 | 0.070 |  | 0 |  | 0.000 |
+| eccentricity | agreement | text_only | 12 | ok | 0.524 | 0.425 | 0.620 | tied | -0.056 | -0.151 | 0.036 | 0.786 | 0.073 |  | 0 |  | 0.000 |
+| eig_val_laplacian | agreement | text_only | 12 | ok | 0.520 | 0.424 | 0.620 | tied | -0.060 | -0.155 | 0.026 | 0.789 | 0.069 |  | 0 |  | 0.000 |
 | lexical_similarity | agreement | text_only | 11 | ok | 0.507 | 0.403 | 0.611 | tied | -0.072 | -0.168 | 0.016 | 0.794 | 0.068 |  | 0 |  | 0.000 |
 | likelihood_mean | baseline | logprobs | 1 | ok | 0.543 | 0.436 | 0.648 | tied | -0.037 | -0.088 | 0.013 | 0.776 | 0.168 |  | 0 |  | 0.000 |
 | mean_token_entropy | baseline | white_box | 1 | ok | 0.580 | 0.471 | 0.685 | best | 0.000 | 0.000 | 0.000 | 0.759 | 0.203 |  | 0 |  | 0.000 |

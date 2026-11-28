@@ -7,7 +7,7 @@ Run `qwen0.5b/triviaqa_200`, 200 questions, precision float32
 | deg_mat | agreement | text_only | 12 | ok | 0.751 | 0.650 | 0.839 | tied | -0.040 | -0.131 | 0.053 | 0.686 | 0.514 |  | 0 |  | 0.000 |
 | discrete_semantic_entropy | agreement | text_only | 12 | ok | 0.751 | 0.646 | 0.839 | tied | -0.040 | -0.131 | 0.056 | 0.680 | 0.520 |  | 0 |  | 0.000 |
 | dummy_random | baseline | text_only | 1 | ok | 0.567 | 0.467 | 0.669 | worse | -0.224 | -0.368 | -0.086 | 0.771 | 0.160 |  | 0 |  | 0.000 |
-| eccentricity | agreement | text_only | 12 | ok | 0.750 | 0.650 | 0.839 | tied | -0.040 | -0.130 | 0.053 | 0.681 | 0.513 |  | 0 |  | 0.000 |
+| eccentricity | agreement | text_only | 12 | ok | 0.753 | 0.653 | 0.839 | tied | -0.037 | -0.126 | 0.056 | 0.681 | 0.517 |  | 0 |  | 0.000 |
 | eig_val_laplacian | agreement | text_only | 12 | ok | 0.758 | 0.649 | 0.844 | tied | -0.033 | -0.127 | 0.060 | 0.674 | 0.530 |  | 0 |  | 0.000 |
 | greedy_cluster_share | agreement | text_only | 12 | ok | 0.758 | 0.655 | 0.845 | tied | -0.033 | -0.128 | 0.060 | 0.679 | 0.517 |  | 0 |  | 0.000 |
 | largest_cluster_share | agreement | text_only | 12 | ok | 0.738 | 0.636 | 0.829 | tied | -0.053 | -0.146 | 0.043 | 0.688 | 0.500 |  | 0 |  | 0.000 |
