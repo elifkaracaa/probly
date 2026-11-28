@@ -144,6 +144,33 @@ when it is put in front of the answers) and the exact answer texts. Other code t
 (e.g. graph measures, hybrid scores) should find the file with `nli_cache_path(data_file, nli_settings())`
 and read it with `load_nli_cache`, instead of writing the file name by hand.
 
+## Verbalized confidence prompt (C4)
+
+The week-1 prompt ("a number between 0 and 100") makes the models give almost always the same
+number: 1.5B says "95" for 170 of 200 questions, 3B says "100" for 145. `scripts/c4_verbalized_prompt.py`
+asks the same question with two 0-10 prompts (`common/verbalized.py`): `plain10` (`ASK[10]`, only the
+scale changes) and `anchored` (`ASK_ANCHORED`, 0 = certainly wrong, 10 = certainly correct).
+Results in `results/<model>/triviaqa_200/c4/`; TriviaQA-200, AUROC, paired bootstrap against the
+week-1 prompt on the same questions (1000 resamples):
+
+| model | 0-100 (week 1) | plain 0-10 | anchored 0-10 | anchored - week 1 | anchored - plain 0-10 |
+|---|---|---|---|---|---|
+| 1.5B (cpu, float32) | 0.538 | 0.600 | **0.644** | +0.107 [+0.040, +0.174] | +0.044 [-0.032, +0.117] |
+| 3B (mps, float16) | 0.713 | 0.793 | **0.804** | +0.091 [+0.045, +0.139] | +0.011 [-0.030, +0.053] |
+
+- 3B ran on MPS in float16 (12 GB in float32 does not fit next to the system on a 16 GB Mac). The
+  week-1 prompt rerun in that setup (`plain100`) gives exactly the saved scores (same 200 values), so the
+  comparison is fair.
+- Most of the gain comes from the smaller scale; the anchoring adds a little more, but that part is
+  inside the noise on both models.
+- **Decision.** The C4 rule was: if AUROC stays below 0.65 on 1.5B *and* 3B, verbalized becomes a
+  baseline only. With the anchored prompt 1.5B is just below (0.644) and 3B is clearly above (0.804),
+  so verbalized stays a method, and the anchored prompt is the better prompt on both models. It is
+  still far below zero-shot p(True) (0.825 / 0.877), which needs the same one extra model call.
+- Not done yet: `verbalized_2s` in the main table still uses the week-1 prompt. Switching it to the
+  anchored prompt needs a rerun on all four sizes (7B needs more than 16 GB), so it is a follow-up.
+  0.5B is not part of the rule; its earlier anchored number (0.531) was made before the 0-10 parsing fix.
+
 ## Known limitations
 
 - The hand labels come from one person (60 pairs); a second person labels a subset to measure how much

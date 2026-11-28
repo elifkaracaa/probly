@@ -82,7 +82,7 @@ SE and discrete SE use `microsoft/deberta-large-mnli` (A4) since week 3; with we
 
 **Takeaways**
 1. Self-evaluation needs model size. Zero-shot p(True) goes 0.67 → 0.83 → 0.88 → 0.87 (0.5B → 7B) and is the best method from 1.5B on; at 0.5B every p(True) variant is worse than the cheap baselines.
-2. Verbalized confidence stays weak (0.58, 0.54, 0.71, 0.73); the 1.5B model answers "95" for most questions.
+2. Verbalized confidence stays weak with the week-1 prompt (0.58, 0.54, 0.71, 0.73); the 1.5B model answers "95" for most questions. A 0-10 prompt with both ends explained (C4) raises it to 0.644 on 1.5B and 0.804 on 3B (paired gain +0.11 and +0.09, intervals above 0), so verbalized stays a method; the table still shows the old prompt until it is rerun on all sizes ([`docs/methods.md`](docs/methods.md#verbalized-confidence-prompt-c4)).
 3. Semantic entropy and its discrete version are almost identical (0.73–0.78) and do not grow with size (0.76 at 3B, 0.73 at 7B): a likely reason is that bigger models repeat their answers more often, so the samples also agree when the answer is wrong. They stay below zero-shot p(True) from 1.5B on, although they need 10 samples and an NLI model per question.
 4. The cheap baselines need no extra model calls and get better with size; at 7B mean token entropy and MSP reach 0.82–0.83.
 
