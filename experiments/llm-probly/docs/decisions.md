@@ -50,11 +50,10 @@ PR that carries them. PR numbers refer to this fork (`elifkaracaa/probly`).
 
 | date | decision | why | where |
 |---|---|---|---|
-| 28 Nov | One demo generator: `demo/build_demo.py` builds the README block, demo page and cards from the profiles; the animation script moves into `demo/` and `build_demo.py --animation-run` calls it. | Two generators did different things (animation vs. selector view); one tool in one folder, with tests, and the profiles read through `selector.profile.load_profile` (one parser). | #79, #87, cleanup/t6-one-demo-generator |
+| 28 Nov | One demo generator: `demo/build_demo.py` builds the README block, demo page and cards from the profiles; the animation script moves into `demo/` and `build_demo.py --animation-run` calls it. | Two generators did different things (animation vs. selector view); one tool in one folder, with tests, and the profiles read through `selector.profile.load_profile` (one parser). | #79, #87, #121 |
 | 28 Nov | The LLM pipeline example is shown in the docs gallery but not executed, in its own folder `examples/llm_pipeline/`. | Executing it would download Qwen2.5-0.5B in every docs build; a README in upstream's `examples/llm/` would turn upstream's scripts into a gallery section. | #77 |
-| 28 Nov | The docs build removes cached gallery folders whose source folder has no README. | The docs cache kept restoring a moved gallery folder and failed the `-W` build on every re-run. | #77 |
 | 28 Nov | The text-only backend (f2) is not merged; it is presented as a next step. | 1626 lines on an old base, conflicts in `_se_common.py`, and new methods in another task's area. | #41 |
-| 28 Nov | Notebook outputs are kept; only local `/Users/` paths are removed. Notebooks get descriptive names. | The outputs are the only record of the week-1 results; re-running needs the models and data. | #93 |
-| 28 Nov | `archive/` is deleted. | Superseded week-1 scripts; git keeps the history; removes 51 role codes and two lint exclusions. | #78 |
-| 28 Nov | Role codes are replaced by descriptive names; `docs/names.md` is the one glossary. | Codes meant nothing to outside readers and some changed meaning between weeks. | #84, #86 |
-| 28 Nov | The README becomes quickstart -> results -> methods -> how to add a method; details move into docs/. | 318 lines, partly outdated; the selector is the centerpiece and leads. | #116 |
+| 28 Nov | Notebook outputs are kept; only local `/Users/` paths are removed. Notebooks get descriptive names. | The outputs are the only record of the week-1 results; re-running needs the models and data. | #93 *(PR open)* |
+| 28 Nov | `archive/` is deleted. | Superseded week-1 scripts; git keeps the history; removes 51 role codes and two lint exclusions. | #78 *(PR open)* |
+| 28 Nov | Role codes are replaced by descriptive names; `docs/names.md` is the one glossary. | Codes meant nothing to outside readers and some changed meaning between weeks. | #84, #86 *(PR open)* |
+| 28 Nov | The README becomes quickstart -> results -> methods -> how to add a method; details move into docs/. | 318 lines, partly outdated; the selector is the centerpiece and leads. | #116 *(PR open)* |
