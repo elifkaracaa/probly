@@ -80,6 +80,17 @@ jobs:
         if: inputs.docs-cache
         run: |
           [ -d docs/source/auto_examples ] || exit 0
+          # gallery sections whose source folder has no README are leftovers
+          # (e.g. a moved example folder); images/ holds the top-level thumbnails
+          for dir in docs/source/auto_examples/*/; do
+            name="$(basename "$dir")"
+            [ "$name" = images ] && continue
+            if [ ! -f "examples/$name/README.txt" ] && [ ! -f "examples/$name/README.rst" ] \
+               && [ ! -f "examples/$name/GALLERY_HEADER.rst" ]; then
+              echo "removing stale gallery folder $dir"
+              rm -rf "$dir"
+            fi
+          done
           find docs/source/auto_examples -name 'plot_*.rst' | while read -r rst; do
             rel="${rst#docs/source/auto_examples/}"
             if [ ! -f "examples/${rel%.rst}.py" ]; then
