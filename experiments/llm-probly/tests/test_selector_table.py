@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import TYPE_CHECKING
 
+import pandas as pd
 import pytest
-from selector.table import load_score_table
+from selector import table as table_module
+from selector.table import ScoreTable, load_score_table
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -68,3 +71,28 @@ def test_missing_labels_raise(run: Path) -> None:
 def test_missing_run_folder_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         load_score_table("m", n=10, results_root=tmp_path, rows=ROWS)
+
+
+def test_main_prints_summary_info_and_skipped_files(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ids = list(range(10))
+    table = ScoreTable(
+        model="m",
+        run="r",
+        scores=pd.DataFrame({"msp": [float(i) for i in ids]}, index=pd.Index(ids)),
+        correct=pd.Series([i < 4 for i in ids], index=ids, name="correct"),
+        info=pd.DataFrame(
+            {"seconds_per_question": [0.5], "failed_fraction": [0.0], "probability": [False]},
+            index=pd.Index(["msp"]),
+        ),
+        skipped={"broken": "no file yet"},
+    )
+    monkeypatch.setattr(table_module, "load_score_table", lambda *_args, **_kwargs: table)
+    monkeypatch.setattr(sys, "argv", ["table", "--model", "m"])
+    table_module.main()
+    out = capsys.readouterr().out
+    assert "m / r: 10 questions, 4 correct (40.0%)" in out
+    assert "1 candidate methods" in out
+    assert "msp" in out
+    assert "skipped broken: no file yet" in out

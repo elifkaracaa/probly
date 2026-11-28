@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import sys
+
 import pandas as pd
 import pytest
+from selector import split as split_module
 from selector.split import make_split, subset
 from selector.table import ScoreTable
 
@@ -53,3 +56,18 @@ def test_subset_keeps_scores_and_labels_aligned() -> None:
     assert list(part.scores.index) == [3, 50, 7]
     assert list(part.correct.index) == [3, 50, 7]
     assert part.scores.loc[50, "msp"] == 50.0
+
+
+def test_main_prints_sizes_and_share_of_correct_answers(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(split_module, "load_score_table", lambda *_args, **_kwargs: make_table())
+    monkeypatch.setattr(sys, "argv", ["split", "--calibration-size", "100", "--seed", "3"])
+    split_module.main()
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "m / r, seed 3"
+    assert "calibration" in lines[1]
+    assert "100 questions" in lines[1]
+    assert "20 correct (20.0%)" in lines[1]
+    assert "held-out" in lines[2]
+    assert "20 correct (20.0%)" in lines[2]

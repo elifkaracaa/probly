@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
+from selector import rank as rank_module
 from selector.rank import bootstrap_indices, rank_methods
 from selector.table import ScoreTable
 
@@ -76,3 +79,14 @@ def test_single_class_table_raises() -> None:
 def test_table_without_methods_raises() -> None:
     with pytest.raises(ValueError, match="no candidate methods"):
         rank_methods(make_table({}, [True, False]), n_boot=20)
+
+
+def test_main_prints_one_line_per_method(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setattr(rank_module, "load_score_table", lambda *_args, **_kwargs: three_methods())
+    monkeypatch.setattr(sys, "argv", ["rank", "--calibration-size", "50", "--n-boot", "50"])
+    rank_module.main()
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "m / r: calibration part, 50 questions, 15 correct, 50 bootstrap resamples"
+    assert lines[1].split()[0] == "method"
+    assert lines[2].split()[0] == "perfect"  # best method first
+    assert {line.split()[0] for line in lines[2:]} == {"perfect", "noisy", "random"}
