@@ -47,6 +47,7 @@ The full report over every run (Markdown + HTML, with cost and the cheapest meth
 A new uncertainty method is one file in `methods/` plus one entry in `common/registry.py` (see `CONTRACT.md`). Configs, metrics
 (AUROC, AURC, PRR, ECE) and plots: [docs/pipeline.md](docs/pipeline.md).
 Overview of all methods (family, logits, cost per question): docs/methods.md
+Scope and design decisions, with the PR behind each: [docs/decisions.md](docs/decisions.md).
 
 ## Results (PIPE)
 
