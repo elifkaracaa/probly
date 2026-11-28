@@ -20,10 +20,9 @@ samples alone.
 
 from __future__ import annotations
 
-from itertools import combinations
 from typing import TYPE_CHECKING
 
-from methods.lexical_similarity import rouge_l
+from methods.lexical_similarity import lexical_uncertainty
 import numpy as np
 import torch
 
@@ -88,22 +87,6 @@ def subsample_matrix(matrix: torch.Tensor, keep: Sequence[int]) -> torch.Tensor:
     """
     index = torch.tensor([GREEDY_INDEX, *(int(k) + 1 for k in keep)], dtype=torch.long)
     return matrix[index][:, index]
-
-
-def lexical_uncertainty(samples: Sequence[str]) -> float:
-    """Minus the mean pairwise ROUGE-L of the samples (same as the lexical_similarity plugin).
-
-    Args:
-        samples: At least two sampled answers.
-
-    Returns:
-        Uncertainty in ``[-1, 0]``; higher means the samples share fewer words.
-    """
-    pairs = list(combinations(samples, 2))
-    if not pairs:
-        msg = "lexical similarity needs at least two samples."
-        raise ValueError(msg)
-    return -sum(rouge_l(a, b) for a, b in pairs) / len(pairs)
 
 
 def subset_scores(matrix: torch.Tensor, row: dict, keep: Sequence[int]) -> tuple[float, float, float]:

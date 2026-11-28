@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any
 from methods._cache_baselines import record
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 NAME = "lexical_similarity"
@@ -51,6 +53,28 @@ def rouge_l(a: str, b: str) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
+def lexical_uncertainty(samples: Sequence[str]) -> float:
+    """Minus the mean pairwise ROUGE-L of the samples.
+
+    The one implementation used by this plugin, the semantic scores helper and the
+    sample-count analysis.
+
+    Args:
+        samples: At least two sampled answers.
+
+    Returns:
+        Uncertainty in ``[-1, 0]``; higher means the samples share fewer words.
+
+    Raises:
+        ValueError: If there are fewer than two samples.
+    """
+    pairs = list(combinations(samples, 2))
+    if not pairs:
+        msg = "lexical similarity needs at least two samples."
+        raise ValueError(msg)
+    return -sum(rouge_l(a, b) for a, b in pairs) / len(pairs)
+
+
 def score(
     rows: list[dict[str, Any]],
     model: PreTrainedModel | None = None,
@@ -60,7 +84,9 @@ def score(
     start = time.perf_counter()
     values = []
     for r in rows:
-        pairs = list(combinations(r["samples"], 2))
-        values.append(-sum(rouge_l(a, b) for a, b in pairs) / len(pairs) if pairs else None)
+        try:
+            values.append(lexical_uncertainty(r["samples"]))
+        except ValueError:  # fewer than two samples: the row is marked as failed
+            values.append(None)
     seconds = (time.perf_counter() - start) / len(rows)
     return record(NAME, rows, values, seconds)

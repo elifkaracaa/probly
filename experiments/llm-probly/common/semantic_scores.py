@@ -20,14 +20,13 @@ score means and a runnable example.
 
 from __future__ import annotations
 
-from itertools import combinations
 import logging
 import math
 import os
 import time
 from typing import TYPE_CHECKING, Any
 
-from methods.lexical_similarity import rouge_l
+from methods.lexical_similarity import lexical_uncertainty
 
 from common.graph_measures import graph_scores
 from common.nli_matrix import QUESTIONS_PER_BATCH, compute_matrices, nli_settings, sample_block, se_and_dse
@@ -108,12 +107,6 @@ def check_inputs(
         if not isinstance(value, (int, float)) or not math.isfinite(value):
             msg = f"{where}log-likelihood {i} is {value!r}; it must be a finite number (e.g. the mean token log-prob)."
             raise SemanticInputError(msg)
-
-
-def lexical_uncertainty(samples: Sequence[str]) -> float:
-    """Minus the mean pairwise ROUGE-L of the samples (same as the lexical_similarity plugin)."""
-    pairs = list(combinations(samples, 2))
-    return -sum(rouge_l(a, b) for a, b in pairs) / len(pairs)
 
 
 def scores_from_matrix(
