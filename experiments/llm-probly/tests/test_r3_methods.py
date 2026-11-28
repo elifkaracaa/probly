@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from common import verbalized
 import pytest
+
 from scripts import r3_methods
 
 
