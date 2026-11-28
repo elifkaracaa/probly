@@ -34,7 +34,7 @@ import platform
 import time
 from typing import TYPE_CHECKING
 
-from common.data import DATASETS, DEFAULT_SEED, MMLU_INSTRUCTION, cache_path, load_jsonl, load_questions
+from common.data import DATASETS, DEFAULT_SEED, INSTRUCTION, MMLU_INSTRUCTION, cache_path, load_jsonl, load_questions
 from common.generation import generate_answers, stop_at_newline_config
 import torch
 import transformers
@@ -56,7 +56,6 @@ MODELS = {
 }
 PRECISIONS = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}
 
-INSTRUCTION = "Answer the following question with as few words as possible."
 NUM_SAMPLES = 10
 TEMPERATURE = 0.7
 MAX_NEW_TOKENS = 32
