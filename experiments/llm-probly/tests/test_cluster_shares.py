@@ -39,6 +39,15 @@ def test_all_samples_agree():
     assert cluster_shares(matrix) == (1.0, 1.0)
 
 
+@pytest.mark.parametrize(("n_clusters", "per_cluster"), [(2, 5), (5, 2), (10, 1)])
+def test_equal_clusters_share_one_nth(n_clusters, per_cluster):
+    # greedy answer in the first cluster, then n equally large clusters of samples
+    groups = ["g0"] + [f"g{c}" for c in range(n_clusters) for _ in range(per_cluster)]
+    largest, greedy = cluster_shares(matrix_from_groups(groups))
+    assert largest == pytest.approx(1 / n_clusters)
+    assert greedy == pytest.approx(1 / n_clusters)
+
+
 def test_neutral_in_both_directions_is_not_the_same_meaning():
     """Same rule as SE: neutral both ways keeps two answers apart."""
     matrix = matrix_from_groups(["a", "a", "a"])

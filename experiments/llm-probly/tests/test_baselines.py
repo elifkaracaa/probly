@@ -54,6 +54,7 @@ def test_empty_answer_is_failed(plugin):
 def test_rouge_l():
     assert lexical_similarity.rouge_l("Paris", "paris.") == 1.0
     assert lexical_similarity.rouge_l("Paris", "Berlin") == 0.0
+    assert lexical_similarity.rouge_l("", "Paris") == 0.0  # an empty answer shares no words
     # LCS of "the city of paris" and "paris city" is 1 word -> P=1/2, R=1/4
     assert lexical_similarity.rouge_l("the city of paris", "paris city") == pytest.approx(2 * 0.5 * 0.25 / 0.75)
 

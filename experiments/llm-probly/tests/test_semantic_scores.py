@@ -71,6 +71,26 @@ def test_agreeing_samples_give_the_lowest_scores():
     assert scores["eccentricity"] == pytest.approx(0.0, abs=1e-9)
 
 
+@pytest.mark.parametrize(("n_clusters", "per_cluster"), [(2, 5), (5, 2), (10, 1)])
+def test_equal_clusters_give_the_known_maximum(n_clusters, per_cluster):
+    """Equally large clusters of equally likely answers: every measure has a closed form in n."""
+    words = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa"]
+    samples = [word for word in words[:n_clusters] for _ in range(per_cluster)]
+    scores = semantic_scores(
+        samples, sample_log_likelihoods=[-0.5] * len(samples), clusterer=cast("Any", FakeClusterer())
+    )
+
+    n, k = n_clusters, per_cluster
+    assert scores["semantic_entropy"] == pytest.approx(math.log(n))
+    assert scores["discrete_semantic_entropy"] == pytest.approx(math.log(n))
+    assert scores["num_semantic_sets"] == n
+    assert scores["eig_val_laplacian"] == pytest.approx(n)
+    assert scores["deg_mat"] == pytest.approx(1 - 1 / n)
+    assert scores["eccentricity"] == pytest.approx(math.sqrt(n - 1))
+    # same-cluster pairs share every word (ROUGE-L 1), all other pairs none (0)
+    assert scores["lexical_similarity"] == pytest.approx(-(k - 1) / (n * k - 1))
+
+
 @pytest.mark.parametrize("model", ["qwen0.5b", "qwen1.5b"])
 def test_helper_gives_the_benchmark_scores(model):
     """Equivalence: on cached questions the helper's scores equal the stored plugin results."""
