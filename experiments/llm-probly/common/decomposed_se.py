@@ -130,8 +130,7 @@ def clarify_and_answer(
         One dict per question with ``clarifications`` (``C`` texts) and ``answers``
         (``C * K`` texts, clarification by clarification).
     """
-    from scripts.generate import INSTRUCTION  # noqa: PLC0415
-
+    from common.data import INSTRUCTION  # noqa: PLC0415  (loads datasets)
     from common.generation import stop_at_newline_config  # noqa: PLC0415  (loads transformers)
     from probly.representer.clarifier.huggingface import HFQuestionClarifier  # noqa: PLC0415
     from probly.representer.sampler.huggingface import HFTextGenerationSampler  # noqa: PLC0415
